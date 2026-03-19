@@ -13,7 +13,8 @@ services:
       - mongodb_config:/data/configdb
       - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-rs.js:ro
     networks:
-      - 5g-core-network
+      5g-core-network:
+        ipv4_address: 172.20.0.254
     healthcheck:
       test: echo 'db.adminCommand("ping")' | mongosh --quiet
       interval: 10s
@@ -22,38 +23,489 @@ services:
       start_period: 30s
     command: mongod --replSet rs0
 
-  # 5G Core Network Function Container (example: can run any NF)
-  5g-core:
+  # ========================================================================
+  # 5G Core Network Functions - Startup Order from Log
+  # ========================================================================
+
+  # 1st: NRF (Network Repository Function)
+  5g-core-nrf:
     image: teste-core:latest
-    container_name: 5g-core-nf
+    container_name: 5g-core-nrf
     depends_on:
       mongodb:
         condition: service_healthy
     restart: unless-stopped
     environment:
-      # Tell the container to skip local MongoDB startup and use the shared one
       SKIP_MONGODB: "true"
-      # MongoDB connection string for Open5GS (no auth for simple setup)
       MONGODB_URI: "mongodb://mongodb:27017/open5gs"
     networks:
-      - 5g-core-network
-    # TUN device access from host
+      5g-core-network:
+        ipv4_address: 172.20.0.10
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
       - NET_RAW
     devices:
-      # If TUN interfaces are created on host, they appear here
       - /dev/net/tun:/dev/net/tun
-    # Privileged mode needed for network namespace manipulation
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      # Mount TUN interfaces from host (these need to be created on host first)
-      # For now, the container will try to create them if needed
       - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
+    command: ./install/bin/open5gs-nrfd
+
+  # 2nd: SCP (Service Communication Proxy)
+  5g-core-scp:
+    image: teste-core:latest
+    container_name: 5g-core-scp
+    depends_on:
+      5g-core-nrf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.200
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-scpd
+
+  # 3rd: SEPP (Security Edge Protection Proxy)
+  5g-core-sepp:
+    image: teste-core:latest
+    container_name: 5g-core-sepp
+    depends_on:
+      5g-core-scp:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.250
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-seppd -c ./install/etc/open5gs/sepp1.yaml
+
+  # 4th: AMF (Access and Mobility Function)
+  5g-core-amf:
+    image: teste-core:latest
+    container_name: 5g-core-amf
+    depends_on:
+      5g-core-sepp:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.5
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-amfd
+
+  # 5th: SMF (Session Management Function)
+  5g-core-smf:
+    image: teste-core:latest
+    container_name: 5g-core-smf
+    depends_on:
+      5g-core-amf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.4
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-smfd
+
+  # 6th: UPF (User Plane Function)
+  5g-core-upf:
+    image: teste-core:latest
+    container_name: 5g-core-upf
+    depends_on:
+      5g-core-smf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.7
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-upfd
+
+  # 7th: AUSF (Authentication Server Function)
+  5g-core-ausf:
+    image: teste-core:latest
+    container_name: 5g-core-ausf
+    depends_on:
+      5g-core-upf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.11
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-ausfd
+
+  # 8th: UDM (Unified Data Management)
+  5g-core-udm:
+    image: teste-core:latest
+    container_name: 5g-core-udm
+    depends_on:
+      5g-core-ausf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.12
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-udmd
+
+  # 9th: PCF (Policy Control Function)
+  5g-core-pcf:
+    image: teste-core:latest
+    container_name: 5g-core-pcf
+    depends_on:
+      5g-core-udm:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.13
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-pcfd
+
+  # 10th: NSSF (Network Slice Selection Function)
+  5g-core-nssf:
+    image: teste-core:latest
+    container_name: 5g-core-nssf
+    depends_on:
+      5g-core-pcf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.14
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-nssfd
+
+  # 11th: BSF (Binding Support Function)
+  5g-core-bsf:
+    image: teste-core:latest
+    container_name: 5g-core-bsf
+    depends_on:
+      5g-core-nssf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.15
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-bsfd
+
+  # 12th: UDR (Unified Data Repository)
+  5g-core-udr:
+    image: teste-core:latest
+    container_name: 5g-core-udr
+    depends_on:
+      5g-core-bsf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.20
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-udrd
+
+  # ========================================================================
+  # 4G/Legacy Network Functions
+  # ========================================================================
+
+  # 13th: MME (Mobility Management Entity) - 4G
+  5g-core-mme:
+    image: teste-core:latest
+    container_name: 5g-core-mme
+    depends_on:
+      5g-core-udr:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.2
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-mmed
+
+  # 14th: SGW-C (Serving Gateway - Control Plane) - 4G
+  5g-core-sgwc:
+    image: teste-core:latest
+    container_name: 5g-core-sgwc
+    depends_on:
+      5g-core-mme:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.3
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-sgwcd
+
+  # 15th: SGW-U (Serving Gateway - User Plane) - 4G
+  5g-core-sgwu:
+    image: teste-core:latest
+    container_name: 5g-core-sgwu
+    depends_on:
+      5g-core-sgwc:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.6
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-sgwud
+
+  # 16th: HSS (Home Subscriber Server) - 4G
+  5g-core-hss:
+    image: teste-core:latest
+    container_name: 5g-core-hss
+    depends_on:
+      5g-core-sgwu:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.1
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-hssd
+
+  # 17th: PCRF (Policy and Charging Rules Function) - 4G
+  5g-core-pcrf:
+    image: teste-core:latest
+    container_name: 5g-core-pcrf
+    depends_on:
+      5g-core-hss:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      SKIP_MONGODB: "true"
+      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.21
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+      - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-pcrfd
 
 networks:
   5g-core-network:
