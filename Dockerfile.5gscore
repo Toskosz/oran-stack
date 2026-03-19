@@ -1,0 +1,43 @@
+FROM ubuntu:22.04
+
+# NOTE: This container must be run with the following flags:
+#   --device=/dev/net/tun \
+#   --cap-add=NET_ADMIN \
+# These are required for TUN interface creation (e.g. ip tuntap add name ogstun mode tun)
+
+RUN apt-get update && apt-get install -y curl gnupg iproute2
+
+RUN curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+RUN echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+RUN apt-get update && apt-get install -y mongodb-org
+
+RUN apt-get install -y \
+    python3-pip python3-setuptools python3-wheel ninja-build \
+    build-essential flex bison git cmake \
+    libsctp-dev libgnutls28-dev libgcrypt-dev libssl-dev \
+    libmongoc-dev libbson-dev libyaml-dev libnghttp2-dev \
+    libmicrohttpd-dev libcurl4-gnutls-dev libtins-dev \
+    libtalloc-dev meson
+
+RUN if apt-cache show libidn-dev > /dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends libidn-dev; \
+    else \
+        apt-get install -y --no-install-recommends libidn11-dev; \
+    fi
+
+RUN git clone https://github.com/open5gs/open5gs
+
+WORKDIR /open5gs
+
+RUN meson build --prefix=$(pwd)/install
+
+RUN ninja -C build
+
+RUN ninja -C build install
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
