@@ -1,0 +1,21 @@
+################################################################################
+# SCP Configuration
+# Service Communication Proxy - Routes SBI requests between NFs
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+scp:
+  sbi:
+    server:
+      - address: 172.20.0.200
+        port: 7777
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/scp.log
+  level: ${LOG_LEVEL}

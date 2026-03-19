@@ -1,0 +1,31 @@
+################################################################################
+# SEPP Configuration
+# Security Edge Protection Proxy - Handles inter-PLMN roaming security
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+sepp:
+  sbi:
+    server:
+      - address: 127.0.0.250
+        port: 7777
+    client:
+      sepp_N32f:
+        - uri: http://127.0.1.250:7777
+  n32f:
+    server:
+      - address: 127.0.1.251
+        port: 7777
+    client:
+      sepp_N32:
+        - uri: https://127.0.1.252:7777
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/sepp.log
+  level: ${LOG_LEVEL}

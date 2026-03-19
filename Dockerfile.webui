@@ -1,0 +1,46 @@
+# Multi-stage Dockerfile for Open5GS WebUI
+# Stage 1: Build the WebUI application
+
+FROM node:20-bookworm as builder
+
+# Install git for cloning the repository
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+
+# Clone Open5GS repository
+RUN git clone https://github.com/open5gs/open5gs.git /build/open5gs
+
+WORKDIR /build/open5gs/webui
+
+# Install dependencies and build
+RUN npm ci
+
+# Build the application
+RUN npm run build
+
+# Stage 2: Runtime stage
+FROM node:20-bookworm
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy built application from builder
+COPY --from=builder /build/open5gs/webui .
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV MONGODB_URI=mongodb://mongodb:27017/open5gs
+ENV HOSTNAME=0.0.0.0
+ENV PORT=9999
+
+# Expose the WebUI port
+EXPOSE 9999
+
+# Health check to verify WebUI is responding
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:9999/ || exit 1
+
+# Start the WebUI application
+CMD ["npm", "run", "start"]

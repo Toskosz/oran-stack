@@ -7,6 +7,35 @@ trap 'echo "[WARN] Command failed at line $LINENO with exit code $?"' ERR
 echo "[INFO] Starting Open5GS entrypoint..."
 
 # ============================================================================
+# Configuration Setup - Populate YAML files from templates
+# ============================================================================
+
+echo "[INFO] Populating configuration files from templates..."
+
+# Ensure output directory exists
+mkdir -p /open5gs/install/etc/open5gs
+
+# List of all NF configuration files
+declare -a configs=("nrf" "scp" "sepp1" "amf" "smf" "upf" "ausf" "udm" "pcf" "nssf" "bsf" "udr" "mme" "sgwc" "sgwu" "hss" "pcrf")
+
+# Substitute environment variables in each config template
+for config in "${configs[@]}"; do
+    if [ -f "/open5gs/configs/${config}.yaml" ]; then
+        echo "[INFO] Processing ${config}.yaml..."
+        if envsubst < "/open5gs/configs/${config}.yaml" > "/open5gs/install/etc/open5gs/${config}.yaml"; then
+            echo "[OK] Generated /open5gs/install/etc/open5gs/${config}.yaml"
+        else
+            echo "[WARN] Failed to process ${config}.yaml"
+        fi
+    else
+        echo "[WARN] Template not found: /open5gs/configs/${config}.yaml"
+    fi
+done
+
+echo "[OK] Configuration files populated"
+echo ""
+
+# ============================================================================
 # Network Configuration (with error handling)
 # ============================================================================
 

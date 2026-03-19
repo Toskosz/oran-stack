@@ -1,0 +1,49 @@
+################################################################################
+# SMF Configuration
+# Session Management Function - Manages PDU sessions and connectivity
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+smf:
+  sbi:
+    server:
+      - address: 172.20.0.4
+        port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
+      scp:
+        - uri: http://172.20.0.200:7777
+  pfcp:
+    server:
+      - address: 172.20.0.4
+        port: 8805
+    client:
+      upf:
+        - uri: http://172.20.0.7:8805
+  gtp:
+    server:
+      - address: 172.20.0.4
+        port: 2123
+      - address: 172.20.0.4
+        port: 2152
+  metrics:
+    server:
+      - address: 172.20.0.4
+        port: 9090
+  session:
+    - subnet: ${SMF_SUBNET4}
+    - subnet: ${SMF_SUBNET6}
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/smf.log
+  level: ${LOG_LEVEL}

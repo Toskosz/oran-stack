@@ -1,0 +1,29 @@
+################################################################################
+# NSSF Configuration
+# Network Slice Selection Function - Selects appropriate network slices
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+nssf:
+  sbi:
+    server:
+      - address: 172.20.0.14
+        port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
+      scp:
+        - uri: http://172.20.0.200:7777
+  nssai_supported:
+    - sst: 1
+      default: true
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/nssf.log
+  level: ${LOG_LEVEL}

@@ -1,17 +1,15 @@
 version: '3.8'
-
 services:
-  # Shared MongoDB instance for all 5G core network functions
   mongodb:
     image: mongo:7.0
     container_name: 5g-mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017"
+    - 27017:27017
     volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-      - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-rs.js:ro
+    - mongodb_data:/data/db
+    - mongodb_config:/data/configdb
+    - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-rs.js:ro
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.254
@@ -22,12 +20,37 @@ services:
       retries: 5
       start_period: 30s
     command: mongod --replSet rs0
-
-  # ========================================================================
-  # 5G Core Network Functions - Startup Order from Log
-  # ========================================================================
-
-  # 1st: NRF (Network Repository Function)
+  5g-core-webui:
+    image: open5gs-webui:latest
+    container_name: 5g-core-webui
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: '9999'
+    networks:
+      5g-core-network:
+        ipv4_address: 172.20.0.16
+    ports:
+    - 9999:9999
+    volumes:
+    - /var/log/open5gs:/var/log/open5gs
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:9999/
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
   5g-core-nrf:
     image: teste-core:latest
     container_name: 5g-core-nrf
@@ -36,26 +59,36 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.10
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-nrfd
-
-  # 2nd: SCP (Service Communication Proxy)
+    command: ./install/bin/open5gs-nrfd -c /open5gs/install/etc/open5gs/nrf.yaml
   5g-core-scp:
     image: teste-core:latest
     container_name: 5g-core-scp
@@ -64,26 +97,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.200
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-scpd
-
-  # 3rd: SEPP (Security Edge Protection Proxy)
+    command: ./install/bin/open5gs-scpd -c /open5gs/install/etc/open5gs/scp.yaml
   5g-core-sepp:
     image: teste-core:latest
     container_name: 5g-core-sepp
@@ -92,26 +135,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.250
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-seppd -c ./install/etc/open5gs/sepp1.yaml
-
-  # 4th: AMF (Access and Mobility Function)
+    command: ./install/bin/open5gs-seppd -c /open5gs/install/etc/open5gs/sepp1.yaml
   5g-core-amf:
     image: teste-core:latest
     container_name: 5g-core-amf
@@ -120,26 +173,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.5
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-amfd
-
-  # 5th: SMF (Session Management Function)
+    command: ./install/bin/open5gs-amfd -c /open5gs/install/etc/open5gs/amf.yaml
   5g-core-smf:
     image: teste-core:latest
     container_name: 5g-core-smf
@@ -148,26 +211,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.4
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-smfd
-
-  # 6th: UPF (User Plane Function)
+    command: ./install/bin/open5gs-smfd -c /open5gs/install/etc/open5gs/smf.yaml
   5g-core-upf:
     image: teste-core:latest
     container_name: 5g-core-upf
@@ -176,26 +249,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.7
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-upfd
-
-  # 7th: AUSF (Authentication Server Function)
+    command: ./install/bin/open5gs-upfd -c /open5gs/install/etc/open5gs/upf.yaml
   5g-core-ausf:
     image: teste-core:latest
     container_name: 5g-core-ausf
@@ -204,26 +287,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.11
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-ausfd
-
-  # 8th: UDM (Unified Data Management)
+    command: ./install/bin/open5gs-ausfd -c /open5gs/install/etc/open5gs/ausf.yaml
   5g-core-udm:
     image: teste-core:latest
     container_name: 5g-core-udm
@@ -232,26 +325,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.12
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-udmd
-
-  # 9th: PCF (Policy Control Function)
+    command: ./install/bin/open5gs-udmd -c /open5gs/install/etc/open5gs/udm.yaml
   5g-core-pcf:
     image: teste-core:latest
     container_name: 5g-core-pcf
@@ -260,26 +363,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.13
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-pcfd
-
-  # 10th: NSSF (Network Slice Selection Function)
+    command: ./install/bin/open5gs-pcfd -c /open5gs/install/etc/open5gs/pcf.yaml
   5g-core-nssf:
     image: teste-core:latest
     container_name: 5g-core-nssf
@@ -288,26 +401,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.14
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-nssfd
-
-  # 11th: BSF (Binding Support Function)
+    command: ./install/bin/open5gs-nssfd -c /open5gs/install/etc/open5gs/nssf.yaml
   5g-core-bsf:
     image: teste-core:latest
     container_name: 5g-core-bsf
@@ -316,26 +439,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.15
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-bsfd
-
-  # 12th: UDR (Unified Data Repository)
+    command: ./install/bin/open5gs-bsfd -c /open5gs/install/etc/open5gs/bsf.yaml
   5g-core-udr:
     image: teste-core:latest
     container_name: 5g-core-udr
@@ -344,30 +477,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.20
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-udrd
-
-  # ========================================================================
-  # 4G/Legacy Network Functions
-  # ========================================================================
-
-  # 13th: MME (Mobility Management Entity) - 4G
+    command: ./install/bin/open5gs-udrd -c /open5gs/install/etc/open5gs/udr.yaml
   5g-core-mme:
     image: teste-core:latest
     container_name: 5g-core-mme
@@ -376,26 +515,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.2
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-mmed
-
-  # 14th: SGW-C (Serving Gateway - Control Plane) - 4G
+    command: ./install/bin/open5gs-mmed -c /open5gs/install/etc/open5gs/mme.yaml
   5g-core-sgwc:
     image: teste-core:latest
     container_name: 5g-core-sgwc
@@ -404,26 +553,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.3
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-sgwcd
-
-  # 15th: SGW-U (Serving Gateway - User Plane) - 4G
+    command: ./install/bin/open5gs-sgwcd -c /open5gs/install/etc/open5gs/sgwc.yaml
   5g-core-sgwu:
     image: teste-core:latest
     container_name: 5g-core-sgwu
@@ -432,26 +591,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.6
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-sgwud
-
-  # 16th: HSS (Home Subscriber Server) - 4G
+    command: ./install/bin/open5gs-sgwud -c /open5gs/install/etc/open5gs/sgwu.yaml
   5g-core-hss:
     image: teste-core:latest
     container_name: 5g-core-hss
@@ -460,26 +629,36 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.1
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-hssd
-
-  # 17th: PCRF (Policy and Charging Rules Function) - 4G
+    command: ./install/bin/open5gs-hssd -c /open5gs/install/etc/open5gs/hss.yaml
   5g-core-pcrf:
     image: teste-core:latest
     container_name: 5g-core-pcrf
@@ -488,32 +667,42 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: "true"
-      MONGODB_URI: "mongodb://mongodb:27017/open5gs"
+      SKIP_MONGODB: 'true'
+      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      MCC: '001'
+      MNC: '01'
+      TAC: '1'
+      AMF_REGION: '2'
+      AMF_SET: '1'
+      SMF_SUBNET4: 10.45.0.0/16
+      SMF_SUBNET6: 2001:db8:cafe::/48
+      UPF_IP: 172.20.0.7
+      MME_GID: '2'
+      MME_CODE: '1'
+      LOG_LEVEL: info
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.21
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
-      - NET_RAW
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
     devices:
-      - /dev/net/tun:/dev/net/tun
+    - /dev/net/tun:/dev/net/tun
     privileged: true
     stdin_open: true
     tty: true
     volumes:
-      - /var/log/open5gs:/var/log/open5gs
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
-    command: ./install/bin/open5gs-pcrfd
-
+    command: ./install/bin/open5gs-pcrfd -c /open5gs/install/etc/open5gs/pcrf.yaml
 networks:
   5g-core-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
-
+      - subnet: 172.20.0.0/16
 volumes:
   mongodb_data:
     driver: local
