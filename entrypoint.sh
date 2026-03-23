@@ -124,4 +124,10 @@ echo "[OK] Open5GS container ready"
 echo "=========================================="
 echo ""
 
+if [ "$#" -gt 0 ]; then
+    echo "[INFO] Executing command: $*"
+    exec "$@"
+fi
+
+echo "[INFO] No command provided, starting interactive shell"
 exec /bin/bash
