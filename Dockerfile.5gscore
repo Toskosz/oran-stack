@@ -5,7 +5,7 @@ FROM ubuntu:22.04
 #   --cap-add=NET_ADMIN \
 # These are required for TUN interface creation (e.g. ip tuntap add name ogstun mode tun)
 
-RUN apt-get update && apt-get install -y curl gnupg iproute2
+RUN apt-get update && apt-get install -y curl gnupg iproute2 gettext-base
 
 RUN curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
 
@@ -37,10 +37,9 @@ RUN ninja -C build
 
 RUN ninja -C build install
 
-# Fix MongoDB URI for Docker Compose setup
-# Change from localhost (which doesn't work in Docker containers)
-# to 'mongodb' (the Docker service hostname)
-RUN sed -i 's/^db_uri: mongodb:\/\/localhost/db_uri: mongodb:\/\/mongodb:27017/' /open5gs/build/configs/sample.yaml
+# Copy configuration templates (will be substituted at runtime by entrypoint.sh)
+COPY configs/ /open5gs/configs/
+RUN mkdir -p /open5gs/install/etc/open5gs/
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

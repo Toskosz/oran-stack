@@ -1,0 +1,32 @@
+################################################################################
+# PCF Configuration
+# Policy Control Function - Manages service policies and charging
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+pcf:
+  sbi:
+    server:
+      - address: 172.20.0.13
+        port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
+      scp:
+        - uri: http://172.20.0.200:7777
+      udr:
+        - uri: http://172.20.0.20:7777
+  metrics:
+    server:
+      - address: 172.20.0.13
+        port: 9090
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/pcf.log
+  level: ${LOG_LEVEL}

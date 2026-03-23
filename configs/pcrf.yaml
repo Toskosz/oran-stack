@@ -1,0 +1,18 @@
+################################################################################
+# PCRF Configuration
+# Policy and Charging Rules Function - Manages 4G policies
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+pcrf:
+  freeDiameter: /etc/freeDiameter/pcrf.conf
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/pcrf.log
+  level: ${LOG_LEVEL}

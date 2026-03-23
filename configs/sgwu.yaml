@@ -1,0 +1,26 @@
+################################################################################
+# SGW-U Configuration
+# Serving Gateway - User Plane (4G)
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+sgwu:
+  pfcp:
+    server:
+      - address: 172.20.0.6
+        port: 8805
+  gtpu:
+    server:
+      - address: 172.20.0.6
+        port: 2152
+  session:
+    - subnet: ${SMF_SUBNET4}
+    - subnet: ${SMF_SUBNET6}
+
+logger:
+  file: /var/log/open5gs/sgwu.log
+  level: ${LOG_LEVEL}

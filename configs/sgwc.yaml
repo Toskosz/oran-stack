@@ -1,0 +1,33 @@
+################################################################################
+# SGW-C Configuration
+# Serving Gateway - Control Plane (4G)
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+sgwc:
+  gtpc:
+    server:
+      - address: 172.20.0.3
+        port: 2123
+    client:
+      mme:
+        - uri: http://172.20.0.2:2123
+      smf:
+        - uri: http://172.20.0.4:2123
+  pfcp:
+    server:
+      - address: 172.20.0.3
+        port: 8805
+    client:
+      sgwu:
+        - uri: http://172.20.0.6:8805
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/sgwc.log
+  level: ${LOG_LEVEL}

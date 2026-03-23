@@ -1,0 +1,18 @@
+################################################################################
+# HSS Configuration
+# Home Subscriber Server - Stores 4G subscriber data
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+hss:
+  freeDiameter: /etc/freeDiameter/hss.conf
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/hss.log
+  level: ${LOG_LEVEL}

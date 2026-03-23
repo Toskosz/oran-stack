@@ -1,0 +1,53 @@
+################################################################################
+# MME Configuration
+# Mobility Management Entity - 4G equivalent of AMF
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+mme:
+  freeDiameter: /etc/freeDiameter/mme.conf
+  s1ap:
+    server:
+      - address: 172.20.0.2
+        port: 36412
+  gtpc:
+    server:
+      - address: 172.20.0.2
+        port: 2123
+    client:
+      sgw:
+        - uri: http://172.20.0.3:2123
+  metrics:
+    server:
+      - address: 172.20.0.2
+        port: 9090
+  gummei:
+    plmn_id:
+      mcc: ${MCC}
+      mnc: ${MNC}
+    mme_gid: ${MME_GID}
+    mme_code: ${MME_CODE}
+  tai:
+    plmn_id:
+      mcc: ${MCC}
+      mnc: ${MNC}
+    tac: ${TAC}
+  security:
+    integrity_order:
+      - EIA2
+      - EIA1
+      - EIA0
+    ciphering_order:
+      - EEA0
+      - EEA1
+      - EEA2
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/mme.log
+  level: ${LOG_LEVEL}

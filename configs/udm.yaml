@@ -1,0 +1,28 @@
+################################################################################
+# UDM Configuration
+# Unified Data Management - Manages subscriber data and authentication
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+udm:
+  sbi:
+    server:
+      - address: 172.20.0.12
+        port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
+      scp:
+        - uri: http://172.20.0.200:7777
+      udr:
+        - uri: http://172.20.0.20:7777
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/udm.log
+  level: ${LOG_LEVEL}

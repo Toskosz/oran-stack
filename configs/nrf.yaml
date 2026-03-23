@@ -1,0 +1,25 @@
+################################################################################
+# NRF Configuration
+# Network Repository Function - Service discovery and NF registration
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+nrf:
+  serving:  # PLMN for 5G roaming and NF registration
+    - plmn_id:
+        mcc: ${MCC}
+        mnc: ${MNC}
+  sbi:
+    server:
+      - address: 172.20.0.10
+        port: 7777
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file: /var/log/open5gs/nrf.log
+  level: ${LOG_LEVEL}
