@@ -24,6 +24,7 @@ services:
     - mongodb_data:/data/db
     - mongodb_config:/data/configdb
     - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-rs.js:ro
+    - ./init-webui-data.js:/docker-entrypoint-initdb.d/init-webui-data.js:ro
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.254
