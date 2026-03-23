@@ -1,0 +1,176 @@
+# ============================================================================
+# O-RAN SC Near-RT RIC Platform - Docker Compose
+# ============================================================================
+# Deploys the Near-RT RIC platform components using pre-built O-RAN SC images.
+#
+# Components:
+#   - dbaas:       Redis-based shared data layer (SDL)
+#   - e2term:      E2 Termination - SCTP endpoint for E2 nodes (gNB/DU)
+#   - e2mgr:       E2 Manager - REST API for E2 node management
+#   - submgr:      Subscription Manager - E2 subscription handling
+#   - rtmgr:       Routing Manager - RMR message routing
+#   - a1mediator:  A1 Mediator - A1 policy interface (optional)
+#
+# Network:
+#   ric-network (172.22.0.0/24) - internal RIC communication
+#   The DU from docker-compose.cudu.yml connects to this network for E2.
+#
+# Usage:
+#   docker compose -f docker-compose.ric.yml up -d
+#
+# Prerequisite:
+#   The 5G core (docker-compose.yml) should be running first.
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # DBAAS - Database as a Service (Redis/SDL)
+  # --------------------------------------------------------------------------
+  # Provides the shared data layer used by e2mgr, submgr, and a1mediator
+  # for storing RAN node state, subscriptions, and policies.
+  ric-dbaas:
+    image: redis:6-alpine
+    container_name: ric-dbaas
+    hostname: ric-dbaas
+    restart: unless-stopped
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_DBAAS_IP}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # --------------------------------------------------------------------------
+  # E2 Termination - SCTP endpoint for E2 interface
+  # --------------------------------------------------------------------------
+  # Listens on SCTP port 36421 for E2 Setup / RIC Indication / RIC Control
+  # messages from E2 nodes (DU, gNB). Forwards to e2mgr via RMR.
+  ric-e2term:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2:6.0.8
+    container_name: ric-e2term
+    hostname: ric-e2term
+    restart: unless-stopped
+    privileged: true
+    environment:
+      RMR_SEED_RT: /opt/e2/dockerRouter.txt
+      E2TERM_POD_NAME: ric-e2term
+      LD_LIBRARY_PATH: /usr/local/lib
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
+    volumes:
+      - ./ric/config/e2term/config.conf:/opt/e2/config/config.conf:ro
+      - ./ric/config/e2term/dockerRouter.txt:/opt/e2/dockerRouter.txt:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_E2TERM_IP}
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # E2 Manager - RAN node lifecycle management
+  # --------------------------------------------------------------------------
+  # REST API (port 3800) for querying E2 node state. Processes E2 Setup
+  # requests and maintains the RAN inventory in Redis/SDL.
+  ric-e2mgr:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2mgr:6.0.8
+    container_name: ric-e2mgr
+    hostname: ric-e2mgr
+    restart: unless-stopped
+    environment:
+      LD_LIBRARY_PATH: /usr/local/lib
+      RMR_SEED_RT: /opt/E2Manager/router.txt
+      RMR_VCTL_FILE: /tmp/rmr.verbose
+      port: "3800"
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
+    volumes:
+      - ./ric/config/e2mgr/configuration.yaml:/opt/E2Manager/resources/configuration.yaml:ro
+      - ./ric/config/e2mgr/router.txt:/opt/E2Manager/router.txt:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_E2MGR_IP}
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Routing Manager - RMR route distribution
+  # --------------------------------------------------------------------------
+  # Manages the RMR routing table for message passing between RIC components.
+  # Provides NBI on port 8989 for route updates from e2mgr.
+  ric-rtmgr:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
+    container_name: ric-rtmgr
+    hostname: ric-rtmgr
+    restart: unless-stopped
+    environment:
+      RMR_SEED_RT: /uta_rtg_ric.rt
+    volumes:
+      - ./ric/config/rtmgr/rtmgr-config.yaml:/cfg/rtmgr-config.yaml:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_RTMGR_IP}
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Subscription Manager - E2 subscription lifecycle
+  # --------------------------------------------------------------------------
+  # Handles E2 subscription requests from xApps and manages their lifecycle.
+  # Communicates with e2term for subscription procedures.
+  ric-submgr:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-submgr:0.10.4
+    container_name: ric-submgr
+    hostname: ric-submgr
+    restart: unless-stopped
+    environment:
+      CFG_FILE: /opt/config/submgr-config.yaml
+      RMR_SEED_RT: /opt/config/submgr-uta-rtg.rt
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
+    volumes:
+      - ./ric/config/submgr/submgr-config.yaml:/opt/config/submgr-config.yaml:ro
+      - ./ric/config/submgr/submgr-uta-rtg.rt:/opt/config/submgr-uta-rtg.rt:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_SUBMGR_IP}
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # A1 Mediator - A1 policy interface (optional)
+  # --------------------------------------------------------------------------
+  # Provides the A1 interface for non-RT RIC policy management.
+  # REST API on port 10000 for policy creation/query.
+  ric-a1mediator:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-a1:3.2.2
+    container_name: ric-a1mediator
+    hostname: ric-a1mediator
+    restart: unless-stopped
+    environment:
+      CFG_FILE: /opt/a1-mediator/config.yaml
+      A1_CONFIG_FILE: /opt/a1-mediator/config.yaml
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
+    volumes:
+      - ./ric/config/a1mediator/config.yaml:/opt/a1-mediator/config.yaml:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_A1MEDIATOR_IP}
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+networks:
+  ric-network:
+    name: ric-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${RIC_SUBNET}

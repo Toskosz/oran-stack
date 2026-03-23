@@ -1,0 +1,70 @@
+# ============================================================================
+# srsRAN DU (Distributed Unit) Configuration
+# ============================================================================
+# Based on 3GPP Option 2 split (PDCP/RLC boundary).
+# The DU includes embedded RU functionality using ZMQ virtual radio.
+#
+# Interfaces:
+#   F1-C (SCTP):    DU <-> CU control plane on ran-network
+#   F1-U (GTP-U):   DU <-> CU user plane on ran-network (port 2153)
+#   E2 (SCTP):      DU <-> RIC e2term at 172.22.0.210 on ric-network
+#   ZMQ:            DU <-> UE virtual radio on ran-network
+#
+# The DU is multi-homed:
+#   - ran-network (172.21.0.51): for F1 to CU and ZMQ to UE
+#   - ric-network (172.22.0.51): for E2 to RIC
+# ============================================================================
+
+f1ap:
+  cu_cp_addr: 172.21.0.50             # CU on ran-network (F1-C)
+  bind_addr: 172.21.0.51              # DU's ran-network interface
+
+f1u:
+  bind_port: 2153
+  peer_port: 2153
+  socket:
+    bind_addr: 172.21.0.51
+
+# E2 interface to Near-RT RIC
+e2:
+  enable_du_e2: true
+  addr: 172.22.0.210                  # RIC e2term on ric-network
+  port: 36421
+  bind_addr: 172.22.0.51              # DU's ric-network interface
+  e2sm_kpm_enabled: true
+  e2sm_rc_enabled: true
+
+# Virtual radio (ZMQ) - RU functionality embedded in DU
+ru_sdr:
+  device_driver: zmq
+  device_args: tx_port=tcp://172.21.0.51:2000,rx_port=tcp://172.21.0.34:2001,base_srate=23.04e6
+  srate: 23.04
+  tx_gain: 75
+  rx_gain: 75
+
+# Cell configuration
+cell_cfg:
+  dl_arfcn: 368500
+  band: 3
+  channel_bandwidth_MHz: 20
+  common_scs: 15
+  plmn: "00101"
+  tac: 1
+  pci: 1
+  pdcch:
+    dedicated:
+      ss2_type: common
+      dci_format_0_1_and_1_1: false
+    common:
+      ss0_index: 0
+      coreset0_index: 13
+  pdsch:
+    mcs_table: qam64
+  pusch:
+    mcs_table: qam64
+  prach:
+    prach_config_index: 1
+
+log:
+  filename: /mnt/srsran/logs/du.log
+  all_level: info

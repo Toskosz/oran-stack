@@ -1,0 +1,138 @@
+# ============================================================================
+# srsRAN CU/DU Split + UE - Docker Compose
+# ============================================================================
+# Deploys the disaggregated RAN with 3GPP Option 2 CU/DU split and a
+# simulated UE using ZMQ virtual radio.
+#
+# Components:
+#   - srs_cu:         Central Unit (CU-CP + CU-UP) - srscu binary
+#   - srs_du:         Distributed Unit (DU + embedded RU) - srsdu binary
+#   - srsue_5g_zmq:   UE simulator - srsue binary (ZMQ radio)
+#
+# Network topology:
+#   srs_cu:  ran-network (172.21.0.50) + core-network (172.20.0.50)
+#   srs_du:  ran-network (172.21.0.51) + ric-network  (172.22.0.51)
+#   srsue:   ran-network (172.21.0.34)
+#
+# Interfaces:
+#   N2:  srs_cu (172.20.0.50) -> AMF (172.20.0.5)     via core-network
+#   F1:  srs_du (172.21.0.51) -> srs_cu (172.21.0.50)  via ran-network
+#   E2:  srs_du (172.22.0.51) -> e2term (172.22.0.210)  via ric-network
+#   ZMQ: srsue  (172.21.0.34) <-> srs_du (172.21.0.51)  via ran-network
+#
+# Prerequisites:
+#   1. Build images first:
+#      docker build -f Dockerfile.srsran -t srsran-split:latest .
+#      docker build -f Dockerfile.srsue -t srsue:latest .
+#   2. Core network must be running (docker-compose.yml)
+#   3. RIC must be running (docker-compose.ric.yml)
+#
+# Usage:
+#   docker compose -f docker-compose.cudu.yml up -d
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # CU - Central Unit
+  # --------------------------------------------------------------------------
+  # Handles PDCP and above. Connects to AMF via N2 (NGAP/SCTP) and to
+  # DU via F1 interface. Multi-homed on core-network and ran-network.
+  srs_cu:
+    image: srsran-split:latest
+    container_name: srs_cu
+    hostname: srs_cu
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    command: ["/usr/local/bin/srscu", "-c", "/mnt/srsran/configs/cu.yml"]
+    volumes:
+      - ./srsran/configs:/mnt/srsran/configs:ro
+      - ./srsran/logs:/mnt/srsran/logs
+    networks:
+      ran-network:
+        ipv4_address: ${CU_RAN_IP}
+      5g-core-network:
+        ipv4_address: ${CU_CORE_IP}
+    stdin_open: true
+    tty: true
+
+  # --------------------------------------------------------------------------
+  # DU - Distributed Unit
+  # --------------------------------------------------------------------------
+  # Handles RLC and below + embedded RU (ZMQ virtual radio).
+  # Connects to CU via F1, to RIC via E2, and to UE via ZMQ.
+  # Multi-homed on ran-network and ric-network.
+  srs_du:
+    image: srsran-split:latest
+    container_name: srs_du
+    hostname: srs_du
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    command: ["/usr/local/bin/srsdu", "-c", "/mnt/srsran/configs/du.yml"]
+    volumes:
+      - ./srsran/configs:/mnt/srsran/configs:ro
+      - ./srsran/logs:/mnt/srsran/logs
+    networks:
+      ran-network:
+        ipv4_address: ${DU_RAN_IP}
+      ric-network:
+        ipv4_address: ${DU_RIC_IP}
+    depends_on:
+      - srs_cu
+    stdin_open: true
+    tty: true
+
+  # --------------------------------------------------------------------------
+  # UE - User Equipment (ZMQ virtual radio)
+  # --------------------------------------------------------------------------
+  # Simulated 5G SA UE using srsue from srsRAN_4G with ZMQ radio driver.
+  # Connects to DU via ZMQ on ran-network.
+  srsue_5g_zmq:
+    image: srsue:latest
+    container_name: srsue_5g_zmq
+    hostname: srsue_5g_zmq
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    command: ["/usr/local/bin/srsue", "/mnt/srsran/configs/ue.conf"]
+    volumes:
+      - ./srsran/configs:/mnt/srsran/configs:ro
+      - ./srsran/logs:/mnt/srsran/logs
+    networks:
+      ran-network:
+        ipv4_address: ${UE_IP}
+    depends_on:
+      - srs_du
+    stdin_open: true
+    tty: true
+
+networks:
+  # RAN-internal network for F1 (CU<->DU) and ZMQ (DU<->UE)
+  ran-network:
+    name: ran-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${RAN_SUBNET}
+
+  # External reference to the 5G core network (for CU N2/NG-U)
+  5g-core-network:
+    external: true
+    name: 5g-core-network
+
+  # External reference to the RIC network (for DU E2)
+  ric-network:
+    external: true
+    name: ric-network

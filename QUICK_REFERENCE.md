@@ -1,90 +1,71 @@
-# 5G Core Multi-NF Docker - Quick Reference
+# O-RAN Stack - Quick Reference
 
-## 🚀 Start Fresh Deployment
+## Start Everything
 
 ```bash
-# 1. Create TUN interfaces on host (one-time)
+# 1. Create TUN interfaces on host (one-time, requires sudo)
 sudo ./setup-host-tun.sh
 
-# 2. Start all 17 NFs with automatic logging
-./launch-5g-core.sh logs
+# 2. Build srsRAN images (first time only)
+docker build -f Dockerfile.srsran -t srsran-split:latest .
+docker build -f Dockerfile.srsue -t srsue:latest .
 
-# 3. Monitor health (in another terminal)
+# 3. Launch all 3 stacks (~27 containers)
+./launch-all.sh
+
+# 4. Monitor health
 ./scripts/check-nf-health.sh watch
 ```
 
 ---
 
-## 📋 Check Status
+## launch-all.sh Commands
 
 ```bash
-# Quick status
-docker-compose ps
-
-# Detailed health report
-./scripts/check-nf-health.sh
-
-# Continuous monitoring
-./scripts/check-nf-health.sh watch
+./launch-all.sh              # Start all stacks (core -> RIC -> CU/DU + UE)
+./launch-all.sh --down       # Stop all stacks
+./launch-all.sh --status     # Show status of all containers
+./launch-all.sh --logs       # Tail logs from all stacks
+./launch-all.sh --core-only  # Start only the 5G core
+./launch-all.sh --no-ue      # Start core + RIC + CU/DU (skip UE)
 ```
 
 ---
 
-## 📝 View Logs
+## Individual Stack Commands
 
 ```bash
-# All containers at once
-docker-compose logs
-
-# Follow specific container
-docker logs -f 5g-core-nrf
-
-# Export all logs
-./scripts/export-logs.sh
-
-# View exported logs
-ls -lah logs/
-cat logs/startup_summary_*.log
-```
-
----
-
-## 🛑 Stop Everything
-
-```bash
+# 5G Core
+docker-compose up -d
 docker-compose down
+docker-compose ps
+docker-compose logs -f
+
+# Near-RT RIC
+docker-compose -f docker-compose.ric.yml up -d
+docker-compose -f docker-compose.ric.yml down
+docker-compose -f docker-compose.ric.yml ps
+docker-compose -f docker-compose.ric.yml logs -f
+
+# CU/DU + UE
+docker-compose -f docker-compose.cudu.yml up -d
+docker-compose -f docker-compose.cudu.yml down
+docker-compose -f docker-compose.cudu.yml ps
+docker-compose -f docker-compose.cudu.yml logs -f
 ```
 
 ---
 
-## 🔄 Restart
+## Container List (All Stacks)
 
-```bash
-docker-compose restart
-```
-
----
-
-## 🐚 Access Container
-
-```bash
-# Open bash in NRF
-docker exec -it 5g-core-nrf bash
-
-# Run command
-docker exec 5g-core-nrf ps aux
-```
-
----
-
-## 📊 Container List
+### 5G Core - 5g-core-network (172.20.0.0/24)
 
 | # | NF | Container | IP | Port |
 |---|-------|-------------|---------|------|
 | 1 | NRF | 5g-core-nrf | 172.20.0.10 | 7777 |
 | 2 | SCP | 5g-core-scp | 172.20.0.200 | 7777 |
 | 3 | SEPP | 5g-core-sepp | 172.20.0.250 | 7777 |
-| 4 | AMF | 5g-core-amf | 172.20.0.5 | 7777 |
+| 4 | AMF | 5g-core-amf | 172.20.0.5 | 7777, 38412 |
 | 5 | SMF | 5g-core-smf | 172.20.0.4 | 7777 |
 | 6 | UPF | 5g-core-upf | 172.20.0.7 | 2152 |
 | 7 | AUSF | 5g-core-ausf | 172.20.0.11 | 7777 |
@@ -98,142 +79,209 @@ docker exec 5g-core-nrf ps aux
 | 15 | SGW-U | 5g-core-sgwu | 172.20.0.6 | 2152 |
 | 16 | HSS | 5g-core-hss | 172.20.0.1 | - |
 | 17 | PCRF | 5g-core-pcrf | 172.20.0.21 | - |
-| - | MongoDB | 5g-mongodb | 172.20.0.254 | 27017 |
+| 18 | MongoDB | 5g-mongodb | 172.20.0.254 | 27017 |
+| 19 | WebUI | 5g-core-webui | 172.20.0.16 | 9999 |
+
+### Near-RT RIC - ric-network (172.22.0.0/24)
+
+| # | Component | Container | IP | Port |
+|---|-----------|-----------|---------|------|
+| 20 | DBAAS | ric-dbaas | 172.22.0.214 | 6379 |
+| 21 | E2 Term | ric-e2term | 172.22.0.210 | 36421 |
+| 22 | E2 Mgr | ric-e2mgr | 172.22.0.211 | 3800 |
+| 23 | Sub Mgr | ric-submgr | 172.22.0.212 | 3800 |
+| 24 | Rt Mgr | ric-rtmgr | 172.22.0.213 | 3800 |
+| 25 | A1 Med | ric-a1mediator | 172.22.0.215 | 10000 |
+
+### CU/DU + UE - ran-network (172.21.0.0/24)
+
+| # | Component | Container | IP(s) | Notes |
+|---|-----------|-----------|-------|-------|
+| 26 | CU | srs_cu | 172.21.0.50 + 172.20.0.50 | Multi-homed: ran + core |
+| 27 | DU | srs_du | 172.21.0.51 + 172.22.0.51 | Multi-homed: ran + ric |
+| 28 | UE | srsue_5g_zmq | 172.21.0.34 | ZMQ virtual radio |
 
 ---
 
-## 🔍 Verify Connectivity
+## View Logs
 
 ```bash
-# Ping between containers
-docker exec 5g-core-smf ping 172.20.0.10
+# Core NFs
+docker logs -f 5g-core-amf
+docker logs -f 5g-core-smf
+docker logs -f 5g-core-upf
 
-# Test specific port
-docker exec 5g-core-smf curl http://172.20.0.10:7777/
+# RIC components
+docker logs -f ric-e2term
+docker logs -f ric-e2mgr
 
-# Check open ports in container
-docker exec 5g-core-smf netstat -tlnp
+# CU/DU/UE
+docker logs -f srs_cu
+docker logs -f srs_du
+docker logs -f srsue_5g_zmq
+
+# Export all logs to files
+./scripts/export-logs.sh
 ```
 
 ---
 
-## 💾 MongoDB
+## Check RIC Health
 
 ```bash
-# Connect from host
-mongosh mongodb://localhost:27017/open5gs
+# Redis (DBAAS) ping
+docker exec ric-dbaas redis-cli ping
+# Expected: PONG
 
-# Connect from container
-docker exec -it 5g-core-nrf mongosh mongodb://mongodb:27017/open5gs
+# E2 manager - list connected nodeBs
+docker exec ric-e2mgr curl -s http://localhost:3800/v1/nodeb/states | python3 -m json.tool
 
-# Check replica set status
-docker exec 5g-core-mongodb mongosh --eval 'rs.status()'
-
-# Ping MongoDB
-docker exec 5g-core-mongodb mongosh --eval 'db.adminCommand("ping")'
+# A1 mediator health
+docker exec ric-a1mediator curl -s http://localhost:10000/a1-p/healthcheck
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Check CU/DU
+
+```bash
+# CU logs (look for N2 setup, F1 setup)
+docker logs srs_cu 2>&1 | grep -i "ngap\|f1\|connected"
+
+# DU logs (look for F1 setup, E2 setup, cell activation)
+docker logs srs_du 2>&1 | grep -i "f1\|e2\|cell"
+
+# UE logs (look for RRC connection, registration)
+docker logs srsue_5g_zmq 2>&1 | grep -i "rrc\|attach\|register"
+```
+
+---
+
+## MongoDB
+
+```bash
+# Connect
+docker exec -it 5g-mongodb mongosh open5gs
+
+# Count subscribers
+docker exec 5g-mongodb mongosh open5gs --eval "db.subscribers.countDocuments()"
+
+# View subscriber
+docker exec 5g-mongodb mongosh open5gs --eval "db.subscribers.findOne()"
+```
+
+---
+
+## WebUI
+
+```
+URL:      http://localhost:9999
+Username: admin
+Password: 1423
+```
+
+---
+
+## Subscriber Data
+
+```
+IMSI:  001010000000001  (5G test subscriber)
+K:     465B5CE8B199B49FAA5F0A2EE238A6BC
+OPc:   E8ED289DEBA952E4283B54E88E6183CA
+PLMN:  001/01
+APN:   internet
+```
+
+---
+
+## Network Debugging
+
+```bash
+# Inspect Docker networks
+docker network inspect 5g-core-network
+docker network inspect ran-network
+docker network inspect ric-network
+
+# Verify multi-homed CU (should show 2 networks)
+docker inspect srs_cu --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}: {{$v.IPAddress}}{{"\n"}}{{end}}'
+
+# Verify multi-homed DU
+docker inspect srs_du --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}: {{$v.IPAddress}}{{"\n"}}{{end}}'
+
+# Ping across stacks
+docker exec srs_cu ping -c 1 172.20.0.5    # CU -> AMF (core-network)
+docker exec srs_du ping -c 1 172.22.0.210  # DU -> e2term (ric-network)
+docker exec srs_du ping -c 1 172.21.0.50   # DU -> CU (ran-network)
+```
+
+---
+
+## Troubleshooting
 
 ### Containers not starting?
 ```bash
-docker logs 5g-core-nrf  # Check specific container
-docker-compose logs     # All containers
+docker logs <container-name>           # Check specific container
+./launch-all.sh --status              # Overview of all stacks
 ```
 
-### MongoDB not responding?
+### CU can't reach AMF?
 ```bash
-docker ps | grep mongodb          # Check if running
-docker logs 5g-core-mongodb       # View logs
-docker exec 5g-core-mongodb mongosh --eval 'db.adminCommand("ping")'  # Test
+docker exec srs_cu ping 172.20.0.5    # Should succeed
+docker inspect srs_cu | grep -A5 "5g-core-network"  # Verify network attachment
 ```
 
-### TUN interface issues?
+### E2 not connecting?
 ```bash
-sudo ip tuntap list              # Check on host
-docker exec 5g-core-upf ip addr show ogstun  # Check in container
-sudo ./setup-host-tun.sh         # Recreate
+docker logs ric-e2term                 # Check for SCTP errors
+docker exec ric-dbaas redis-cli ping   # Redis must be up first
+```
+
+### MongoDB issues?
+```bash
+docker logs 5g-mongodb                 # Check MongoDB logs
+docker exec 5g-mongodb mongosh --eval 'db.adminCommand("ping")'
+```
+
+### TUN interfaces missing?
+```bash
+sudo ip tuntap list                    # Check on host
+sudo ./setup-host-tun.sh              # Recreate
 ```
 
 ---
 
-## 📚 Full Documentation
-
-See **5G_DOCKER_SETUP.md** for:
-- Complete architecture overview
-- Detailed setup instructions
-- Advanced configuration
-- Performance tuning
-- Complete command reference
-
----
-
-## 📦 File Structure
+## File Structure
 
 ```
 .
-├── docker-compose.yml        # All 18 services
-├── Dockerfile.5gscore        # NF container image
-├── .env                      # Configuration
-├── 5G_DOCKER_SETUP.md        # Full documentation
-├── DEPLOYMENT_SUMMARY.md     # Implementation details
-├── QUICK_REFERENCE.md        # This file
-├── launch-5g-core.sh         # Launcher script
-├── setup-host-tun.sh         # TUN setup
-├── entrypoint.sh             # Container init
-├── init-mongodb.js           # MongoDB init
+├── docker-compose.yml           # 5G Core (18 services)
+├── docker-compose.ric.yml       # Near-RT RIC (6 services)
+├── docker-compose.cudu.yml      # CU/DU + UE (3 services)
+├── Dockerfile.5gscore           # Open5GS NF image
+├── Dockerfile.webui             # WebUI image
+├── Dockerfile.srsran            # srsRAN CU/DU image
+├── Dockerfile.srsue             # srsRAN UE image
+├── .env                         # All configuration
+├── launch-all.sh                # Multi-stack orchestrator
+├── srsran/configs/              # CU/DU/UE configs
+│   ├── cu.yml
+│   ├── du.yml
+│   └── ue.conf
+├── ric/config/                  # RIC component configs
+│   ├── e2term/
+│   ├── e2mgr/
+│   ├── submgr/
+│   ├── rtmgr/
+│   └── a1mediator/
+├── configs/                     # Open5GS NF templates
 ├── scripts/
-│   ├── export-logs.sh        # Log export
-│   └── check-nf-health.sh    # Health check
-└── logs/                     # Auto-generated logs
-    ├── 5g-core-*.log
-    └── startup_summary_*.log
+│   ├── check-nf-health.sh      # Health monitor (all stacks)
+│   └── export-logs.sh          # Log exporter
+└── logs/                        # Runtime logs
 ```
 
 ---
 
-## ⚡ One-Liner Commands
+## Full Documentation
 
-```bash
-# Start with logging
-./launch-5g-core.sh logs
-
-# Stop everything
-docker-compose down
-
-# Restart all
-docker-compose restart
-
-# Check status
-docker-compose ps
-
-# View health
-./scripts/check-nf-health.sh watch
-
-# Export logs
-./scripts/export-logs.sh
-
-# Ping between NFs
-docker exec 5g-core-smf ping 172.20.0.10
-
-# Access NRF shell
-docker exec -it 5g-core-nrf bash
-
-# Follow NRF logs
-docker logs -f 5g-core-nrf
-```
-
----
-
-## 🆘 Getting Help
-
-1. **Check logs**: `docker logs 5g-core-<nf>`
-2. **Run health check**: `./scripts/check-nf-health.sh`
-3. **Export logs**: `./scripts/export-logs.sh`
-4. **Review documentation**: `5G_DOCKER_SETUP.md`
-
----
-
-**All 17 5G NFs running in Docker! 🎉**
+See **5G_DOCKER_SETUP.md** for complete architecture, network diagrams, and detailed setup instructions.

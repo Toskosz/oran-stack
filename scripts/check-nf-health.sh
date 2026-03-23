@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # ========================================================================
-# 5G Core Docker Compose - Health Check Script
+# O-RAN Stack - Health Check Script
 # ========================================================================
-# This script checks the health and status of all running NF containers
+# This script checks the health and status of all running containers
+# across the three stacks: 5G Core, Near-RT RIC, and CU/DU Split.
 # Usage: ./scripts/check-nf-health.sh [watch]
 # Arguments:
 #   watch - Continuously monitor container health (press Ctrl+C to exit)
@@ -23,10 +24,10 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # ========================================================================
-# Configuration
+# Configuration - 5G Core
 # ========================================================================
 
-declare -a NF_SERVICES=(
+declare -a CORE_SERVICES=(
   "5g-mongodb"
   "5g-core-nrf"
   "5g-core-scp"
@@ -47,28 +48,7 @@ declare -a NF_SERVICES=(
   "5g-core-pcrf"
 )
 
-declare -a NF_PORTS=(
-  "27017"  # MongoDB
-  "7777"   # NRF
-  "7777"   # SCP
-  "7777"   # SEPP
-  "7777"   # AMF
-  "7777"   # SMF
-  "2152"   # UPF
-  "7777"   # AUSF
-  "7777"   # UDM
-  "7777"   # PCF
-  "7777"   # NSSF
-  "7777"   # BSF
-  "7777"   # UDR
-  "2123"   # MME
-  "2123"   # SGW-C
-  "2152"   # SGW-U
-  ""       # HSS
-  ""       # PCRF
-)
-
-declare -a NF_IPS=(
+declare -a CORE_IPS=(
   "172.20.0.254"  # MongoDB
   "172.20.0.10"   # NRF
   "172.20.0.200"  # SCP
@@ -89,7 +69,7 @@ declare -a NF_IPS=(
   "172.20.0.21"   # PCRF
 )
 
-declare -A NF_NAMES=(
+declare -A CORE_NAMES=(
   ["5g-mongodb"]="MongoDB"
   ["5g-core-nrf"]="NRF"
   ["5g-core-scp"]="SCP"
@@ -111,6 +91,59 @@ declare -A NF_NAMES=(
 )
 
 # ========================================================================
+# Configuration - Near-RT RIC
+# ========================================================================
+
+declare -a RIC_SERVICES=(
+  "ric-dbaas"
+  "ric-e2term"
+  "ric-e2mgr"
+  "ric-rtmgr"
+  "ric-submgr"
+  "ric-a1mediator"
+)
+
+declare -a RIC_IPS=(
+  "172.22.0.214"  # dbaas
+  "172.22.0.210"  # e2term
+  "172.22.0.211"  # e2mgr
+  "172.22.0.213"  # rtmgr
+  "172.22.0.212"  # submgr
+  "172.22.0.215"  # a1mediator
+)
+
+declare -A RIC_NAMES=(
+  ["ric-dbaas"]="DBAAS (Redis)"
+  ["ric-e2term"]="E2 Termination"
+  ["ric-e2mgr"]="E2 Manager"
+  ["ric-rtmgr"]="Routing Mgr"
+  ["ric-submgr"]="Subscription Mgr"
+  ["ric-a1mediator"]="A1 Mediator"
+)
+
+# ========================================================================
+# Configuration - CU/DU Split + UE
+# ========================================================================
+
+declare -a RAN_SERVICES=(
+  "srs_cu"
+  "srs_du"
+  "srsue_5g_zmq"
+)
+
+declare -a RAN_IPS=(
+  "172.21.0.50 / 172.20.0.50"  # CU (ran + core)
+  "172.21.0.51 / 172.22.0.51"  # DU (ran + ric)
+  "172.21.0.34"                 # UE (ran)
+)
+
+declare -A RAN_NAMES=(
+  ["srs_cu"]="CU (srscu)"
+  ["srs_du"]="DU (srsdu)"
+  ["srsue_5g_zmq"]="UE (srsue)"
+)
+
+# ========================================================================
 # Functions
 # ========================================================================
 
@@ -119,20 +152,20 @@ echo_header() {
 }
 
 echo_success() {
-  echo -e "${GREEN}✓${NC} $1"
+  echo -e "${GREEN}+${NC} $1"
 }
 
 echo_error() {
-  echo -e "${RED}✗${NC} $1"
+  echo -e "${RED}-${NC} $1"
 }
 
 echo_warning() {
-  echo -e "${YELLOW}⚠${NC} $1"
+  echo -e "${YELLOW}!${NC} $1"
 }
 
 get_container_status() {
   local container=$1
-  
+
   if docker ps --format "{{.Names}}" | grep -q "^${container}$"; then
     echo "running"
   elif docker ps -a --format "{{.Names}}" | grep -q "^${container}$"; then
@@ -144,7 +177,7 @@ get_container_status() {
 
 get_container_uptime() {
   local container=$1
-  
+
   if docker ps --format "{{.Names}}" | grep -q "^${container}$"; then
     docker inspect "$container" --format='{{.State.StartedAt}}' 2>/dev/null | sed 's/T/ /g' | sed 's/Z//g'
   else
@@ -152,106 +185,125 @@ get_container_uptime() {
   fi
 }
 
-check_port_reachable() {
-  local ip=$1
-  local port=$2
-  local container=$3
-  
-  if [ -z "$port" ]; then
-    return 1
+check_stack() {
+  local stack_name=$1
+  shift
+  local -n services=$1
+  shift
+  local -n ips=$1
+  shift
+  local -n names=$1
+
+  local running=0
+  local stopped=0
+  local missing=0
+
+  echo ""
+  echo -e "${CYAN}=== ${stack_name} ===${NC}"
+  echo ""
+
+  for i in "${!services[@]}"; do
+    local service=${services[$i]}
+    local status=$(get_container_status "$service")
+    local display_name="${names[$service]}"
+    local ip="${ips[$i]}"
+
+    printf "  %-20s " "$display_name"
+
+    case $status in
+      "running")
+        echo_success "Running  (${ip})"
+        running=$((running + 1))
+        ;;
+      "stopped")
+        echo_error "Stopped  (${ip})"
+        stopped=$((stopped + 1))
+        ;;
+      "missing")
+        echo_warning "Missing"
+        missing=$((missing + 1))
+        ;;
+    esac
+  done
+
+  echo ""
+  printf "  Total: %d | " "${#services[@]}"
+  echo -en "${GREEN}Running: $running${NC}"
+  if [ $stopped -gt 0 ]; then
+    echo -en " | ${RED}Stopped: $stopped${NC}"
   fi
-  
-  # Try to reach the port from inside the container
-  if docker exec "$container" timeout 2 bash -c "echo > /dev/tcp/$ip/$port" 2>/dev/null; then
-    return 0
-  else
-    return 1
+  if [ $missing -gt 0 ]; then
+    echo -en " | ${YELLOW}Missing: $missing${NC}"
   fi
+  echo ""
 }
 
 display_health_report() {
   clear
   echo ""
-  echo_header "╔════════════════════════════════════════════════════════════════════════════════╗"
-  echo_header "║         5G Core Docker Compose - Container Health Report                       ║"
-  echo_header "╚════════════════════════════════════════════════════════════════════════════════╝"
-  echo ""
-  
-  local running_count=0
-  local stopped_count=0
-  local missing_count=0
-  
-  for i in "${!NF_SERVICES[@]}"; do
-    local service=${NF_SERVICES[$i]}
-    local status=$(get_container_status "$service")
-    local uptime=$(get_container_uptime "$service")
-    local display_name="${NF_NAMES[$service]}"
-    
-    printf "%-12s " "[$((i+1))]"
-    printf "%-12s " "$display_name"
-    
-    case $status in
-      "running")
-        echo_success "Running"
-        running_count=$((running_count + 1))
-        printf "  ├─ IP: %s\n" "${NF_IPS[$i]}"
-        if [ -n "${NF_PORTS[$i]}" ]; then
-          printf "  ├─ Port: %s\n" "${NF_PORTS[$i]}"
-        fi
-        printf "  └─ Started: %s\n" "$uptime"
-        ;;
-      "stopped")
-        echo_error "Stopped"
-        stopped_count=$((stopped_count + 1))
-        printf "  └─ Container exists but is not running\n"
-        ;;
-      "missing")
-        echo_warning "Missing"
-        missing_count=$((missing_count + 1))
-        printf "  └─ Container not found\n"
-        ;;
-    esac
-    echo ""
-  done
-  
-  echo_header "────────────────────────────────────────────────────────────────────────────────"
-  echo ""
-  printf "Total: %d | " "${#NF_SERVICES[@]}"
-  echo -en "${GREEN}Running: $running_count${NC} | "
-  if [ $stopped_count -gt 0 ]; then
-    echo -en "${RED}Stopped: $stopped_count${NC} | "
-  fi
-  if [ $missing_count -gt 0 ]; then
-    echo -en "${YELLOW}Missing: $missing_count${NC}"
-  fi
-  echo ""
-  echo ""
-  
+  echo_header "=================================================================="
+  echo_header "         O-RAN Stack - Container Health Report"
+  echo_header "=================================================================="
+
+  # 5G Core
+  check_stack "5G Core Network" CORE_SERVICES CORE_IPS CORE_NAMES
+
+  # Near-RT RIC
+  check_stack "Near-RT RIC Platform" RIC_SERVICES RIC_IPS RIC_NAMES
+
+  # CU/DU + UE
+  check_stack "CU/DU Split + UE" RAN_SERVICES RAN_IPS RAN_NAMES
+
   # Network status
-  echo_header "Network Status:"
-  if docker network inspect 5g-core-network &>/dev/null; then
-    echo_success "5g-core-network is available"
-    local subnet=$(docker network inspect 5g-core-network --format='{{range .IPAM.Config}}{{.Subnet}}{{end}}')
-    printf "  └─ Subnet: %s\n\n" "$subnet"
-  else
-    echo_error "5g-core-network not found"
-  fi
-  
+  echo ""
+  echo -e "${CYAN}=== Networks ===${NC}"
+  echo ""
+  for net in 5g-core-network ric-network ran-network; do
+    if docker network inspect "$net" &>/dev/null; then
+      local subnet=$(docker network inspect "$net" --format='{{range .IPAM.Config}}{{.Subnet}}{{end}}')
+      local count=$(docker network inspect "$net" --format='{{len .Containers}}')
+      printf "  %-20s " "$net"
+      echo_success "Active ($subnet, $count containers)"
+    else
+      printf "  %-20s " "$net"
+      echo_warning "Not created"
+    fi
+  done
+  echo ""
+
   # MongoDB status
-  echo_header "MongoDB Status:"
+  echo -e "${CYAN}=== Key Services ===${NC}"
+  echo ""
   if docker ps --format "{{.Names}}" | grep -q "^5g-mongodb$"; then
     if docker exec 5g-mongodb mongosh --eval 'db.adminCommand("ping")' &>/dev/null; then
-      echo_success "MongoDB is healthy and responsive"
+      printf "  %-20s " "MongoDB"
+      echo_success "Healthy"
     else
-      echo_warning "MongoDB is running but not responding"
+      printf "  %-20s " "MongoDB"
+      echo_warning "Running but not responding"
     fi
   else
-    echo_error "MongoDB is not running"
+    printf "  %-20s " "MongoDB"
+    echo_error "Not running"
+  fi
+
+  # Redis/DBAAS status
+  if docker ps --format "{{.Names}}" | grep -q "^ric-dbaas$"; then
+    if docker exec ric-dbaas redis-cli ping &>/dev/null; then
+      printf "  %-20s " "RIC Redis/SDL"
+      echo_success "Healthy"
+    else
+      printf "  %-20s " "RIC Redis/SDL"
+      echo_warning "Running but not responding"
+    fi
+  else
+    printf "  %-20s " "RIC Redis/SDL"
+    echo_error "Not running"
   fi
   echo ""
-  
+
   if [ "$1" = "watch" ]; then
-    echo_header "────────────────────────────────────────────────────────────────────────────────"
+    echo_header "------------------------------------------------------------------"
     echo "Watch mode enabled. Refreshing every 5 seconds... (Press Ctrl+C to exit)"
   fi
 }

@@ -514,10 +514,11 @@ services:
     command: ./install/bin/open5gs-pcrfd -c /open5gs/install/etc/open5gs/pcrf.yaml
 networks:
   5g-core-network:
+    name: 5g-core-network
     driver: bridge
     ipam:
       config:
-      - subnet: 172.20.0.0/16
+      - subnet: 172.20.0.0/24
 volumes:
   mongodb_data:
     driver: local

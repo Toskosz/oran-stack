@@ -1,0 +1,12 @@
+newrt|start
+rte|12010|e2mgr:3801
+rte|12011|e2mgr:3801
+rte|12012|e2mgr:3801
+rte|12020|e2mgr:3801
+rte|12021|e2mgr:3801
+rte|12050|e2mgr:3801
+rte|12052|e2mgr:3801
+rte|1200|submgr:4560
+rte|1210|submgr:4560
+rte|1220|submgr:4560
+newrt|end
