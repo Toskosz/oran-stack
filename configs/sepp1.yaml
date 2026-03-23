@@ -11,18 +11,18 @@ global:
 sepp:
   sbi:
     server:
-      - address: 127.0.0.250
+      - address: ${SEPP_IP}
         port: 7777
     client:
       sepp_N32f:
-        - uri: http://127.0.1.250:7777
+        - uri: ${SEPP_N32F_PEER_URI}
   n32f:
     server:
-      - address: 127.0.1.251
+      - address: ${SEPP_IP}
         port: 7777
     client:
       sepp_N32:
-        - uri: https://127.0.1.252:7777
+        - uri: ${SEPP_N32_PEER_URI}
 
 db_uri: ${MONGODB_URI}
 

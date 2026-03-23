@@ -11,21 +11,21 @@ global:
 amf:
   sbi:
     server:
-      - address: 172.20.0.5
-        port: 7777
+      - address: ${AMF_IP}
+        port: ${AMF_SBI_PORT}
     client:
       nrf:
-        - uri: http://172.20.0.10:7777
+        - uri: http://${NRF_IP}:${NRF_SBI_PORT}
       scp:
-        - uri: http://172.20.0.200:7777
+        - uri: http://${SCP_IP}:${SCP_SBI_PORT}
   ngap:
     server:
-      - address: 172.20.0.5
-        port: 38412
+      - address: ${AMF_IP}
+        port: ${AMF_NGAP_PORT}
   metrics:
     server:
-      - address: 172.20.0.5
-        port: 9090
+      - address: ${AMF_IP}
+        port: ${AMF_METRICS_PORT}
   guami:
     - plmn_id:
         mcc: ${MCC}

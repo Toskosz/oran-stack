@@ -154,7 +154,9 @@ Verify all 18 containers build and start successfully.
 ### Test 2.1: Build Docker Images
 ```bash
 # Build the main 5G core image (this takes 5-10 minutes)
-docker-compose build 5g-core-nrf
+# All core NF services (nrf, amf, smf, upf, etc.) use the shared image "teste-core:latest"
+# built from Dockerfile.5gscore — there is no build: section in docker-compose.yml for them
+docker build -f Dockerfile.5gscore -t teste-core:latest .
 
 # Monitor the build output
 # Expected: Dockerfile.5gscore builds successfully with stages:
@@ -163,7 +165,8 @@ docker-compose build 5g-core-nrf
 # - git clone open5gs
 # - ./configure && make && make install
 
-# Build the WebUI image (this takes 5-15 minutes)
+# Build the WebUI image via Compose (this takes 5-15 minutes)
+# Only 5g-core-webui has a build: section in docker-compose.yml
 docker-compose build 5g-core-webui
 
 # Monitor output:
@@ -174,7 +177,7 @@ docker-compose build 5g-core-webui
 
 **Pass Criteria**: Both images build without errors. Check:
 ```bash
-docker images | grep -E "(5g-core|open5gs-webui)"
+docker images | grep -E "(teste-core|open5gs-webui)"
 # Expected: Two images listed with latest tag
 ```
 
@@ -642,7 +645,8 @@ netstat -tuln | grep -E "7777|8805|2123|2152"
 
 # Rebuild from scratch
 docker-compose down -v  # ⚠️ WARNING: Deletes all data
-docker-compose build --no-cache
+docker build --no-cache -f Dockerfile.5gscore -t teste-core:latest .
+docker-compose build --no-cache 5g-core-webui
 docker-compose up -d
 ```
 
