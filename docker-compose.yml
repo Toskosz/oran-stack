@@ -21,6 +21,9 @@ services:
       start_period: 30s
     command: mongod --replSet rs0
   5g-core-webui:
+    build:
+      context: .
+      dockerfile: Dockerfile.webui
     image: open5gs-webui:latest
     container_name: 5g-core-webui
     depends_on:
@@ -28,6 +31,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
+      DB_URI: mongodb://mongodb:27017/open5gs
       MONGODB_URI: mongodb://mongodb:27017/open5gs
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
