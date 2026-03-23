@@ -85,15 +85,45 @@ done
 echo "[OK] Security rules configured"
 
 echo ""
-echo "[INFO] Disabling firewall (UFW)..."
+echo "[INFO] Configuring UFW rules for 5G core interfaces..."
 if command -v ufw &> /dev/null; then
-    if ufw disable 2>/dev/null; then
-        echo "[OK] Firewall disabled"
+    # Allow input traffic on each TUN interface (UE-to-core traffic).
+    # UFW rules are idempotent – adding a rule that already exists is a no-op.
+    declare -a tun_ifaces=("ogstun" "ogstun2" "ogstun3")
+    for iface in "${tun_ifaces[@]}"; do
+        if ufw allow in on "$iface" 2>/dev/null; then
+            echo "[OK] UFW allow-in rule set for $iface"
+        else
+            echo "[WARN] Failed to set UFW allow-in rule for $iface"
+        fi
+    done
+
+    # Enable packet forwarding in UFW by setting DEFAULT_FORWARD_POLICY=ACCEPT
+    # in /etc/default/ufw if it is not already set, so that MASQUERADE rules
+    # are effective while UFW remains enabled.
+    UFW_DEFAULT=/etc/default/ufw
+    if [ -f "$UFW_DEFAULT" ]; then
+        if grep -q '^DEFAULT_FORWARD_POLICY="DROP"' "$UFW_DEFAULT"; then
+            sed -i 's/^DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' "$UFW_DEFAULT"
+            echo "[OK] UFW DEFAULT_FORWARD_POLICY set to ACCEPT in $UFW_DEFAULT"
+            echo "[INFO] Reloading UFW to apply forwarding policy change..."
+            ufw reload 2>/dev/null && echo "[OK] UFW reloaded" || echo "[WARN] UFW reload failed"
+        else
+            echo "[OK] UFW DEFAULT_FORWARD_POLICY already allows forwarding"
+        fi
     else
-        echo "[WARN] UFW already disabled or error occurred"
+        echo "[WARN] $UFW_DEFAULT not found; verify UFW forwarding policy manually"
     fi
+
+    echo "[OK] UFW configured – firewall remains enabled"
+    echo ""
+    echo "Required UFW rules summary:"
+    echo "  ufw allow in on ogstun"
+    echo "  ufw allow in on ogstun2"
+    echo "  ufw allow in on ogstun3"
+    echo "  DEFAULT_FORWARD_POLICY=ACCEPT  (in /etc/default/ufw)"
 else
-    echo "[INFO] UFW not installed"
+    echo "[INFO] UFW not installed; relying solely on iptables rules above"
 fi
 
 echo ""
