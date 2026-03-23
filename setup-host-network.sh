@@ -41,10 +41,12 @@ declare -a ipv4_subnets=("10.45.0.0/16:ogstun" "10.46.0.0/16:ogstun2" "10.47.0.0
 for entry in "${ipv4_subnets[@]}"; do
     IFS=':' read -r subnet iface <<< "$entry"
     echo "[INFO] Adding IPv4 NAT for $subnet ($iface)..."
-    if iptables -t nat -A POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
+    if iptables -t nat -C POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
+        echo "[OK] IPv4 NAT rule already exists for $subnet"
+    elif iptables -t nat -A POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
         echo "[OK] IPv4 NAT rule added for $subnet"
     else
-        echo "[WARN] IPv4 NAT rule may already exist for $subnet"
+        echo "[WARN] Failed to add IPv4 NAT rule for $subnet"
     fi
 done
 
@@ -53,10 +55,12 @@ declare -a ipv6_subnets=("2001:db8:cafe::/48:ogstun" "2001:db8:babe::/48:ogstun2
 for entry in "${ipv6_subnets[@]}"; do
     IFS=':' read -r subnet iface <<< "$entry"
     echo "[INFO] Adding IPv6 NAT for $subnet ($iface)..."
-    if ip6tables -t nat -A POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
+    if ip6tables -t nat -C POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
+        echo "[OK] IPv6 NAT rule already exists for $subnet"
+    elif ip6tables -t nat -A POSTROUTING -s "$subnet" ! -o "$iface" -j MASQUERADE 2>/dev/null; then
         echo "[OK] IPv6 NAT rule added for $subnet"
     else
-        echo "[WARN] IPv6 NAT rule may already exist for $subnet"
+        echo "[WARN] Failed to add IPv6 NAT rule for $subnet"
     fi
 done
 
@@ -69,10 +73,12 @@ echo "[INFO] Configuring security rules..."
 declare -a ifaces=("ogstun" "ogstun2" "ogstun3")
 for iface in "${ifaces[@]}"; do
     echo "[INFO] Accepting traffic on $iface..."
-    if iptables -I INPUT -i "$iface" -j ACCEPT 2>/dev/null; then
+    if iptables -C INPUT -i "$iface" -j ACCEPT 2>/dev/null; then
+        echo "[OK] Firewall rule already exists for $iface"
+    elif iptables -I INPUT -i "$iface" -j ACCEPT 2>/dev/null; then
         echo "[OK] Firewall rule added for $iface"
     else
-        echo "[WARN] Firewall rule may already exist for $iface"
+        echo "[WARN] Failed to add firewall rule for $iface"
     fi
 done
 
