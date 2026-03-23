@@ -1,4 +1,18 @@
 version: '3.8'
+x-open5gs-common-env: &open5gs-common-env
+  SKIP_MONGODB: 'true'
+  MONGODB_URI: ${MONGODB_URI}
+  MCC: ${MCC}
+  MNC: ${MNC}
+  TAC: ${TAC}
+  AMF_REGION: ${AMF_REGION}
+  AMF_SET: ${AMF_SET}
+  SMF_SUBNET4: ${SMF_SUBNET4}
+  SMF_SUBNET6: ${SMF_SUBNET6}
+  UPF_IP: ${UPF_IP}
+  MME_GID: ${MME_GID}
+  MME_CODE: ${MME_CODE}
+  LOG_LEVEL: ${LOG_LEVEL}
 services:
   mongodb:
     image: mongo:7.0
@@ -31,8 +45,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
-      DB_URI: mongodb://mongodb:27017/open5gs
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
+      DB_URI: ${MONGODB_URI}
+      MONGODB_URI: ${MONGODB_URI}
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: '9999'
@@ -63,19 +77,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.10
@@ -101,19 +103,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.200
@@ -139,19 +129,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.250
@@ -177,19 +155,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.5
@@ -215,19 +181,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.4
@@ -253,19 +207,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.7
@@ -291,19 +233,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.11
@@ -329,19 +259,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.12
@@ -367,19 +285,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.13
@@ -405,19 +311,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.14
@@ -443,19 +337,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.15
@@ -481,19 +363,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.20
@@ -519,19 +389,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.2
@@ -557,19 +415,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.3
@@ -595,19 +441,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.6
@@ -633,19 +467,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.1
@@ -671,19 +493,7 @@ services:
         condition: service_started
     restart: unless-stopped
     environment:
-      SKIP_MONGODB: 'true'
-      MONGODB_URI: mongodb://mongodb:27017/open5gs
-      MCC: '001'
-      MNC: '01'
-      TAC: '1'
-      AMF_REGION: '2'
-      AMF_SET: '1'
-      SMF_SUBNET4: 10.45.0.0/16
-      SMF_SUBNET6: 2001:db8:cafe::/48
-      UPF_IP: 172.20.0.7
-      MME_GID: '2'
-      MME_CODE: '1'
-      LOG_LEVEL: info
+      <<: *open5gs-common-env
     networks:
       5g-core-network:
         ipv4_address: 172.20.0.21
@@ -712,3 +522,4 @@ volumes:
     driver: local
   mongodb_config:
     driver: local
+
