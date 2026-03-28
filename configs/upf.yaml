@@ -26,5 +26,6 @@ upf:
         port: 9090
 
 logger:
-  file: /var/log/open5gs/upf.log
+  file:
+    path: /var/log/open5gs/upf.log
   level: ${LOG_LEVEL}
