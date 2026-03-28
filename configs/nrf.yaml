@@ -21,5 +21,6 @@ nrf:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/nrf.log
+  file:
+    path: /var/log/open5gs/nrf.log
   level: ${LOG_LEVEL}
