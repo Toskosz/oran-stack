@@ -33,9 +33,11 @@ cu_up:
     bind_port: 2153                   # F1-U port (avoid conflict with NG-U 2152)
     peer_port: 2153
     socket:
+      - bind_addr: 172.21.0.50          # CU's ran-network interface (F1-U)
 
   ngu:
-    bind_addr: 172.20.0.50            # CU's core-network interface (NG-U)
+    socket:
+      - bind_addr: 172.20.0.50        # CU's core-network interface (NG-U)
 
 log:
   filename: /mnt/srsran/logs/cu.log
