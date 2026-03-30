@@ -24,11 +24,14 @@ smf:
         port: 8805
     client:
       upf:
-        - uri: http://172.20.0.7:8805
-  gtp:
+        - address: 172.20.0.7
+          port: 8805
+  gtpc:
     server:
       - address: 172.20.0.4
         port: 2123
+  gtpu:
+    server:
       - address: 172.20.0.4
         port: 2152
   metrics:
@@ -45,5 +48,6 @@ smf:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/smf.log
+  file:
+    path: /var/log/open5gs/smf.log
   level: ${LOG_LEVEL}

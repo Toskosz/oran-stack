@@ -53,9 +53,16 @@ amf:
       - NEA0
       - NEA1
       - NEA2
+  amf_name: open5gs-amf0
+  network_name:
+    full: Open5GS
+  time:
+    t3512:
+      value: 540
 
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/amf.log
+  file:
+    path: /var/log/open5gs/amf.log
   level: ${LOG_LEVEL}

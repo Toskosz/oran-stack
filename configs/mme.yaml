@@ -3,52 +3,45 @@
 # Mobility Management Entity - 4G equivalent of AMF
 ################################################################################
 
+logger:
+  file:
+    path: /var/log/open5gs/mme.log
+  level: ${LOG_LEVEL}
+
 global:
-  max_ue: 4096
-  pool:
-    packet: 32768
+  max:
+    ue: 4096
 
 mme:
-  freeDiameter: /etc/freeDiameter/mme.conf
+  freeDiameter: /open5gs/install/etc/freeDiameter/mme.conf
   s1ap:
     server:
       - address: 172.20.0.2
-        port: 36412
   gtpc:
     server:
       - address: 172.20.0.2
-        port: 2123
     client:
-      sgw:
-        - uri: http://172.20.0.3:2123
+      sgwc:
+        - address: 172.20.0.3
+      smf:
+        - address: 172.20.0.4
   metrics:
     server:
       - address: 172.20.0.2
         port: 9090
   gummei:
-    plmn_id:
-      mcc: ${MCC}
-      mnc: ${MNC}
-    mme_gid: ${MME_GID}
-    mme_code: ${MME_CODE}
+    - plmn_id:
+        mcc: ${MCC}
+        mnc: ${MNC}
+      mme_gid: ${MME_GID}
+      mme_code: ${MME_CODE}
   tai:
-    plmn_id:
-      mcc: ${MCC}
-      mnc: ${MNC}
-    tac: ${TAC}
+    - plmn_id:
+        mcc: ${MCC}
+        mnc: ${MNC}
+      tac: ${TAC}
   security:
-    integrity_order:
-      - EIA2
-      - EIA1
-      - EIA0
-    ciphering_order:
-      - EEA0
-      - EEA1
-      - EEA2
+    integrity_order: [ EIA2, EIA1, EIA0 ]
+    ciphering_order: [ EEA0, EEA1, EEA2 ]
 
 db_uri: ${MONGODB_URI}
-
-logger:
-  file:
-    path: /var/log/open5gs/mme.log
-  level: ${LOG_LEVEL}
