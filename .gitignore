@@ -1,0 +1,15 @@
+# srsRAN logs
+srsran/logs/
+
+# Environment files
+.env.local
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
