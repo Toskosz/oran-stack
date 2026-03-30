@@ -18,3 +18,7 @@
   "numWorkers": 1
 "RTFILE": "/db/rt.json"
 "NBIURL": "http://ric-e2mgr:3800"
+"nbi": "httpRESTful"
+"sbi": "rmrpush"
+"rpe": "rmrpush"
+"sdl": "file"

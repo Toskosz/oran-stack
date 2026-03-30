@@ -56,12 +56,15 @@ services:
     privileged: true
     environment:
       RMR_SEED_RT: /opt/e2/dockerRouter.txt
+      RMR_SRC_ID: ric-e2term
       E2TERM_POD_NAME: ric-e2term
+      POD_NAME: ric-e2term
       LD_LIBRARY_PATH: /usr/local/lib
       DBAAS_SERVICE_HOST: ric-dbaas
       DBAAS_SERVICE_PORT: "6379"
+      RIC_E2TERM_SERVICE_HOST: ${RIC_E2TERM_IP}
     volumes:
-      - ./ric/config/e2term/config.conf:/opt/e2/config/config.conf:ro
+      - ./ric/config/e2term:/opt/e2/config
       - ./ric/config/e2term/dockerRouter.txt:/opt/e2/dockerRouter.txt:ro
     networks:
       ric-network:
@@ -109,6 +112,9 @@ services:
     restart: unless-stopped
     environment:
       RMR_SEED_RT: /uta_rtg_ric.rt
+      CFGFILE: /cfg/rtmgr-config.yaml
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
     volumes:
       - ./ric/config/rtmgr/rtmgr-config.yaml:/cfg/rtmgr-config.yaml:ro
     networks:
