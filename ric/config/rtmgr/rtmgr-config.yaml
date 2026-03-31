@@ -97,6 +97,11 @@ messagetypes:
   - "A1_POLICY_RESP=20011"
   - "A1_POLICY_QUERY=20012"
 local:
+  # NOTE: This value is NOT used by ric-plt-rtmgr:0.9.6. The swagger-generated
+  # HTTP server ignores local.host and hardcodes port 3800 as its NBI REST bind port.
+  # e2mgr must use http://ric-rtmgr:3800/ric/v1/handles/ — NOT port 8989.
+  # Changing this to ":3800" has no effect on the running binary.
+  # See LEARNINGS.md Section 6 for full debugging history.
   host: ":8989"
 logger:
   level: 4
