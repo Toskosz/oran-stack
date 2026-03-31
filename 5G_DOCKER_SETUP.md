@@ -41,7 +41,7 @@ This project deploys a complete O-RAN-compliant 5G network across **three Docker
   │  NRF  (172.20.0.10)         │  MME  (172.20.0.2)        │
   │  SCP  (172.20.0.200)        │  SGW-C (172.20.0.3)       │
   │  SEPP (172.20.0.250)        │  SGW-U (172.20.0.6)       │
-  │  AMF  (172.20.0.5)          │  HSS  (172.20.0.1)        │
+  │  AMF  (172.20.0.5)          │  HSS  (172.20.0.8)        │
   │  SMF  (172.20.0.4)          │  PCRF (172.20.0.21)       │
   │  UPF  (172.20.0.7)          │                            │
   │  AUSF (172.20.0.11)         │  Infrastructure            │
