@@ -371,7 +371,7 @@ E2 runs between DU and e2term:
 
 ZMQ sockets on `ran-network`:
 - DU TX -> UE RX: `tcp://172.21.0.51:2000`
-- UE TX -> DU RX: `tcp://172.21.0.51:2001`
+- UE TX -> DU RX: `tcp://172.21.0.34:2001`
 
 ---
 
