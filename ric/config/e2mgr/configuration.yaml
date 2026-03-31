@@ -1,19 +1,19 @@
 logging:
-  logLevel: info
+  logLevel: debug
 http:
   port: 3800
 rmr:
   port: 3801
   maxMsgSize: 65536
 routingManager:
-  baseUrl: http://ric-rtmgr:8989/ric/v1/handles/
+  baseUrl: http://ric-rtmgr:3800/ric/v1/handles/
 notificationResponseBuffer: 100
 bigRedButtonTimeoutSec: 5
 maxRnibConnectionAttempts: 3
 rnibRetryIntervalMs: 10
-keepAliveResponseTimeoutMs: 4500
-keepAliveDelayMs: 10000
-e2tInstanceDeletionTimeoutMs: 15000
+keepAliveResponseTimeoutMs: 60000
+keepAliveDelayMs: 30000
+e2tInstanceDeletionTimeoutMs: 120000
 e2ResetTimeOutSec: 10
 globalRicId:
   ricId: "AACCE"

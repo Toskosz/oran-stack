@@ -1,0 +1,25 @@
+meid_map|start
+mme_ar|172.22.0.210:38000|gnbd_001_001_00019b_0
+meid_map|end|1
+
+newrt|start
+mse|1100|-1|ric-e2mgr:3801
+mse|1102|-1|ric-e2mgr:3801
+mse|12001|-1|ric-e2mgr:3801
+mse|12004|-1|ric-e2mgr:3801
+mse|12030|-1|ric-e2mgr:3801
+mse|12010|-1|ric-submgr:4560
+mse|12020|-1|ric-submgr:4560
+mse|12023,ric-e2mgr:3801|-1|ric-submgr:4560
+mse|1090,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|1101,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12002,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12003,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12031,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12032,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12071,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12072,ric-e2mgr:3801|-1|172.22.0.210:38000
+mse|12004|-1|ric-e2mgr:3801
+mse|12005,ric-e2mgr:3801|-1|172.22.0.210:38000
+newrt|end
+### captured from route manager
