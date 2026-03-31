@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
     privileged: true
     environment:
-      RMR_SEED_RT: /opt/e2/dockerRouter.txt
+      RMR_SEED_RT: /opt/e2/config/dockerRouter.txt
       RMR_SRC_ID: ric-e2term
       E2TERM_POD_NAME: ric-e2term
       POD_NAME: ric-e2term
@@ -65,12 +65,25 @@ services:
       RIC_E2TERM_SERVICE_HOST: ${RIC_E2TERM_IP}
     volumes:
       - ./ric/config/e2term:/opt/e2/config
-      - ./ric/config/e2term/dockerRouter.txt:/opt/e2/dockerRouter.txt:ro
     networks:
       ric-network:
         ipv4_address: ${RIC_E2TERM_IP}
+    # Delay startup by 5s so the RMR outbound connection to ric-e2mgr:3801 is
+    # established before e2term opens the SCTP port and accepts E2 connections.
+    # Without this, e2term starts instantly (depends_on only checks e2mgr's HTTP
+    # health, not RMR readiness) and the first E2_TERM_KEEP_ALIVE_RESP fails
+    # with RMR_ERR_NOENDPT, preventing e2term from registering with e2mgr.
+    command: sh -c "sleep 5 && ./startup.sh"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://${RIC_E2TERM_IP}:8088/metrics"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
     depends_on:
       ric-dbaas:
+        condition: service_healthy
+      ric-e2mgr:
         condition: service_healthy
 
   # --------------------------------------------------------------------------
@@ -96,6 +109,37 @@ services:
     networks:
       ric-network:
         ipv4_address: ${RIC_E2MGR_IP}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3800/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    depends_on:
+      ric-dbaas:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Application Manager - xApp lifecycle management
+  # --------------------------------------------------------------------------
+  # Manages xApp registration, deployment, and lifecycle. Provides the REST
+  # API on port 8080 that rtmgr polls for the xApp list (/ric/v1/xapps).
+  # Required for xApp support; rtmgr depends on this service being reachable.
+  ric-appmgr:
+    image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-appmgr:0.5.4
+    container_name: ric-appmgr
+    hostname: ric-appmgr
+    restart: unless-stopped
+    environment:
+      DBAAS_SERVICE_HOST: ric-dbaas
+      DBAAS_SERVICE_PORT: "6379"
+      RMR_SEED_RT: /opt/ric/config/appmgr.rt
+    volumes:
+      - ./ric/config/appmgr/appmgr.yaml:/opt/ric/config/appmgr.yaml:ro
+      - ./ric/config/appmgr/appmgr.rt:/opt/ric/config/appmgr.rt:ro
+    networks:
+      ric-network:
+        ipv4_address: ${RIC_APPMGR_IP}
     depends_on:
       ric-dbaas:
         condition: service_healthy
@@ -113,16 +157,28 @@ services:
     environment:
       RMR_SEED_RT: /uta_rtg_ric.rt
       CFGFILE: /cfg/rtmgr-config.yaml
+      RTFILE: /db/rt.json
       DBAAS_SERVICE_HOST: ric-dbaas
       DBAAS_SERVICE_PORT: "6379"
     volumes:
       - ./ric/config/rtmgr/rtmgr-config.yaml:/cfg/rtmgr-config.yaml:ro
+      - ./ric/config/rtmgr/rt.json:/db/rt.json
+    extra_hosts:
+      # xapp-frame builds the submgr URL as "service-{PLT_NAMESPACE}-submgr-http.{PLT_NAMESPACE}:8088"
+      # defaulting PLT_NAMESPACE to "ricplt". Map that K8s-style name to ric-submgr's fixed IP.
+      - "service-ricplt-submgr-http.ricplt:${RIC_SUBMGR_IP}"
     networks:
       ric-network:
         ipv4_address: ${RIC_RTMGR_IP}
     depends_on:
       ric-dbaas:
         condition: service_healthy
+      ric-appmgr:
+        condition: service_started
+      ric-e2mgr:
+        condition: service_healthy
+      ric-submgr:
+        condition: service_started
 
   # --------------------------------------------------------------------------
   # Subscription Manager - E2 subscription lifecycle
