@@ -74,7 +74,7 @@ docker images | grep -E "(teste-core|srsran-split|srsue|open5gs-webui)" | wc -l
 
 ### Test 1.1: Create TUN Interfaces
 ```bash
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Verify
 ip link show | grep -E "ogstun[0-9]?"
@@ -433,15 +433,15 @@ docker logs 5g-core-upf 2>&1 | grep -i "gtp.*session\|pfcp.*session" | head -5
 ### Test 8.4: Restart Resilience
 ```bash
 # Restart all stacks
-./launch-all.sh --down
+./scripts/launch-all.sh --down
 sleep 10
-./launch-all.sh
+./scripts/launch-all.sh
 
 # Wait for full startup
 sleep 60
 
 # Verify all healthy
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ./scripts/check-nf-health.sh
 ```
 

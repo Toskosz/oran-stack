@@ -73,8 +73,8 @@ cd oran-stack
 
 ### 2. Setup Host Network
 ```bash
-sudo ./setup-host-tun.sh
-sudo ./setup-host-network.sh
+sudo ./scripts/setup-host-tun.sh
+sudo ./scripts/setup-host-network.sh
 ```
 
 ### 3. Build All Docker Images
@@ -94,12 +94,12 @@ docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 
 ### 4. Launch Everything
 ```bash
-./launch-all.sh
+./scripts/launch-all.sh
 ```
 
 ### 5. Verify
 ```bash
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ./scripts/check-nf-health.sh
 ```
 
@@ -127,7 +127,7 @@ free -h                   # 8GB+ available
 ### Step 2: Configure TUN Interfaces
 
 ```bash
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Verify
 ip tuntap list
@@ -137,7 +137,7 @@ ip tuntap list
 ### Step 3: Configure Data Plane Networking
 
 ```bash
-sudo ./setup-host-network.sh
+sudo ./scripts/setup-host-network.sh
 
 # Verify
 sysctl net.ipv4.ip_forward              # Should be 1
@@ -162,17 +162,17 @@ See [Image Build](#image-build) section below.
 
 ```bash
 # All stacks
-./launch-all.sh
+./scripts/launch-all.sh
 
 # Or selectively:
-./launch-all.sh --core-only   # Core only
-./launch-all.sh --no-ue       # Core + RIC + CU/DU (no UE)
+./scripts/launch-all.sh --core-only   # Core only
+./scripts/launch-all.sh --no-ue       # Core + RIC + CU/DU (no UE)
 ```
 
 ### Step 7: Verify
 
 ```bash
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ./scripts/check-nf-health.sh watch
 ```
 
@@ -363,7 +363,7 @@ docker build --no-cache -f dockerfiles/Dockerfile.srsran -t srsran-split:latest 
 docker logs 5g-core-nrf -f
 
 # Common: TUN not created
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Common: MongoDB not ready
 docker logs 5g-mongodb
@@ -487,7 +487,7 @@ docker logs -f srs_cu
 ./scripts/check-nf-health.sh watch
 
 # Quick status
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ```
 
 ### Common Log Patterns
