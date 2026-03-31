@@ -1,0 +1,31 @@
+# ============================================================================
+# O-RAN SC RIC Application Manager (appmgr) Configuration
+# ============================================================================
+# appmgr handles xApp lifecycle: registration, deployment, and status.
+# rtmgr polls its /ric/v1/xapps endpoint to build routing tables.
+#
+# In a Docker Compose (non-Kubernetes) deployment, Helm-based xApp deployment
+# is unavailable, but the REST API still serves xApp registration data from SDL.
+# ============================================================================
+
+"local":
+  "host": ":8080"
+"logger":
+  "level": 3
+"rmr":
+  "protPort": "tcp:4560"
+  "maxSize": 8192
+  "numWorkers": 1
+"db":
+  "namespacePrefix": "appmgr"
+  "host": "ric-dbaas"
+  "port": 6379
+"helm":
+  "host": ""
+  "serviceHost": ""
+  "helmdir": "/opt/ric/helm"
+  "helmversion": "3"
+  "tillerNamespace": ""
+  "chartmuseumusername": ""
+  "chartmuseumpassword": ""
+  "caasIngress": ""
