@@ -7,7 +7,7 @@ This project deploys a complete O-RAN-compliant 5G network across **three Docker
 | Stack | Compose File | Network | Containers |
 |-------|-------------|---------|------------|
 | **5G Core** | `docker-compose.yml` | `5g-core-network` (172.20.0.0/24) | 18 (17 NFs + MongoDB + WebUI) |
-| **Near-RT RIC** | `docker-compose.ric.yml` | `ric-network` (172.22.0.0/24) | 6 (e2term, e2mgr, submgr, rtmgr, dbaas, a1mediator) |
+| **Near-RT RIC** | `docker-compose.ric.yml` | `ric-network` (172.22.0.0/24) | 7 (dbaas, e2term, e2mgr, appmgr, submgr, rtmgr, a1mediator) |
 | **CU/DU + UE** | `docker-compose.cudu.yml` | `ran-network` (172.21.0.0/24) | 3 (srs_cu, srs_du, srsue_5g_zmq) |
 
 ### Architecture Diagram
@@ -255,7 +255,7 @@ MongoDB (health check) -> NRF -> SCP -> SEPP -> AMF -> SMF -> UPF
 ### RIC (docker-compose.ric.yml)
 
 ```
-ric-dbaas (Redis) -> ric-e2term -> ric-e2mgr -> ric-submgr -> ric-rtmgr -> ric-a1mediator
+ric-dbaas (Redis) -> ric-e2mgr -> ric-appmgr -> ric-submgr -> ric-rtmgr -> ric-e2term -> ric-a1mediator
 ```
 
 ### CU/DU (docker-compose.cudu.yml)
