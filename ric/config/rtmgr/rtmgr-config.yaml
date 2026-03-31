@@ -1,24 +1,40 @@
-"PlatformComponents":
-  - "name": "E2TERM"
-    "fqdn": "ric-e2term"
-    "port": 38000
-  - "name": "SUBMAN"
-    "fqdn": "ric-submgr"
-    "port": 4560
-  - "name": "E2MAN"
-    "fqdn": "ric-e2mgr"
-    "port": 3801
-"local":
-  "host": ":8989"
-"logger":
-  "level": 3
-"rmr":
-  "protPort": "tcp:4560"
-  "maxSize": 2072
-  "numWorkers": 1
-"RTFILE": "/db/rt.json"
-"NBIURL": "http://ric-e2mgr:3800"
-"nbi": "httpRESTful"
-"sbi": "rmrpush"
-"rpe": "rmrpush"
-"sdl": "file"
+PlatformComponents:
+  - name: E2TERM
+    fqdn: ric-e2term
+    port: 38000
+  - name: E2TERMINST
+    fqdn: ric-e2term
+    port: 38000
+  - name: SUBMAN
+    fqdn: ric-submgr
+    port: 4560
+  - name: E2MAN
+    fqdn: ric-e2mgr
+    port: 3801
+  - name: APPMGR
+    fqdn: ric-appmgr
+    port: 8080
+  - name: A1MEDIATOR
+    fqdn: ric-a1mediator
+    port: 4562
+local:
+  host: ":8989"
+logger:
+  level: 3
+rmr:
+  protPort: "tcp:4560"
+  maxSize: 2072
+  numWorkers: 1
+rtfile: "/db/rt.json"
+cfgfile: "/cfg/rtmgr-config.yaml"
+nbiurl: "http://ric-e2mgr:3800"
+nbi: "httpRESTful"
+sbi: "rmrpush"
+rpe: "rmrpush"
+sdl: "file"
+xmurl: "http://ric-appmgr:8080/ric/v1/xapps"
+e2murl: "http://ric-e2mgr:3800/v1/e2t/list"
+subscription:
+  host: "ric-submgr"
+  port: 8088
+  timeout: 30

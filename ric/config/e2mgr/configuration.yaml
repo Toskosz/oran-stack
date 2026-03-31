@@ -12,7 +12,7 @@ bigRedButtonTimeoutSec: 5
 maxRnibConnectionAttempts: 3
 rnibRetryIntervalMs: 10
 keepAliveResponseTimeoutMs: 4500
-keepAliveDelayMs: 1500
+keepAliveDelayMs: 10000
 e2tInstanceDeletionTimeoutMs: 15000
 e2ResetTimeOutSec: 10
 globalRicId:

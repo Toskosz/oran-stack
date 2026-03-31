@@ -173,9 +173,13 @@ start_ric() {
   # Wait for Redis/dbaas to be healthy
   wait_for_healthy "ric-dbaas" 30
 
-  # Brief pause for RIC components to initialize
-  log_info "Waiting for RIC platform to initialize (10s)..."
-  sleep 10
+  # Wait for e2mgr REST+RMR to be ready (gates e2term startup via depends_on)
+  wait_for_healthy "ric-e2mgr" 90
+
+  # Wait for e2term SCTP+RMR path to be confirmed healthy before starting the DU
+  # This prevents the E2 Setup Request race condition where the DU connects before
+  # e2term's RMR link to e2mgr is established, causing a silent RMR_ERR_NOENDPT drop.
+  wait_for_healthy "ric-e2term" 60
 
   log_success "Near-RT RIC Platform is up"
   echo ""

@@ -27,7 +27,7 @@ f1u:
 
 # E2 interface to Near-RT RIC
 e2:
-  enable_du_e2: false
+  enable_du_e2: true
   addr: 172.22.0.210                  # RIC e2term on ric-network
   port: 36421
   bind_addr: 172.22.0.51              # DU's ric-network interface
