@@ -37,16 +37,16 @@ This project deploys a complete O-RAN-compliant 5G network across **three Docker
           │
        5g-core-network (172.20.0.0/24)
   ┌───────┴──────────────────────────────────────────────────┐
-  │  5G Core (Open5GS)           │  4G/Legacy NFs            │
-  │  NRF  (172.20.0.10)         │  MME  (172.20.0.2)        │
-  │  SCP  (172.20.0.200)        │  SGW-C (172.20.0.3)       │
-  │  SEPP (172.20.0.250)        │  SGW-U (172.20.0.6)       │
-  │  AMF  (172.20.0.5)          │  HSS  (172.20.0.8)        │
-  │  SMF  (172.20.0.4)          │  PCRF (172.20.0.21)       │
+  │  5G Core (Open5GS)          │  4G/Legacy NFs             │
+  │  NRF  (172.20.0.10)         │  MME  (172.20.0.2)         │
+  │  SCP  (172.20.0.200)        │  SGW-C (172.20.0.3)        │
+  │  SEPP (172.20.0.250)        │  SGW-U (172.20.0.6)        │
+  │  AMF  (172.20.0.5)          │  HSS  (172.20.0.8)         │
+  │  SMF  (172.20.0.4)          │  PCRF (172.20.0.21)        │
   │  UPF  (172.20.0.7)          │                            │
   │  AUSF (172.20.0.11)         │  Infrastructure            │
   │  UDM  (172.20.0.12)         │  MongoDB (172.20.0.254)    │
-  │  PCF  (172.20.0.13)         │  WebUI  (172.20.0.16)     │
+  │  PCF  (172.20.0.13)         │  WebUI  (172.20.0.16)      │
   │  NSSF (172.20.0.14)         │                            │
   │  BSF  (172.20.0.15)         │                            │
   │  UDR  (172.20.0.20)         │                            │
@@ -217,7 +217,7 @@ Multi-homed containers bridge the isolated networks:
 | MME | 5g-core-mme | 172.20.0.2 | - | GTP (2123), S1AP (36412) |
 | SGW-C | 5g-core-sgwc | 172.20.0.3 | - | GTP (2123), PFCP (8805) |
 | SGW-U | 5g-core-sgwu | 172.20.0.6 | - | GTP (2152), PFCP (8805) |
-| HSS | 5g-core-hss | 172.20.0.1 | - | - |
+| HSS | 5g-core-hss | 172.20.0.8 | - | - |
 | PCRF | 5g-core-pcrf | 172.20.0.21 | - | - |
 | MongoDB | 5g-mongodb | 172.20.0.254 | 27017 | - |
 | WebUI | 5g-core-webui | 172.20.0.16 | 9999 | - |
