@@ -22,5 +22,6 @@ sgwu:
     - subnet: ${SMF_SUBNET6}
 
 logger:
-  file: /var/log/open5gs/sgwu.log
+  file:
+    path: /var/log/open5gs/sgwu.log
   level: ${LOG_LEVEL}

@@ -1,0 +1,85 @@
+# ============================================================================
+# srsRAN 4G - UE (User Equipment) Docker Image
+# ============================================================================
+# Builds srsue from the srsRAN_4G repository (C-based LTE/NR UE simulator).
+# The srsUE supports NR NSA and SA modes with ZMQ virtual radio.
+#
+# Binary produced:
+#   /usr/local/bin/srsue   - UE simulator
+#
+# Build:
+#   docker build -f Dockerfile.srsue -t srsue:latest .
+#
+# Note: srsUE comes from srsRAN_4G (different repo than srsRAN_Project).
+# srsRAN_4G provides the UE, eNB, and EPC for 4G/5G NSA/SA testing.
+# ============================================================================
+
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    libsctp-dev \
+    libmbedtls-dev \
+    libzmq3-dev \
+    libfftw3-dev \
+    libboost-all-dev \
+    libconfig++-dev \
+    libpcsclite-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone srsRAN 4G (provides srsue binary)
+WORKDIR /opt
+RUN git clone --depth 1 https://github.com/srsran/srsRAN_4G.git
+
+# Build srsRAN 4G
+WORKDIR /opt/srsRAN_4G
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release
+RUN cmake --build build -j"$(nproc)"
+
+# Verify srsue binary exists
+RUN test -f /opt/srsRAN_4G/build/srsue/src/srsue
+
+# ============================================================================
+# Runtime stage
+# ============================================================================
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libsctp1 \
+    libmbedtls14 \
+    libmbedcrypto7 \
+    libmbedx509-1 \
+    libzmq5 \
+    libfftw3-single3 \
+    libfftw3-double3 \
+    libboost-program-options1.74.0 \
+    libconfig++9v5 \
+    libpcsclite1 \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    tcpdump \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy srsue binary from builder
+COPY --from=builder /opt/srsRAN_4G/build/srsue/src/srsue /usr/local/bin/srsue
+
+# Copy all shared libraries built by srsRAN 4G into /usr/local/lib
+# The build tree has libs spread across multiple subdirectories
+RUN --mount=type=bind,from=builder,source=/opt/srsRAN_4G/build,target=/srsran-build \
+    find /srsran-build -name "*.so*" -exec cp -P {} /usr/local/lib/ \; && ldconfig
+
+WORKDIR /mnt/srsran
+
+CMD ["/bin/bash"]

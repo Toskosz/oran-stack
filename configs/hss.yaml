@@ -14,5 +14,6 @@ hss:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/hss.log
+  file:
+    path: /var/log/open5gs/hss.log
   level: ${LOG_LEVEL}

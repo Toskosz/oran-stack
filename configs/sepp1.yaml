@@ -14,18 +14,19 @@ sepp:
       - address: ${SEPP_IP}
         port: 7777
     client:
-      sepp_N32f:
-        - uri: ${SEPP_N32F_PEER_URI}
-  n32f:
+      nrf:
+        - uri: http://${NRF_IP}:${NRF_SBI_PORT}
+      scp:
+        - uri: http://${SCP_IP}:${SCP_SBI_PORT}
+  n32:
     server:
-      - address: ${SEPP_IP}
-        port: 7777
-    client:
-      sepp_N32:
-        - uri: ${SEPP_N32_PEER_URI}
+      - sender: ${MCC}${MNC}
+        address: ${SEPP_IP}
+        port: 7778
 
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/sepp.log
+  file:
+    path: /var/log/open5gs/sepp.log
   level: ${LOG_LEVEL}

@@ -36,6 +36,33 @@ echo "[OK] Configuration files populated"
 echo ""
 
 # ============================================================================
+# freeDiameter Configuration Setup
+# ============================================================================
+
+echo "[INFO] Setting up freeDiameter configuration files..."
+
+mkdir -p /etc/freeDiameter
+
+declare -a fd_configs=("pcrf" "hss" "mme" "smf")
+
+for fd_conf in "${fd_configs[@]}"; do
+    src="/open5gs/configs/freeDiameter/${fd_conf}.conf"
+    dst="/etc/freeDiameter/${fd_conf}.conf"
+    if [ -f "$src" ]; then
+        if cp "$src" "$dst"; then
+            echo "[OK] Installed ${fd_conf}.conf -> ${dst}"
+        else
+            echo "[WARN] Failed to copy ${fd_conf}.conf"
+        fi
+    else
+        echo "[WARN] freeDiameter template not found: ${src}"
+    fi
+done
+
+echo "[OK] freeDiameter configuration files ready"
+echo ""
+
+# ============================================================================
 # Network Configuration (with error handling)
 # ============================================================================
 

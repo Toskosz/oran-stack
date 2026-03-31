@@ -1,0 +1,124 @@
+PlatformComponents:
+  - name: E2TERM
+    fqdn: ric-e2term
+    port: 38000
+  - name: E2TERMINST
+    fqdn: ric-e2term
+    port: 38000
+  - name: SUBMAN
+    fqdn: ric-submgr
+    port: 4560
+  - name: E2MAN
+    fqdn: ric-e2mgr
+    port: 3801
+  - name: APPMGR
+    fqdn: ric-appmgr
+    port: 8080
+  - name: A1MEDIATOR
+    fqdn: ric-a1mediator
+    port: 4562
+PlatformRoutes:
+  - messagetype: E2_TERM_INIT
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: E2MAN
+    meid: ""
+  - messagetype: E2_TERM_KEEP_ALIVE_RESP
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: E2MAN
+    meid: ""
+  - messagetype: RIC_E2_SETUP_REQ
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: E2MAN
+    meid: ""
+  - messagetype: RIC_E2_RESET_REQ
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: E2MAN
+    meid: ""
+  - messagetype: RIC_SERVICE_UPDATE
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: E2MAN
+    meid: ""
+  - messagetype: RIC_SUB_REQ
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: SUBMAN
+    meid: ""
+  - messagetype: RIC_SUB_DEL_REQ
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: SUBMAN
+    meid: ""
+  - messagetype: RIC_SUB_DEL_REQUIRED
+    senderendpoint: E2MAN
+    subscriptionid: -1
+    endpoint: SUBMAN
+    meid: ""
+messagetypes:
+  - "E2_TERM_INIT=1100"
+  - "E2_TERM_KEEP_ALIVE_REQ=1101"
+  - "E2_TERM_KEEP_ALIVE_RESP=1102"
+  - "RIC_SCTP_CONNECTION_FAILURE=1080"
+  - "RIC_SCTP_CLEAR_ALL=1090"
+  - "RAN_CONNECTED=1200"
+  - "RAN_RESTARTED=1210"
+  - "RAN_RECONFIGURED=1220"
+  - "RIC_E2_SETUP_REQ=12001"
+  - "RIC_E2_SETUP_RESP=12002"
+  - "RIC_E2_SETUP_FAILURE=12003"
+  - "RIC_E2_RESET_REQ=12004"
+  - "RIC_E2_RESET_RESP=12005"
+  - "RIC_E2_RAN_ERROR_INDICATION=12006"
+  - "RIC_SUB_REQ=12010"
+  - "RIC_SUB_RESP=12011"
+  - "RIC_SUB_FAILURE=12012"
+  - "RIC_SUB_DEL_REQ=12020"
+  - "RIC_SUB_DEL_RESP=12021"
+  - "RIC_SUB_DEL_FAILURE=12022"
+  - "RIC_SUB_DEL_REQUIRED=12023"
+  - "RIC_SERVICE_UPDATE=12030"
+  - "RIC_SERVICE_UPDATE_ACK=12031"
+  - "RIC_SERVICE_UPDATE_FAILURE=12032"
+  - "RIC_CONTROL_REQ=12040"
+  - "RIC_CONTROL_ACK=12041"
+  - "RIC_CONTROL_FAILURE=12042"
+  - "RIC_INDICATION=12050"
+  - "RIC_SERVICE_QUERY=12060"
+  - "RIC_E2NODE_CONFIG_UPDATE=12070"
+  - "RIC_E2NODE_CONFIG_UPDATE_ACK=12071"
+  - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
+  - "RIC_HEALTH_CHECK_REQ=100"
+  - "RIC_HEALTH_CHECK_RESP=101"
+  - "A1_POLICY_REQ=20010"
+  - "A1_POLICY_RESP=20011"
+  - "A1_POLICY_QUERY=20012"
+local:
+  # NOTE: This value is NOT used by ric-plt-rtmgr:0.9.6. The swagger-generated
+  # HTTP server ignores local.host and hardcodes port 3800 as its NBI REST bind port.
+  # e2mgr must use http://ric-rtmgr:3800/ric/v1/handles/ — NOT port 8989.
+  # Changing this to ":3800" has no effect on the running binary.
+  # See LEARNINGS.md Section 6 for full debugging history.
+  host: ":8989"
+logger:
+  level: 4
+rmr:
+  protPort: "tcp:4560"
+  maxSize: 2072
+  numWorkers: 1
+rtfile: "/db/rt.json"
+cfgfile: "/cfg/rtmgr-config.yaml"
+nbiurl: "http://ric-e2mgr:3800"
+nbi: "httpRESTful"
+sbi: "rmrpush"
+rpe: "rmrpush"
+sdl: "file"
+xmurl: "http://ric-appmgr:8080/ric/v1/xapps"
+e2murl: "http://ric-e2mgr:3800/v1/e2t/list"
+subscription:
+  host: "ric-submgr"
+  port: 8088
+  timeout: 30

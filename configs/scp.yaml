@@ -13,9 +13,13 @@ scp:
     server:
       - address: 172.20.0.200
         port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
 
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/scp.log
+  file:
+    path: /var/log/open5gs/scp.log
   level: ${LOG_LEVEL}

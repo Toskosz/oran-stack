@@ -22,5 +22,6 @@ udr:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/udr.log
+  file:
+    path: /var/log/open5gs/udr.log
   level: ${LOG_LEVEL}

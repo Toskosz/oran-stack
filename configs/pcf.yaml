@@ -28,5 +28,6 @@ pcf:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/pcf.log
+  file:
+    path: /var/log/open5gs/pcf.log
   level: ${LOG_LEVEL}

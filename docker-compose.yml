@@ -7,6 +7,15 @@ x-open5gs-common-env: &open5gs-common-env
   TAC: ${TAC}
   AMF_REGION: ${AMF_REGION}
   AMF_SET: ${AMF_SET}
+  AMF_IP: ${AMF_IP}
+  AMF_SBI_PORT: ${AMF_SBI_PORT}
+  AMF_NGAP_PORT: ${AMF_NGAP_PORT}
+  AMF_METRICS_PORT: ${AMF_METRICS_PORT}
+  NRF_IP: ${NRF_IP}
+  NRF_SBI_PORT: ${NRF_SBI_PORT}
+  SCP_IP: ${SCP_IP}
+  SCP_SBI_PORT: ${SCP_SBI_PORT}
+  SEPP_IP: ${SEPP_IP}
   SMF_SUBNET4: ${SMF_SUBNET4}
   SMF_SUBNET6: ${SMF_SUBNET6}
   UPF_IP: ${UPF_IP}
@@ -27,7 +36,7 @@ services:
     - ./init-webui-data.js:/docker-entrypoint-initdb.d/init-webui-data.js:ro
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.254
+        ipv4_address: ${MONGODB_IP}
     healthcheck:
       test: echo 'db.adminCommand("ping")' | mongosh --quiet
       interval: 10s
@@ -53,7 +62,7 @@ services:
       PORT: '9999'
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.16
+        ipv4_address: ${WEBUI_IP}
     ports:
     - 9999:9999
     volumes:
@@ -81,7 +90,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.10
+        ipv4_address: ${NRF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -107,7 +116,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.200
+        ipv4_address: ${SCP_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -133,7 +142,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.250
+        ipv4_address: ${SEPP_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -159,7 +168,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.5
+        ipv4_address: ${AMF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -185,7 +194,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.4
+        ipv4_address: ${SMF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -211,7 +220,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.7
+        ipv4_address: ${UPF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -237,7 +246,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.11
+        ipv4_address: ${AUSF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -263,7 +272,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.12
+        ipv4_address: ${UDM_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -289,7 +298,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.13
+        ipv4_address: ${PCF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -315,7 +324,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.14
+        ipv4_address: ${NSSF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -341,7 +350,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.15
+        ipv4_address: ${BSF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -367,7 +376,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.20
+        ipv4_address: ${UDR_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -393,7 +402,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.2
+        ipv4_address: ${MME_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -419,7 +428,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.3
+        ipv4_address: ${SGWC_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -445,7 +454,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.6
+        ipv4_address: ${SGWU_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -471,7 +480,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.1
+        ipv4_address: ${HSS_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -497,7 +506,7 @@ services:
       <<: *open5gs-common-env
     networks:
       5g-core-network:
-        ipv4_address: 172.20.0.21
+        ipv4_address: ${PCRF_IP}
     cap_add:
     - NET_ADMIN
     - SYS_ADMIN
@@ -514,10 +523,11 @@ services:
     command: ./install/bin/open5gs-pcrfd -c /open5gs/install/etc/open5gs/pcrf.yaml
 networks:
   5g-core-network:
+    name: 5g-core-network
     driver: bridge
     ipam:
       config:
-      - subnet: 172.20.0.0/16
+      - subnet: ${DOCKER_SUBNET}
 volumes:
   mongodb_data:
     driver: local

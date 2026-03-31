@@ -1,0 +1,44 @@
+# ============================================================================
+# srsRAN CU (Central Unit) Configuration
+# ============================================================================
+# Based on 3GPP Option 2 split (PDCP/RLC boundary).
+#
+# Interfaces:
+#   N2 (NGAP/SCTP): CU <-> AMF at 172.20.0.5 on core-network
+#   NG-U (GTP-U):   CU <-> UPF for user plane
+#   F1-C (SCTP):    CU <-> DU control plane on ran-network
+#   F1-U (GTP-U):   CU <-> DU user plane on ran-network (port 2153)
+#
+# The CU is multi-homed:
+#   - core-network (172.20.0.50): for N2/NG-U to AMF/UPF
+#   - ran-network  (172.21.0.50): for F1 to DU
+# ============================================================================
+
+cu_cp:
+  amf:
+    addr: 172.20.0.5                  # AMF on core-network
+    bind_addr: 172.20.0.50            # CU's core-network interface
+    supported_tracking_areas:
+      - tac: 1
+        plmn_list:
+          - plmn: "00101"
+            tai_slice_support_list:
+              - sst: 1
+
+  f1ap:
+    bind_addr: 172.21.0.50            # CU's ran-network interface (F1-C)
+
+cu_up:
+  f1u:
+    bind_port: 2153                   # F1-U port (avoid conflict with NG-U 2152)
+    peer_port: 2153
+    socket:
+      - bind_addr: 172.21.0.50          # CU's ran-network interface (F1-U)
+
+  ngu:
+    socket:
+      - bind_addr: 172.20.0.50        # CU's core-network interface (NG-U)
+
+log:
+  filename: /mnt/srsran/logs/cu.log
+  all_level: info

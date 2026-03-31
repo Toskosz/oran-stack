@@ -22,5 +22,6 @@ bsf:
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/bsf.log
+  file:
+    path: /var/log/open5gs/bsf.log
   level: ${LOG_LEVEL}

@@ -18,12 +18,14 @@ nssf:
         - uri: http://172.20.0.10:7777
       scp:
         - uri: http://172.20.0.200:7777
-  nssai_supported:
-    - sst: 1
-      default: true
+      nsi:
+        - uri: http://172.20.0.10:7777
+          s_nssai:
+            sst: 1
 
 db_uri: ${MONGODB_URI}
 
 logger:
-  file: /var/log/open5gs/nssf.log
+  file:
+    path: /var/log/open5gs/nssf.log
   level: ${LOG_LEVEL}
