@@ -13,7 +13,7 @@ global:
     ue: 4096
 
 mme:
-  freeDiameter: /open5gs/install/etc/freeDiameter/mme.conf
+  freeDiameter: /etc/freeDiameter/mme.conf
   s1ap:
     server:
       - address: 172.20.0.2
