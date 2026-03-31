@@ -96,6 +96,7 @@ declare -A CORE_NAMES=(
 
 declare -a RIC_SERVICES=(
   "ric-dbaas"
+  "ric-appmgr"
   "ric-e2term"
   "ric-e2mgr"
   "ric-rtmgr"
@@ -105,6 +106,7 @@ declare -a RIC_SERVICES=(
 
 declare -a RIC_IPS=(
   "172.22.0.214"  # dbaas
+  "172.22.0.216"  # appmgr
   "172.22.0.210"  # e2term
   "172.22.0.211"  # e2mgr
   "172.22.0.213"  # rtmgr
@@ -114,6 +116,7 @@ declare -a RIC_IPS=(
 
 declare -A RIC_NAMES=(
   ["ric-dbaas"]="DBAAS (Redis)"
+  ["ric-appmgr"]="App Manager"
   ["ric-e2term"]="E2 Termination"
   ["ric-e2mgr"]="E2 Manager"
   ["ric-rtmgr"]="Routing Mgr"
