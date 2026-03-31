@@ -261,6 +261,28 @@ start_ric() {
   echo ""
 }
 
+wait_for_nodeb() {
+  # Poll e2mgr until at least one gNB appears in /v1/nodeb/states.
+  # The DU sends E2 Setup Request only once on SCTP connect. If e2term's SCTP
+  # handler wasn't fully ready, the message is silently lost. Detecting this here
+  # lets start_cudu() restart the DU to trigger a fresh E2 Setup Request.
+  local timeout=${1:-30}
+  local elapsed=0
+
+  while [ $elapsed -lt $timeout ]; do
+    local states
+    states=$(docker exec ric-e2mgr curl -s http://localhost:3800/v1/nodeb/states 2>/dev/null || echo "[]")
+    if [ "$states" != "[]" ] && [ -n "$states" ]; then
+      log_success "gNB registered: $states"
+      return 0
+    fi
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+
+  return 1
+}
+
 start_cudu() {
   local skip_ue=$1
 
@@ -279,6 +301,20 @@ start_cudu() {
 
   log_info "Waiting for F1/E2 interfaces to establish (10s)..."
   sleep 10
+
+  # Verify the DU's E2 Setup Request was processed by e2mgr.
+  # The DU sends E2 Setup only once on initial SCTP connect — if e2term's SCTP
+  # handler wasn't fully ready, the message is silently lost and nodeb/states
+  # stays empty. One DU restart is enough to trigger a fresh E2 Setup.
+  log_info "Waiting for gNB to appear in e2mgr nodeb/states (up to 30s)..."
+  if ! wait_for_nodeb 30; then
+    log_warn "E2 Setup Request not processed — restarting DU to retrigger (one-shot message)..."
+    docker restart srs_du
+    log_info "Waiting for gNB after DU restart (up to 30s)..."
+    if ! wait_for_nodeb 30; then
+      log_warn "gNB still not registered. Check: docker exec ric-e2mgr curl -s http://localhost:3800/v1/nodeb/states"
+    fi
+  fi
 
   log_success "CU/DU Split is up"
   echo ""
