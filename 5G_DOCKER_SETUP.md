@@ -228,8 +228,8 @@ Multi-homed containers bridge the isolated networks:
 |-----------|-----------|-----------|-----------|
 | DBAAS (Redis) | ric-dbaas | 172.22.0.214 | 6379 |
 | E2 Termination | ric-e2term | 172.22.0.210 | 36421 (SCTP), 38000 (RMR) |
-| E2 Manager | ric-e2mgr | 172.22.0.211 | 3800 (HTTP), 38010 (RMR) |
-| Subscription Mgr | ric-submgr | 172.22.0.212 | 3800 (HTTP), 38010 (RMR) |
+| E2 Manager | ric-e2mgr | 172.22.0.211 | 3800 (HTTP), 3801 (RMR) |
+| Subscription Mgr | ric-submgr | 172.22.0.212 | 8080 (HTTP), 4560 (RMR) |
 | Routing Manager | ric-rtmgr | 172.22.0.213 | 3800 (HTTP) |
 | A1 Mediator | ric-a1mediator | 172.22.0.215 | 10000 (HTTP) |
 
