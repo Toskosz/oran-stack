@@ -148,7 +148,7 @@ services:
   # Routing Manager - RMR route distribution
   # --------------------------------------------------------------------------
   # Manages the RMR routing table for message passing between RIC components.
-  # Provides NBI on port 8989 for route updates from e2mgr.
+  # Provides NBI on port 3800 for route updates from e2mgr.
   ric-rtmgr:
     image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
     container_name: ric-rtmgr

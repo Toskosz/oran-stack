@@ -15,6 +15,7 @@
 #   --core-only    Start only the 5G core
 #   --no-ue        Start core + RIC + CU/DU but skip the UE
 #   --down         Stop all stacks (reverse order)
+#   --ric-restart  Safely restart only the RIC (flush Redis + ordered restart)
 #   --status       Show status of all containers
 #   --logs         Export logs after startup
 #   -h, --help     Show this help message
@@ -165,8 +166,79 @@ start_core() {
   echo ""
 }
 
+wait_for_e2t() {
+  # Poll e2mgr REST API until an E2T instance appears, confirming the full
+  # E2_TERM_INIT → rtmgr registration → keep-alive flow completed successfully.
+  # This is the definitive signal that the RIC is ready to accept E2 Setup from the DU.
+  local timeout=${1:-90}
+  local elapsed=0
+
+  log_info "Waiting for E2T instance to register with e2mgr (up to ${timeout}s)..."
+  while [ $elapsed -lt $timeout ]; do
+    local e2t
+    e2t=$(docker exec ric-e2mgr curl -s http://localhost:3800/v1/e2t/list 2>/dev/null || echo "[]")
+    if [ "$e2t" != "[]" ] && [ -n "$e2t" ]; then
+      log_success "E2T instance registered: $e2t"
+      return 0
+    fi
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+
+  log_warn "E2T instance not registered after ${timeout}s — DU may fail to connect."
+  log_warn "Diagnose: docker exec ric-e2mgr curl -s http://localhost:3800/v1/e2t/list"
+  log_warn "If stuck, run: ./launch-all.sh --ric-restart"
+}
+
+ric_reboot_dance() {
+  # Safe RIC restart order from LEARNINGS-TIMING-RACE.md:
+  # e2term sends E2_TERM_INIT only ONCE on boot, so order is critical.
+  # Stale Redis E2T entries cause rtmgr desync, so flush first.
+  log_info "RIC Reboot Dance: flushing Redis and restarting RIC in safe order..."
+  echo ""
+
+  # Step 1: Flush Redis to clear stale E2T/routing state
+  log_info "Flushing Redis (clearing stale E2T state)..."
+  docker exec ric-dbaas redis-cli FLUSHALL
+  log_success "Redis flushed"
+
+  # Step 2: Restart e2mgr first — rtmgr needs it healthy before querying /v1/e2t/list
+  log_info "Restarting ric-e2mgr..."
+  docker restart ric-e2mgr
+  wait_for_healthy "ric-e2mgr" 60
+
+  # Step 3: Restart rtmgr — starts reconciliation loop against a clean e2mgr
+  log_info "Restarting ric-rtmgr..."
+  docker restart ric-rtmgr
+  # rtmgr has no healthcheck; give it a moment to bind RMR and start reconciling
+  sleep 5
+
+  # Step 4: Restart e2term LAST — it sends E2_TERM_INIT only once on boot;
+  # if it starts before rtmgr's RMR is up, the message is lost forever
+  log_info "Restarting ric-e2term (last — sends E2_TERM_INIT only once on boot)..."
+  docker restart ric-e2term
+  wait_for_healthy "ric-e2term" 60
+
+  echo ""
+  wait_for_e2t 90
+}
+
 start_ric() {
   log_info "Starting Near-RT RIC Platform..."
+
+  # Flush Redis if dbaas is already running. Handles the partial-down case where
+  # dbaas survived but the RIC app containers were stopped — stale E2T entries
+  # would cause rtmgr desync and the keep-alive death spiral on restart.
+  # On a full cold start (after --down) dbaas is recreated so Redis is already
+  # empty, but FLUSHALL on an empty db is harmless.
+  if docker ps --format "{{.Names}}" | grep -q "^ric-dbaas$"; then
+    log_info "Flushing stale Redis state before RIC startup..."
+    docker exec ric-dbaas redis-cli FLUSHALL
+  fi
+
+  # depends_on in docker-compose.ric.yml enforces:
+  #   dbaas (healthy) → e2mgr (healthy) → rtmgr
+  #                                      → e2term (+5s sleep, healthy)
   docker compose -f "$RIC_COMPOSE" up -d
   echo ""
 
@@ -176,10 +248,14 @@ start_ric() {
   # Wait for e2mgr REST+RMR to be ready (gates e2term startup via depends_on)
   wait_for_healthy "ric-e2mgr" 90
 
-  # Wait for e2term SCTP+RMR path to be confirmed healthy before starting the DU
+  # Wait for e2term SCTP+RMR path to be confirmed healthy before starting the DU.
   # This prevents the E2 Setup Request race condition where the DU connects before
   # e2term's RMR link to e2mgr is established, causing a silent RMR_ERR_NOENDPT drop.
   wait_for_healthy "ric-e2term" 60
+
+  # Verify the full E2T registration flow completed (e2term → RMR → e2mgr → rtmgr).
+  # Only after this is the RIC ready to accept E2 Setup requests from the DU.
+  wait_for_e2t 90
 
   log_success "Near-RT RIC Platform is up"
   echo ""
@@ -258,6 +334,7 @@ show_help() {
   echo "  --core-only    Start only the 5G core"
   echo "  --no-ue        Start core + RIC + CU/DU but skip the UE"
   echo "  --down         Stop all stacks (reverse order)"
+  echo "  --ric-restart  Safely restart only the RIC (flush Redis + ordered restart)"
   echo "  --status       Show status of all containers"
   echo "  --logs         Export logs after startup"
   echo "  -h, --help     Show this help message"
@@ -283,6 +360,11 @@ case "${1:-}" in
   --down)
     check_docker
     stop_all
+    ;;
+  --ric-restart)
+    check_docker
+    ric_reboot_dance
+    log_success "RIC restarted safely"
     ;;
   --status)
     check_docker
