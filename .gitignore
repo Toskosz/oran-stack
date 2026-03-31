@@ -13,3 +13,9 @@ srsran/logs/
 *.swp
 *.swo
 *~
+
+# RMR runtime stash files (written by containers at runtime, root-owned, ephemeral)
+ric/config/e2term/dockerRouter.txt.stash
+ric/config/e2term/dockerRouter.txt.stash.inc
+ric/config/e2mgr/router.txt.stash
+ric/config/e2mgr/router.txt.stash.inc
