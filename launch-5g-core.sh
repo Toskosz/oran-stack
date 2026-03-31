@@ -44,7 +44,7 @@ echo ""
 
 # Start the containers
 cd "$SCRIPT_DIR"
-docker-compose up -d
+docker compose up -d
 
 echo ""
 echo -e "${GREEN}[✓] Containers started!${NC}"
@@ -76,8 +76,8 @@ fi
 
 echo ""
 echo -e "${BLUE}[*] Useful commands:${NC}"
-echo -e "${GREEN}    docker-compose ps              # View container status${NC}"
+echo -e "${GREEN}    docker compose ps              # View container status${NC}"
 echo -e "${GREEN}    docker logs 5g-core-nrf        # View NRF logs${NC}"
-echo -e "${GREEN}    docker-compose down            # Stop all containers${NC}"
+echo -e "${GREEN}    docker compose down            # Stop all containers${NC}"
 echo -e "${GREEN}    ./scripts/check-nf-health.sh watch  # Monitor health${NC}"
 echo ""
