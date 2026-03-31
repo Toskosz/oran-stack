@@ -76,10 +76,6 @@ COPY --from=builder /opt/srsRAN_Project/build/apps/cu/srscu /usr/local/bin/srscu
 COPY --from=builder /opt/srsRAN_Project/build/apps/du/srsdu /usr/local/bin/srsdu
 COPY --from=builder /opt/srsRAN_Project/build/apps/gnb/gnb /usr/local/bin/gnb
 
-# Copy shared libraries that may have been built
-COPY --from=builder /opt/srsRAN_Project/build/lib/ /usr/local/lib/srsran/
-RUN ldconfig
-
 WORKDIR /mnt/srsran
 
 CMD ["/bin/bash"]
