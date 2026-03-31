@@ -22,8 +22,8 @@
 #
 # Prerequisites:
 #   1. Build images first:
-#      docker build -f Dockerfile.srsran -t srsran-split:latest .
-#      docker build -f Dockerfile.srsue -t srsue:latest .
+#      docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
+#      docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 #   2. Core network must be running (docker-compose.yml)
 #   3. RIC must be running (docker-compose.ric.yml)
 #

@@ -79,20 +79,20 @@ check_images() {
 
   if ! docker image inspect teste-core:latest &>/dev/null; then
     log_warn "Image 'teste-core:latest' not found. Build it with:"
-    echo "    docker build -f Dockerfile.5gscore -t teste-core:latest ."
+    echo "    docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest ."
     missing=1
   fi
 
   if [ "$1" != "--core-only" ]; then
     if ! docker image inspect srsran-split:latest &>/dev/null; then
       log_warn "Image 'srsran-split:latest' not found. Build it with:"
-      echo "    docker build -f Dockerfile.srsran -t srsran-split:latest ."
+      echo "    docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest ."
       missing=1
     fi
 
     if ! docker image inspect srsue:latest &>/dev/null; then
       log_warn "Image 'srsue:latest' not found. Build it with:"
-      echo "    docker build -f Dockerfile.srsue -t srsue:latest ."
+      echo "    docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest ."
       missing=1
     fi
   fi
@@ -381,9 +381,9 @@ show_help() {
   echo "  3. CU/DU + UE  (docker-compose.cudu.yml)"
   echo ""
   echo "Required images (build before first run):"
-  echo "  docker build -f Dockerfile.5gscore -t teste-core:latest ."
-  echo "  docker build -f Dockerfile.srsran -t srsran-split:latest ."
-  echo "  docker build -f Dockerfile.srsue -t srsue:latest ."
+  echo "  docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest ."
+  echo "  docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest ."
+  echo "  docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest ."
 }
 
 # ============================================================================

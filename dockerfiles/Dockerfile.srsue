@@ -8,7 +8,7 @@
 #   /usr/local/bin/srsue   - UE simulator
 #
 # Build:
-#   docker build -f Dockerfile.srsue -t srsue:latest .
+#   docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 #
 # Note: srsUE comes from srsRAN_4G (different repo than srsRAN_Project).
 # srsRAN_4G provides the UE, eNB, and EPC for 4G/5G NSA/SA testing.
