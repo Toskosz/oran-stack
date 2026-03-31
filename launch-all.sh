@@ -446,6 +446,10 @@ case "${1:-}" in
     echo "  docker logs ric-e2mgr            # View E2 manager logs"
     echo "  curl -s http://localhost:3800/v1/nodeb/states  # Query RIC node states"
     echo ""
+    echo -e "${CYAN}Verify deployment with:${NC}"
+    echo "  docker exec ric-e2mgr curl -s http://localhost:3800/v1/nodeb/states"
+    echo "  docker exec ric-e2mgr curl -s http://localhost:3800/v1/e2t/list"
+    echo ""
 
     if [ "$2" = "--logs" ] || [ "${1:-}" = "--logs" ]; then
       log_info "Exporting logs..."
