@@ -62,9 +62,9 @@ docker images | grep -E "(teste-core|srsran-split|srsue|open5gs-webui)" | wc -l
 # Expected: 4 (or build them first)
 
 # Build if needed:
-# docker build -f Dockerfile.5gscore -t teste-core:latest .
-# docker build -f Dockerfile.srsran -t srsran-split:latest .
-# docker build -f Dockerfile.srsue -t srsue:latest .
+# docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
+# docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
+# docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 # docker-compose build 5g-core-webui
 ```
 
@@ -462,7 +462,7 @@ docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 ### Core containers won't start
 ```bash
 docker-compose down -v    # WARNING: Deletes MongoDB data
-docker build --no-cache -f Dockerfile.5gscore -t teste-core:latest .
+docker build --no-cache -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 docker-compose up -d
 ```
 
@@ -476,8 +476,8 @@ docker-compose -f docker-compose.ric.yml restart
 
 ### CU/DU images not found
 ```bash
-docker build -f Dockerfile.srsran -t srsran-split:latest .
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 ```
 
 ### Multi-homing not working

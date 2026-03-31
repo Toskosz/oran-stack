@@ -70,8 +70,8 @@ sudo ./setup-host-tun.sh
 ### 2. Build srsRAN Images (first time only)
 
 ```bash
-docker build -f Dockerfile.srsran -t srsran-split:latest .
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 ```
 
 ### 3. Launch All Stacks
@@ -133,13 +133,13 @@ This creates:
 
 ```bash
 # Build the 5G core image (if not already built)
-docker build -f Dockerfile.5gscore -t teste-core:latest .
+docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 
 # Build srsRAN CU/DU image (multi-stage, clones from GitHub)
-docker build -f Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 
 # Build srsUE image (multi-stage, clones srsRAN_4G)
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 
 # Build WebUI image
 docker-compose build 5g-core-webui
@@ -426,7 +426,7 @@ docker logs srs_cu
 ```
 
 Common causes:
-1. Image not built yet (`docker build -f Dockerfile.srsran ...`)
+1. Image not built yet (`docker build -f dockerfiles/Dockerfile.srsran ...`)
 2. MongoDB not healthy (wait longer, check `docker logs 5g-mongodb`)
 3. Dependent service not running (check startup order)
 
@@ -498,10 +498,11 @@ docker inspect srs_du --format '{{json .NetworkSettings.Networks}}' | python3 -m
 ├── docker-compose.yml           # 5G Core (17 NFs + MongoDB + WebUI)
 ├── docker-compose.ric.yml       # Near-RT RIC (6 services)
 ├── docker-compose.cudu.yml      # CU/DU Split + UE (3 services)
-├── Dockerfile.5gscore           # Open5GS build image
-├── Dockerfile.webui             # Open5GS WebUI image
-├── Dockerfile.srsran            # srsRAN CU/DU build (multi-stage)
-├── Dockerfile.srsue             # srsRAN 4G UE build (multi-stage)
+├── dockerfiles/
+│   ├── Dockerfile.5gscore           # Open5GS build image
+│   ├── Dockerfile.webui             # Open5GS WebUI image
+│   ├── Dockerfile.srsran            # srsRAN CU/DU build (multi-stage)
+│   └── Dockerfile.srsue             # srsRAN 4G UE build (multi-stage)
 ├── .env                         # All IP/port/PLMN configuration
 ├── entrypoint.sh                # Container initialization script
 ├── init-mongodb.js              # MongoDB replica set setup
