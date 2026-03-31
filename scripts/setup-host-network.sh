@@ -13,7 +13,7 @@ echo ""
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
     echo "[ERROR] This script must be run as root"
-    echo "Usage: sudo ./setup-host-network.sh"
+    echo "Usage: sudo ./scripts/setup-host-network.sh"
     exit 1
 fi
 

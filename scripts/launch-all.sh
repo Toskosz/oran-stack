@@ -9,7 +9,7 @@
 #   3. CU/DU + UE  (docker-compose.cudu.yml) - connects to core and RIC
 #
 # Usage:
-#   ./launch-all.sh [options]
+#   ./scripts/launch-all.sh [options]
 #
 # Options:
 #   --core-only    Start only the 5G core
@@ -24,7 +24,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/.."
 
 # Color codes
 RED='\033[0;31m'
@@ -187,7 +187,7 @@ wait_for_e2t() {
 
   log_warn "E2T instance not registered after ${timeout}s — DU may fail to connect."
   log_warn "Diagnose: docker exec ric-e2mgr curl -s http://localhost:3800/v1/e2t/list"
-  log_warn "If stuck, run: ./launch-all.sh --ric-restart"
+  log_warn "If stuck, run: ./scripts/launch-all.sh --ric-restart"
 }
 
 ric_reboot_dance() {
@@ -364,7 +364,7 @@ show_status() {
 }
 
 show_help() {
-  echo "Usage: ./launch-all.sh [options]"
+  echo "Usage: ./scripts/launch-all.sh [options]"
   echo ""
   echo "Options:"
   echo "  --core-only    Start only the 5G core"
@@ -438,8 +438,8 @@ case "${1:-}" in
     echo "                                                       |--N2--> AMF (172.20.0.5)"
     echo ""
     echo -e "${CYAN}Useful commands:${NC}"
-    echo "  ./launch-all.sh --status         # View all container status"
-    echo "  ./launch-all.sh --down           # Stop everything"
+    echo "  ./scripts/launch-all.sh --status         # View all container status"
+    echo "  ./scripts/launch-all.sh --down           # Stop everything"
     echo "  docker logs srs_cu               # View CU logs"
     echo "  docker logs srs_du               # View DU logs"
     echo "  docker logs ric-e2term           # View E2 termination logs"
