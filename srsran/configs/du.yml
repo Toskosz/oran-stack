@@ -51,6 +51,12 @@ cell_cfg:
   plmn: "00101"
   tac: 1
   pci: 1
+  # Network slices advertised over E2SM-RC and F1AP
+  slice:
+    - sst: 1
+      sd: 1
+    - sst: 1
+      sd: 5
   pdcch:
     dedicated:
       ss2_type: common

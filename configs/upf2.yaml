@@ -1,0 +1,32 @@
+################################################################################
+# UPF2 Configuration - Slice 2 (SST=1, SD=5)
+# User Plane Function for the anomaly-detection second slice.
+# Mirrors upf.yaml but binds to UPF2_IP (172.20.0.23) and uses ogstun2 / 10.46.0.0/16.
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+upf:
+  pfcp:
+    server:
+      - address: 172.20.0.23
+        port: 8805
+  gtpu:
+    server:
+      - address: 172.20.0.23
+        port: 2152
+  session:
+    - subnet: ${SMF2_SUBNET4}
+    - subnet: ${SMF2_SUBNET6}
+  metrics:
+    server:
+      - address: 172.20.0.23
+        port: 9090
+
+logger:
+  file:
+    path: /var/log/open5gs/upf2.log
+  level: ${LOG_LEVEL}

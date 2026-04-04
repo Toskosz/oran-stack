@@ -22,6 +22,10 @@ nssf:
         - uri: http://172.20.0.10:7777
           s_nssai:
             sst: 1
+        - uri: http://172.20.0.10:7777
+          s_nssai:
+            sst: 1
+            sd: 5
 
 db_uri: ${MONGODB_URI}
 

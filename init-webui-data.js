@@ -90,7 +90,13 @@ try {
                 slice: [
                     {
                         sst: 1,
+                        sd: 1,
                         default: true
+                    },
+                    {
+                        sst: 1,
+                        sd: 5,
+                        default: false
                     }
                 ],
                 // Schema version for compatibility
@@ -109,6 +115,102 @@ try {
     }
 } catch (e) {
     print('Sample subscriber info: ' + e.message);
+}
+
+// Initialize 5G subscriber for Slice 2 (SST=1, SD=5)
+// IMSI: 001010000000003 (second 5G UE for anomaly detection slice 2)
+try {
+    const sub5g2Result = db.subscribers.updateOne(
+        { imsi: '001010000000003' },
+        {
+            $setOnInsert: {
+                imsi: '001010000000003',
+                msisdn: '+82100000003',
+                imeisv: '4819690300000002',
+                imei: '481969030000002',
+                mdn: '',
+                urn: 'urn:3gpp:imsi:001010000000003',
+                subscriber_status: 0,
+                network_access_mode: 0,
+                access_restriction_data: 32,
+                subscribed_rau_tau_timer: 12,
+                pdn: [
+                    {
+                        apn: 'internet',
+                        type: 2,
+                        dnn: 'internet',
+                        qci: 9,
+                        arp: {
+                            priority_level: 8,
+                            pre_emption_capability: 0,
+                            pre_emption_vulnerability: 0
+                        },
+                        mbr: {
+                            downlink: 1024,
+                            uplink: 1024
+                        },
+                        ambr: {
+                            downlink: 1024000,
+                            uplink: 1024000
+                        }
+                    }
+                ],
+                ambr: {
+                    downlink: 1024000,
+                    uplink: 1024000
+                },
+                // Slice 2 only: SST=1, SD=5
+                slice: [
+                    {
+                        sst: 1,
+                        sd: 5,
+                        default: true
+                    }
+                ],
+                schema_version: 1,
+                created_at: new Date(),
+                updated_at: new Date()
+            }
+        },
+        { upsert: true }
+    );
+
+    if (sub5g2Result.upsertedCount === 1) {
+        print('Slice-2 5G subscriber initialized: IMSI 001010000000003');
+    } else {
+        print('Slice-2 5G subscriber already exists: IMSI 001010000000003');
+    }
+} catch (e) {
+    print('Slice-2 subscriber info: ' + e.message);
+}
+
+// Auth context for slice-2 5G subscriber
+try {
+    const auth5g2Result = db.auths.updateOne(
+        { imsi: '001010000000003' },
+        {
+            $setOnInsert: {
+                imsi: '001010000000003',
+                k: '465B5CE8B199B49FAA5F0A2EE238A6BC',
+                opc: 'E8ED289DEBA952E4283B54E88E6183CA',
+                amf: 32770,
+                sqn: 0,
+                ck: null,
+                ik: null,
+                created_at: new Date(),
+                updated_at: new Date()
+            }
+        },
+        { upsert: true }
+    );
+
+    if (auth5g2Result.upsertedCount === 1) {
+        print('Security context initialized for Slice-2 5G subscriber');
+    } else {
+        print('Security context already exists for Slice-2 5G subscriber');
+    }
+} catch (e) {
+    print('Slice-2 auth info: ' + e.message);
 }
 
 // Initialize sample 4G subscriber

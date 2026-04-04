@@ -19,6 +19,11 @@ x-open5gs-common-env: &open5gs-common-env
   SMF_SUBNET4: ${SMF_SUBNET4}
   SMF_SUBNET6: ${SMF_SUBNET6}
   UPF_IP: ${UPF_IP}
+  SMF2_SUBNET4: ${SMF2_SUBNET4}
+  SMF2_SUBNET6: ${SMF2_SUBNET6}
+  UPF2_IP: ${UPF2_IP}
+  SMF2_IP: ${SMF2_IP}
+  SMF2_SBI_PORT: ${SMF2_SBI_PORT}
   MME_GID: ${MME_GID}
   MME_CODE: ${MME_CODE}
   LOG_LEVEL: ${LOG_LEVEL}
@@ -209,6 +214,32 @@ services:
     - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
     command: ./install/bin/open5gs-smfd -c /open5gs/install/etc/open5gs/smf.yaml
+  5g-core-smf2:
+    image: teste-core:latest
+    container_name: 5g-core-smf2
+    depends_on:
+      5g-core-amf:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      <<: *open5gs-common-env
+    networks:
+      5g-core-network:
+        ipv4_address: ${SMF2_IP}
+    cap_add:
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
+    devices:
+    - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-smfd -c /open5gs/install/etc/open5gs/smf2.yaml
   5g-core-upf:
     image: teste-core:latest
     container_name: 5g-core-upf
@@ -235,6 +266,32 @@ services:
     - /var/log/open5gs:/var/log/open5gs
     working_dir: /open5gs
     command: ./install/bin/open5gs-upfd -c /open5gs/install/etc/open5gs/upf.yaml
+  5g-core-upf2:
+    image: teste-core:latest
+    container_name: 5g-core-upf2
+    depends_on:
+      5g-core-smf2:
+        condition: service_started
+    restart: unless-stopped
+    environment:
+      <<: *open5gs-common-env
+    networks:
+      5g-core-network:
+        ipv4_address: ${UPF2_IP}
+    cap_add:
+    - NET_ADMIN
+    - SYS_ADMIN
+    - NET_RAW
+    devices:
+    - /dev/net/tun:/dev/net/tun
+    privileged: true
+    stdin_open: true
+    tty: true
+    volumes:
+    - ./configs:/open5gs/configs:ro
+    - /var/log/open5gs:/var/log/open5gs
+    working_dir: /open5gs
+    command: ./install/bin/open5gs-upfd -c /open5gs/install/etc/open5gs/upf2.yaml
   5g-core-ausf:
     image: teste-core:latest
     container_name: 5g-core-ausf

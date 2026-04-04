@@ -1,0 +1,54 @@
+################################################################################
+# SMF2 Configuration - Slice 2 (SST=1, SD=5)
+# Session Management Function for the anomaly-detection second slice.
+# Mirrors smf.yaml but binds to SMF2_IP (172.20.0.22) and forwards to UPF2.
+################################################################################
+
+global:
+  max_ue: 4096
+  pool:
+    packet: 32768
+
+smf:
+  sbi:
+    server:
+      - address: 172.20.0.22
+        port: 7777
+    client:
+      nrf:
+        - uri: http://172.20.0.10:7777
+      scp:
+        - uri: http://172.20.0.200:7777
+  pfcp:
+    server:
+      - address: 172.20.0.22
+        port: 8805
+    client:
+      upf:
+        - address: 172.20.0.23
+          port: 8805
+  gtpc:
+    server:
+      - address: 172.20.0.22
+        port: 2123
+  gtpu:
+    server:
+      - address: 172.20.0.22
+        port: 2152
+  metrics:
+    server:
+      - address: 172.20.0.22
+        port: 9090
+  session:
+    - subnet: ${SMF2_SUBNET4}
+    - subnet: ${SMF2_SUBNET6}
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+
+db_uri: ${MONGODB_URI}
+
+logger:
+  file:
+    path: /var/log/open5gs/smf2.log
+  level: ${LOG_LEVEL}
