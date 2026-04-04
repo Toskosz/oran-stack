@@ -38,6 +38,7 @@ NC='\033[0m'
 CORE_COMPOSE="docker-compose.yml"
 RIC_COMPOSE="docker-compose.ric.yml"
 CUDU_COMPOSE="docker-compose.cudu.yml"
+XAPPS_COMPOSE="docker-compose.xapps.yml"
 
 # ============================================================================
 # Helper Functions
@@ -320,9 +321,34 @@ start_cudu() {
   echo ""
 }
 
+start_xapps() {
+  log_info "Starting xApps (anomaly detection pipeline)..."
+  docker compose -f "$XAPPS_COMPOSE" up -d --build
+  echo ""
+
+  # Brief pause for Python startup (FHE model load can take 10-20s)
+  log_info "Waiting for xApp containers to initialise (20s)..."
+  sleep 20
+
+  wait_for_container "xapp-kpi"       30
+  wait_for_container "xapp-inference" 30
+  wait_for_container "xapp-rc"        30
+
+  log_success "xApps are up"
+  echo ""
+}
+
+stop_xapps() {
+  log_info "Stopping xApps..."
+  docker compose -f "$XAPPS_COMPOSE" down 2>/dev/null || true
+}
+
 stop_all() {
   log_info "Stopping all stacks (reverse order)..."
   echo ""
+
+  log_info "Stopping xApps..."
+  docker compose -f "$XAPPS_COMPOSE" down 2>/dev/null || true
 
   log_info "Stopping CU/DU + UE..."
   docker compose -f "$CUDU_COMPOSE" down 2>/dev/null || true
@@ -348,6 +374,9 @@ show_status() {
   echo -e "${CYAN}=== CU/DU + UE ===${NC}"
   docker compose -f "$CUDU_COMPOSE" ps 2>/dev/null || echo "  (not running)"
   echo ""
+  echo -e "${CYAN}=== xApps ===${NC}"
+  docker compose -f "$XAPPS_COMPOSE" ps 2>/dev/null || echo "  (not running)"
+  echo ""
 
   # Network summary
   echo -e "${CYAN}=== Networks ===${NC}"
@@ -369,6 +398,8 @@ show_help() {
   echo "Options:"
   echo "  --core-only    Start only the 5G core"
   echo "  --no-ue        Start core + RIC + CU/DU but skip the UE"
+  echo "  --no-xapps     Start full stack but skip xApps"
+  echo "  --xapps-only   Start (or restart) only the xApps stack"
   echo "  --down         Stop all stacks (reverse order)"
   echo "  --ric-restart  Safely restart only the RIC (flush Redis + ordered restart)"
   echo "  --status       Show status of all containers"
@@ -376,14 +407,16 @@ show_help() {
   echo "  -h, --help     Show this help message"
   echo ""
   echo "Startup order:"
-  echo "  1. 5G Core    (docker-compose.yml)"
-  echo "  2. Near-RT RIC (docker-compose.ric.yml)"
-  echo "  3. CU/DU + UE  (docker-compose.cudu.yml)"
+  echo "  1. 5G Core          (docker-compose.yml)"
+  echo "  2. Near-RT RIC      (docker-compose.ric.yml)"
+  echo "  3. CU/DU + UE       (docker-compose.cudu.yml)"
+  echo "  4. xApps            (docker-compose.xapps.yml)"
   echo ""
   echo "Required images (build before first run):"
   echo "  docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest ."
   echo "  docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest ."
   echo "  docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest ."
+  echo "  (xApp images are built automatically by docker compose)"
 }
 
 # ============================================================================
@@ -418,7 +451,21 @@ case "${1:-}" in
     start_core
     start_ric
     start_cudu "true"
+    start_xapps
     log_success "Deployment complete (without UE)"
+    ;;
+  --no-xapps)
+    check_docker
+    check_images
+    start_core
+    start_ric
+    start_cudu "false"
+    log_success "Full O-RAN stack deployment complete (no xApps)"
+    ;;
+  --xapps-only)
+    check_docker
+    start_xapps
+    log_success "xApps started"
     ;;
   -h|--help)
     show_help
@@ -429,26 +476,28 @@ case "${1:-}" in
     start_core
     start_ric
     start_cudu "false"
+    start_xapps
     log_success "Full O-RAN stack deployment complete!"
     echo ""
     echo -e "${CYAN}Architecture:${NC}"
     echo "  UE (172.21.0.34) --ZMQ--> DU (172.21.0.51) --F1--> CU (172.21.0.50)"
     echo "                              |                        |"
     echo "                              |--E2--> RIC (172.22.0.210)"
-    echo "                                                       |--N2--> AMF (172.20.0.5)"
+    echo "                                          |--N2--> AMF (172.20.0.5)"
+    echo ""
+    echo -e "${CYAN}xApps (anomaly detection):${NC}"
+    echo "  ads-slice1 (UPF1) ─TCP──> xapp-kpi ─Redis─> xapp-inference"
+    echo "  ads-slice2 (UPF2) ─TCP──> xapp-kpi <─Redis─ xapp-inference"
+    echo "                                     ─Redis─> xapp-rc ─E2SM-RC─> DU"
     echo ""
     echo -e "${CYAN}Useful commands:${NC}"
     echo "  ./scripts/launch-all.sh --status         # View all container status"
     echo "  ./scripts/launch-all.sh --down           # Stop everything"
-    echo "  docker logs srs_cu               # View CU logs"
-    echo "  docker logs srs_du               # View DU logs"
-    echo "  docker logs ric-e2term           # View E2 termination logs"
-    echo "  docker logs ric-e2mgr            # View E2 manager logs"
-    echo "  curl -s http://localhost:3800/v1/nodeb/states  # Query RIC node states"
-    echo ""
-    echo -e "${CYAN}Verify deployment with:${NC}"
-    echo "  docker exec ric-e2mgr curl -s http://localhost:3800/v1/nodeb/states"
-    echo "  docker exec ric-e2mgr curl -s http://localhost:3800/v1/e2t/list"
+    echo "  ./scripts/launch-all.sh --xapps-only     # (Re)start xApps only"
+    echo "  docker logs xapp-kpi                     # KPI / encrypt logs"
+    echo "  docker logs xapp-inference               # FHE inference logs"
+    echo "  docker logs xapp-rc                      # RC slice control logs"
+    echo "  docker exec ric-dbaas redis-cli XRANGE xapp:messages - + COUNT 10"
     echo ""
 
     if [ "$2" = "--logs" ] || [ "${1:-}" = "--logs" ]; then
@@ -462,6 +511,7 @@ case "${1:-}" in
     start_core
     start_ric
     start_cudu "false"
+    start_xapps
     log_success "Full O-RAN stack deployment complete!"
     log_info "Exporting logs..."
     ./scripts/export-logs.sh 2>/dev/null || true

@@ -16,7 +16,7 @@ echo "[INFO] Populating configuration files from templates..."
 mkdir -p /open5gs/install/etc/open5gs
 
 # List of all NF configuration files
-declare -a configs=("nrf" "scp" "sepp1" "amf" "smf" "upf" "ausf" "udm" "pcf" "nssf" "bsf" "udr" "mme" "sgwc" "sgwu" "hss" "pcrf")
+declare -a configs=("nrf" "scp" "sepp1" "amf" "smf" "smf2" "upf" "upf2" "ausf" "udm" "pcf" "nssf" "bsf" "udr" "mme" "sgwc" "sgwu" "hss" "pcrf")
 
 # Substitute environment variables in each config template
 for config in "${configs[@]}"; do
