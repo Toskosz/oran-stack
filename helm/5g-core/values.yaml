@@ -1,0 +1,132 @@
+# ============================================================================
+# 5g-core Helm Chart — values.yaml
+# ============================================================================
+# This file is the Kubernetes equivalent of the repo's .env file.
+# All ${VAR} placeholders used by configs/*.yaml and entrypoint.sh are
+# passed to each NF container as environment variables, exactly as
+# Docker Compose does via env_file/.env.
+#
+# Override any value with:
+#   helm upgrade --install 5g-core ./helm/5g-core \
+#     --set global.plmn.mcc=310 --set global.plmn.mnc=260
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Namespace (created by the namespace.yaml template)
+# ----------------------------------------------------------------------------
+namespace: 5g-core
+
+# ----------------------------------------------------------------------------
+# Image configuration
+# ----------------------------------------------------------------------------
+images:
+  core:
+    repository: ""        # e.g. "youruser/oran-5gcore"  — set via Ansible group_vars
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  webui:
+    repository: ""        # e.g. "youruser/oran-webui"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# Docker Hub credentials secret name (created by Ansible before helm install)
+imagePullSecretName: dockerhub-secret
+
+# ----------------------------------------------------------------------------
+# PLMN (Public Land Mobile Network identity)
+# ----------------------------------------------------------------------------
+plmn:
+  mcc: "001"
+  mnc: "01"
+  tac: "1"
+
+# ----------------------------------------------------------------------------
+# AMF
+# ----------------------------------------------------------------------------
+amf:
+  region: "2"
+  set: "1"
+  sbiPort: "7777"
+  ngapPort: "38412"
+  metricsPort: "9090"
+
+# ----------------------------------------------------------------------------
+# MME (4G — known to crash on startup; deployed but not required for 5G SA)
+# ----------------------------------------------------------------------------
+mme:
+  gid: "2"
+  code: "1"
+  gtpPort: "2123"
+  s1apPort: "36412"
+  metricsPort: "9090"
+  # Set to false to skip deploying the 4G EPC NFs entirely.
+  enabled: true
+
+# ----------------------------------------------------------------------------
+# Network Slice
+# ----------------------------------------------------------------------------
+nssai:
+  sst: "1"
+
+# ----------------------------------------------------------------------------
+# UE Data Networks (UPF / SMF subnets)
+# ----------------------------------------------------------------------------
+ue:
+  subnet4: "10.45.0.0/16"
+  subnet6: "2001:db8:cafe::/48"
+
+# ----------------------------------------------------------------------------
+# Logging
+# ----------------------------------------------------------------------------
+logLevel: info
+
+# ----------------------------------------------------------------------------
+# MongoDB
+# ----------------------------------------------------------------------------
+mongodb:
+  port: "27017"
+  # URI used by all NFs. 'mongodb' resolves via Kubernetes DNS to the
+  # mongodb Service in the same namespace.
+  uri: "mongodb://mongodb:27017/open5gs"
+  storage:
+    size: 20Gi
+    # GKE standard StorageClass backed by pd-ssd.
+    # Run: kubectl get storageclass  to see available classes.
+    storageClass: "standard-rwo"
+
+# ----------------------------------------------------------------------------
+# NF SBI port (all NFs share the same SBI port in this deployment)
+# ----------------------------------------------------------------------------
+sbiPort: "7777"
+
+# ----------------------------------------------------------------------------
+# Per-NF enable flags (all true by default)
+# Set mme.enabled=false to skip all 4G EPC NFs if not needed.
+# ----------------------------------------------------------------------------
+nf:
+  nrf:
+    enabled: true
+  scp:
+    enabled: true
+  sepp:
+    enabled: true
+  amf:
+    enabled: true
+  smf:
+    enabled: true
+  upf:
+    enabled: true
+  ausf:
+    enabled: true
+  udm:
+    enabled: true
+  pcf:
+    enabled: true
+  nssf:
+    enabled: true
+  bsf:
+    enabled: true
+  udr:
+    enabled: true
+  webui:
+    enabled: true

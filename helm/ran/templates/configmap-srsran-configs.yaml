@@ -1,0 +1,151 @@
+# ============================================================================
+# ConfigMap: srsRAN CU, DU, and UE configuration files
+# ============================================================================
+# The original files (srsran/configs/cu.yml, du.yml, ue.conf) used hardcoded
+# IPs from the Docker Compose networks. In Kubernetes, those IPs are replaced
+# with Kubernetes DNS names:
+#
+#   172.20.0.5  (AMF)    → amf-ngap.5g-core.svc.cluster.local
+#   172.22.0.210 (e2term) → e2term.near-rt-ric.svc.cluster.local
+#   172.21.0.51 (DU ZMQ) → srs-du  (ClusterIP Service in same namespace)
+#   172.21.0.34 (UE ZMQ) → srsue   (ClusterIP Service in same namespace)
+#
+# CU multi-homing approximation:
+#   In Docker Compose, the CU had two IPs (core-network + ran-network).
+#   In Kubernetes, a single pod IP is used. The CU binds to 0.0.0.0 and
+#   connects to AMF via DNS. The F1 interface uses the pod's cluster IP,
+#   which the DU reaches via the srs-cu Service.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: srsran-configs
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  cu.yml: |
+    cu_cp:
+      amf:
+        addr: {{ .Values.amfAddress }}
+        bind_addr: 0.0.0.0
+        supported_tracking_areas:
+          - tac: {{ .Values.plmn.tac }}
+            plmn_list:
+              - plmn: "{{ .Values.plmn.mcc }}{{ .Values.plmn.mnc }}"
+                tai_slice_support_list:
+                  - sst: 1
+      f1ap:
+        bind_addr: 0.0.0.0
+    cu_up:
+      f1u:
+        bind_port: {{ .Values.f1uPort }}
+        peer_port: {{ .Values.f1uPort }}
+        socket:
+          - bind_addr: 0.0.0.0
+      ngu:
+        socket:
+          - bind_addr: 0.0.0.0
+    log:
+      filename: /mnt/srsran/logs/cu.log
+      all_level: info
+
+  du.yml: |
+    f1ap:
+      cu_cp_addr: srs-cu
+      bind_addr: 0.0.0.0
+    f1u:
+      bind_port: {{ .Values.f1uPort }}
+      peer_port: {{ .Values.f1uPort }}
+      socket:
+        - bind_addr: 0.0.0.0
+    e2:
+      enable_du_e2: true
+      addr: {{ .Values.e2termAddress }}
+      port: 36421
+      bind_addr: 0.0.0.0
+      e2sm_kpm_enabled: true
+      e2sm_rc_enabled: true
+    ru_sdr:
+      device_driver: zmq
+      device_args: tx_port=tcp://0.0.0.0:{{ .Values.zmq.duTxPort }},rx_port=tcp://srsue:{{ .Values.zmq.duRxPort }},base_srate={{ .Values.radio.srate }}
+      srate: 23.04
+      tx_gain: 75
+      rx_gain: 75
+    cell_cfg:
+      dl_arfcn: {{ .Values.radio.dlArfcn }}
+      band: {{ .Values.radio.band }}
+      channel_bandwidth_MHz: {{ .Values.radio.bandwidthMhz }}
+      common_scs: {{ .Values.radio.commonScs }}
+      plmn: "{{ .Values.plmn.mcc }}{{ .Values.plmn.mnc }}"
+      tac: {{ .Values.plmn.tac }}
+      pci: {{ .Values.radio.pci }}
+      pdcch:
+        dedicated:
+          ss2_type: common
+          dci_format_0_1_and_1_1: false
+        common:
+          ss0_index: 0
+          coreset0_index: 13
+      pdsch:
+        mcs_table: qam64
+      pusch:
+        mcs_table: qam64
+      prach:
+        prach_config_index: 1
+    log:
+      filename: /mnt/srsran/logs/du.log
+      all_level: info
+
+  ue.conf: |
+    [rf]
+    freq_offset = 0
+    tx_gain = 80
+    rx_gain = 40
+    srate = {{ .Values.radio.srate }}
+    nof_antennas = 1
+
+    device_name = zmq
+    device_args = tx_port=tcp://0.0.0.0:{{ .Values.zmq.duRxPort }},rx_port=tcp://srs-du:{{ .Values.zmq.duTxPort }},base_srate={{ .Values.radio.srate }}
+
+    [rat.eutra]
+    dl_earfcn = 2850
+    nof_carriers = 0
+
+    [rat.nr]
+    bands = {{ .Values.radio.band }}
+    nof_carriers = 1
+
+    [pcap]
+    enable = none
+    mac_filename = /mnt/srsran/logs/ue_mac.pcap
+    mac_nr_filename = /mnt/srsran/logs/ue_mac_nr.pcap
+    nas_filename = /mnt/srsran/logs/ue_nas.pcap
+
+    [log]
+    all_level = info
+    phy_lib_level = none
+    all_hex_limit = 32
+    filename = /mnt/srsran/logs/ue.log
+    file_max_size = -1
+
+    [usim]
+    mode = soft
+    algo = milenage
+    opc  = {{ .Values.ue.opc }}
+    k    = {{ .Values.ue.k }}
+    imsi = {{ .Values.ue.imsi }}
+    imei = 353490069873319
+
+    [rrc]
+    release = 15
+    ue_category = 4
+
+    [nas]
+    apn = {{ .Values.ue.apn }}
+    apn_protocol = ipv4
+
+    [gw]
+    netns = ue1
+
+    [gui]
+    enable = false

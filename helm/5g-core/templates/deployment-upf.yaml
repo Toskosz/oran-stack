@@ -1,0 +1,94 @@
+# ============================================================================
+# UPF — User Plane Function
+# ============================================================================
+# The UPF is the most privileged workload in the stack:
+#   - hostNetwork: true  — shares the GKE node's network namespace so the
+#     TUN interface (ogstun) it creates is visible to the node's iptables.
+#     Without this, GTP-U packets from the CU cannot be forwarded to the
+#     UE's data plane.
+#   - privileged: true   — required to create TUN devices and modify routes.
+#
+# Because hostNetwork:true is set, the pod shares the node's IP. This means
+# the UPF's PFCP and GTP-U ports are bound on the node's primary IP, which
+# must be reachable from the SMF (also in cluster). The SMF config uses the
+# Kubernetes Service DNS name 'upf', which resolves to the ClusterIP. The
+# ClusterIP routes to the pod, which uses the node IP for data-plane traffic.
+#
+# This approximation works for a lab. In production, use a dedicated UPF
+# (e.g., free5GC's gtp5g kernel module, or an eBPF-based UPF) with proper
+# network attachment.
+{{- if .Values.nf.upf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: upf
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: upf
+  template:
+    metadata:
+      labels:
+        app: upf
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet  # Required when hostNetwork:true to still use cluster DNS.
+      containers:
+        - name: upf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-upfd", "-c", "/open5gs/install/etc/open5gs/upf.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 8805
+              name: pfcp
+              protocol: UDP
+            - containerPort: 2152
+              name: gtpu
+              protocol: UDP
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_ADMIN
+                - NET_RAW
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+# ClusterIP Service for UPF — used by SMF for PFCP signalling.
+# Data-plane GTP-U traffic goes directly node-IP → CU, bypassing kube-proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: upf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: upf
+spec:
+  selector:
+    app: upf
+  ports:
+    - name: pfcp
+      port: 8805
+      targetPort: 8805
+      protocol: UDP
+    - name: gtpu
+      port: 2152
+      targetPort: 2152
+      protocol: UDP
+{{- end }}

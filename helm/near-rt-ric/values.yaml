@@ -1,0 +1,62 @@
+# ============================================================================
+# near-rt-ric Helm Chart — values.yaml
+# ============================================================================
+
+namespace: near-rt-ric
+
+imagePullSecretName: dockerhub-secret
+
+# ----------------------------------------------------------------------------
+# RIC Component Images (pre-built from O-RAN SC Nexus3 registry)
+# These are public images; no authentication required to pull them.
+# ----------------------------------------------------------------------------
+images:
+  dbaas:
+    repository: redis
+    tag: "6-alpine"
+    pullPolicy: IfNotPresent
+  e2term:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2
+    tag: "6.0.8"
+    pullPolicy: IfNotPresent
+  e2mgr:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2mgr
+    tag: "6.0.8"
+    pullPolicy: IfNotPresent
+  appmgr:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-appmgr
+    tag: "0.5.4"
+    pullPolicy: IfNotPresent
+  submgr:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-submgr
+    tag: "0.10.4"
+    pullPolicy: IfNotPresent
+  rtmgr:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr
+    tag: "0.9.6"
+    pullPolicy: IfNotPresent
+  a1mediator:
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-a1
+    tag: "3.2.2"
+    pullPolicy: IfNotPresent
+
+# ----------------------------------------------------------------------------
+# RIC Identity (must match the DU's E2 setup request)
+# ----------------------------------------------------------------------------
+ric:
+  id: "AACCE"
+  mcc: "001"
+  mnc: "01"
+
+# ----------------------------------------------------------------------------
+# Redis / DBAAS
+# ----------------------------------------------------------------------------
+dbaas:
+  port: 6379
+
+# ----------------------------------------------------------------------------
+# e2term startup delay (seconds)
+# ----------------------------------------------------------------------------
+# The 5-second sleep before e2term starts prevents the RMR keep-alive race
+# condition described in docs/LEARNINGS.md. Implemented as an initContainer.
+e2termStartupDelaySec: 5

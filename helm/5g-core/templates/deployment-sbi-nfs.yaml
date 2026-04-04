@@ -1,0 +1,256 @@
+# ============================================================================
+# Stateless SBI NFs: AUSF, UDM, PCF, NSSF, BSF, UDR
+# ============================================================================
+# These six NFs all follow the identical pattern:
+#   - Single Deployment (1 replica)
+#   - ClusterIP Service on port 7777 (SBI)
+#   - Common privileged securityContext
+#   - Config from the open5gs-nf-configs ConfigMap
+# They are grouped here to avoid repetitive files.
+# ============================================================================
+
+# --- AUSF (Authentication Server Function) -----------------------------------
+{{- if .Values.nf.ausf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ausf
+  namespace: {{ .Values.namespace }}
+  labels: { app: ausf, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ausf }
+  template:
+    metadata:
+      labels: { app: ausf }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: ausf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-ausfde", "-c", "/open5gs/install/etc/open5gs/ausf.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ausf
+  namespace: {{ .Values.namespace }}
+  labels: { app: ausf }
+spec:
+  selector: { app: ausf }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}
+---
+# --- UDM (Unified Data Management) ------------------------------------------
+{{- if .Values.nf.udm.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: udm
+  namespace: {{ .Values.namespace }}
+  labels: { app: udm, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: udm }
+  template:
+    metadata:
+      labels: { app: udm }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: udm
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-udmd", "-c", "/open5gs/install/etc/open5gs/udm.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: udm
+  namespace: {{ .Values.namespace }}
+  labels: { app: udm }
+spec:
+  selector: { app: udm }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}
+---
+# --- PCF (Policy Control Function) ------------------------------------------
+{{- if .Values.nf.pcf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pcf
+  namespace: {{ .Values.namespace }}
+  labels: { app: pcf, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pcf }
+  template:
+    metadata:
+      labels: { app: pcf }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: pcf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-pcfd", "-c", "/open5gs/install/etc/open5gs/pcf.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }, { containerPort: 9090, name: metrics }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pcf
+  namespace: {{ .Values.namespace }}
+  labels: { app: pcf }
+spec:
+  selector: { app: pcf }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}
+---
+# --- NSSF (Network Slice Selection Function) ---------------------------------
+{{- if .Values.nf.nssf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nssf
+  namespace: {{ .Values.namespace }}
+  labels: { app: nssf, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nssf }
+  template:
+    metadata:
+      labels: { app: nssf }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: nssf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-nssfd", "-c", "/open5gs/install/etc/open5gs/nssf.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nssf
+  namespace: {{ .Values.namespace }}
+  labels: { app: nssf }
+spec:
+  selector: { app: nssf }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}
+---
+# --- BSF (Binding Support Function) -----------------------------------------
+{{- if .Values.nf.bsf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bsf
+  namespace: {{ .Values.namespace }}
+  labels: { app: bsf, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: bsf }
+  template:
+    metadata:
+      labels: { app: bsf }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: bsf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-bsfd", "-c", "/open5gs/install/etc/open5gs/bsf.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bsf
+  namespace: {{ .Values.namespace }}
+  labels: { app: bsf }
+spec:
+  selector: { app: bsf }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}
+---
+# --- UDR (Unified Data Repository) ------------------------------------------
+{{- if .Values.nf.udr.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: udr
+  namespace: {{ .Values.namespace }}
+  labels: { app: udr, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: udr }
+  template:
+    metadata:
+      labels: { app: udr }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: udr
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-udrd", "-c", "/open5gs/install/etc/open5gs/udr.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports: [{ containerPort: 7777, name: sbi }]
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: udr
+  namespace: {{ .Values.namespace }}
+  labels: { app: udr }
+spec:
+  selector: { app: udr }
+  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+{{- end }}

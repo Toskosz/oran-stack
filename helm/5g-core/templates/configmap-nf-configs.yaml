@@ -1,0 +1,439 @@
+# ============================================================================
+# ConfigMap: Open5GS NF Configuration Templates
+# ============================================================================
+# These are the verbatim contents of configs/*.yaml from the repo root.
+# The entrypoint.sh in the teste-core image calls:
+#
+#   envsubst < /open5gs/configs/<nf>.yaml > /open5gs/install/etc/open5gs/<nf>.yaml
+#
+# for each NF before starting its binary. All ${VAR} placeholders are
+# substituted from the container's environment variables (set via the
+# Deployment's env: section, which in turn come from Helm values).
+#
+# This ConfigMap is mounted at /open5gs/configs inside every NF container,
+# replicating the ./configs:/open5gs/configs:ro bind-mount from docker-compose.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: open5gs-nf-configs
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  nrf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    nrf:
+      serving:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${NRF_SBI_PORT}
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/nrf.log
+      level: ${LOG_LEVEL}
+
+  scp.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    scp:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${SCP_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/scp.log
+      level: ${LOG_LEVEL}
+
+  sepp1.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    sepp:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${SEPP_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/sepp.log
+      level: ${LOG_LEVEL}
+
+  amf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    amf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${AMF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+      ngap:
+        server:
+          - address: 0.0.0.0
+            port: ${AMF_NGAP_PORT}
+      metrics:
+        server:
+          - address: 0.0.0.0
+            port: ${AMF_METRICS_PORT}
+      guami:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+          amf_id:
+            region: ${AMF_REGION}
+            set: ${AMF_SET}
+      tai:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+          tac: ${TAC}
+      plmn_support:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+          s_nssai:
+            - sst: 1
+      security:
+        integrity_order:
+          - NIA2
+          - NIA1
+          - NIA0
+        ciphering_order:
+          - NEA0
+          - NEA1
+          - NEA2
+      amf_name: open5gs-amf0
+      network_name:
+        full: Open5GS
+      time:
+        t3512:
+          value: 540
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/amf.log
+      level: ${LOG_LEVEL}
+
+  smf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    smf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${SMF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+      pfcp:
+        server:
+          - address: 0.0.0.0
+            port: ${SMF_PFCP_PORT}
+        client:
+          upf:
+            - address: upf
+              port: ${SMF_PFCP_PORT}
+      gtpc:
+        server:
+          - address: 0.0.0.0
+            port: ${SMF_GTP_C_PORT}
+      gtpu:
+        server:
+          - address: 0.0.0.0
+            port: ${SMF_GTP_U_PORT}
+      metrics:
+        server:
+          - address: 0.0.0.0
+            port: ${SMF_METRICS_PORT}
+      session:
+        - subnet: ${SMF_SUBNET4}
+        - subnet: ${SMF_SUBNET6}
+      dns:
+        - 8.8.8.8
+        - 8.8.4.4
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/smf.log
+      level: ${LOG_LEVEL}
+
+  upf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    upf:
+      pfcp:
+        server:
+          - address: 0.0.0.0
+            port: ${UPF_PFCP_PORT}
+      gtpu:
+        server:
+          - address: 0.0.0.0
+            port: ${UPF_GTP_U_PORT}
+      session:
+        - subnet: ${SMF_SUBNET4}
+        - subnet: ${SMF_SUBNET6}
+      metrics:
+        server:
+          - address: 0.0.0.0
+            port: ${UPF_METRICS_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/upf.log
+      level: ${LOG_LEVEL}
+
+  ausf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    ausf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${AUSF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/ausf.log
+      level: ${LOG_LEVEL}
+
+  udm.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    udm:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${UDM_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/udm.log
+      level: ${LOG_LEVEL}
+
+  pcf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    pcf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${PCF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+      metrics:
+        server:
+          - address: 0.0.0.0
+            port: ${PCF_METRICS_PORT}
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/pcf.log
+      level: ${LOG_LEVEL}
+
+  nssf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    nssf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${NSSF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/nssf.log
+      level: ${LOG_LEVEL}
+
+  bsf.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    bsf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${BSF_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/bsf.log
+      level: ${LOG_LEVEL}
+
+  udr.yaml: |
+    global:
+      max_ue: 4096
+      pool:
+        packet: 32768
+    udr:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: ${UDR_SBI_PORT}
+        client:
+          nrf:
+            - uri: http://nrf:${NRF_SBI_PORT}
+          scp:
+            - uri: http://scp:${SCP_SBI_PORT}
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/udr.log
+      level: ${LOG_LEVEL}
+
+  mme.yaml: |
+    mme:
+      freeDiameter: /etc/freeDiameter/mme.conf
+      s1ap:
+        server:
+          - address: 0.0.0.0
+            port: ${MME_S1AP_PORT}
+      gtpc:
+        server:
+          - address: 0.0.0.0
+            port: ${MME_GTP_PORT}
+        client:
+          sgwc:
+            - address: sgwc
+      metrics:
+        server:
+          - address: 0.0.0.0
+            port: ${MME_METRICS_PORT}
+      gummei:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+          mme_gid: ${MME_GID}
+          mme_code: ${MME_CODE}
+      tai:
+        - plmn_id:
+            mcc: ${MCC}
+            mnc: ${MNC}
+          tac: ${TAC}
+      security:
+        integrity_order:
+          - EIA2
+          - EIA1
+          - EIA0
+        ciphering_order:
+          - EEA0
+          - EEA1
+          - EEA2
+      network_name:
+        full: Open5GS
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/mme.log
+      level: ${LOG_LEVEL}
+
+  sgwc.yaml: |
+    sgwc:
+      gtpc:
+        server:
+          - address: 0.0.0.0
+            port: ${SGWC_GTP_PORT}
+      pfcp:
+        server:
+          - address: 0.0.0.0
+            port: ${SGWC_PFCP_PORT}
+        client:
+          sgwu:
+            - address: sgwu
+    logger:
+      file:
+        path: /var/log/open5gs/sgwc.log
+      level: ${LOG_LEVEL}
+
+  sgwu.yaml: |
+    sgwu:
+      pfcp:
+        server:
+          - address: 0.0.0.0
+            port: ${SGWU_PFCP_PORT}
+      gtpu:
+        server:
+          - address: 0.0.0.0
+            port: ${SGWU_GTP_U_PORT}
+    logger:
+      file:
+        path: /var/log/open5gs/sgwu.log
+      level: ${LOG_LEVEL}
+
+  hss.yaml: |
+    hss:
+      freeDiameter: /etc/freeDiameter/hss.conf
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/hss.log
+      level: ${LOG_LEVEL}
+
+  pcrf.yaml: |
+    pcrf:
+      freeDiameter: /etc/freeDiameter/pcrf.conf
+    db_uri: ${MONGODB_URI}
+    logger:
+      file:
+        path: /var/log/open5gs/pcrf.log
+      level: ${LOG_LEVEL}

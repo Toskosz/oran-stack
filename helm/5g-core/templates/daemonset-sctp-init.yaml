@@ -1,0 +1,64 @@
+# ============================================================================
+# SCTP Kernel Module DaemonSet
+# ============================================================================
+# GKE nodes do not load the SCTP kernel module by default. This DaemonSet
+# runs a privileged initContainer on every node that calls `modprobe sctp`.
+#
+# This is required for:
+#   - AMF: LoadBalancer Service with protocol: SCTP on port 38412 (N2/NGAP)
+#   - e2term (near-rt-ric chart): LoadBalancer with SCTP on port 36421 (E2)
+#
+# The main container is a permanent pause so the DaemonSet pod stays Running
+# and can be monitored. The actual work happens in initContainers.
+#
+# Why a DaemonSet and not a node startup script?
+#   DaemonSets are Kubernetes-native, version-controlled, and re-run
+#   automatically when new nodes join the pool (e.g., after auto-repair).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sctp-init
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: sctp-init
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  selector:
+    matchLabels:
+      app: sctp-init
+  template:
+    metadata:
+      labels:
+        app: sctp-init
+    spec:
+      # hostPID: true is needed so nsenter can reach the host's PID namespace
+      # and run modprobe in the host kernel context (not just the container).
+      hostPID: true
+      tolerations:
+        - operator: Exists  # Run on all nodes including tainted ones.
+      initContainers:
+        - name: load-sctp
+          image: alpine:3.19
+          securityContext:
+            privileged: true
+          # nsenter -t 1 -m -u -i -n: enter the host's mount/uts/ipc/net
+          # namespaces via PID 1 (init). This makes modprobe run against
+          # the host kernel's module tree, not the container's.
+          command:
+            - nsenter
+            - "-t"
+            - "1"
+            - "-m"
+            - "-u"
+            - "-i"
+            - "-n"
+            - "--"
+            - modprobe
+            - sctp
+      containers:
+        - name: pause
+          image: gcr.io/google_containers/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi

@@ -1,0 +1,59 @@
+# ============================================================================
+# SCP — Service Communication Proxy
+# ============================================================================
+{{- if .Values.nf.scp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: scp
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scp
+  template:
+    metadata:
+      labels:
+        app: scp
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: scp
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-scpd", "-c", "/open5gs/install/etc/open5gs/scp.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 7777
+              name: sbi
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: scp
+spec:
+  selector:
+    app: scp
+  ports:
+    - name: sbi
+      port: 7777
+      targetPort: 7777
+{{- end }}

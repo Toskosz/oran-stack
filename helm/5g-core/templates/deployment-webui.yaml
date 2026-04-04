@@ -1,0 +1,80 @@
+# ============================================================================
+# WebUI — Open5GS Subscriber Management Interface
+# ============================================================================
+# Exposed as a LoadBalancer on port 9999 so operators can reach it from
+# outside the cluster. Default credentials: admin / 1423 (see TODO.md).
+{{- if .Values.nf.webui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: webui
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webui
+  template:
+    metadata:
+      labels:
+        app: webui
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      initContainers:
+        - name: wait-for-mongodb
+          image: mongo:7.0
+          command: ["mongosh", "--host", "mongodb:27017", "--eval", "db.adminCommand('ping')", "--quiet"]
+      containers:
+        - name: webui
+          image: {{ .Values.images.webui.repository }}:{{ .Values.images.webui.tag }}
+          imagePullPolicy: {{ .Values.images.webui.pullPolicy }}
+          env:
+            - name: DB_URI
+              value: {{ .Values.mongodb.uri | quote }}
+            - name: MONGODB_URI
+              value: {{ .Values.mongodb.uri | quote }}
+            - name: NODE_ENV
+              value: production
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: PORT
+              value: "9999"
+          ports:
+            - containerPort: 9999
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9999
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9999
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webui
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: webui
+spec:
+  type: LoadBalancer
+  selector:
+    app: webui
+  ports:
+    - name: http
+      port: 9999
+      targetPort: 9999
+{{- end }}

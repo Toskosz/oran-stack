@@ -1,0 +1,64 @@
+# ============================================================================
+# ran Helm Chart — values.yaml
+# ============================================================================
+
+namespace: ran
+
+imagePullSecretName: dockerhub-secret
+
+images:
+  srsran:
+    repository: ""        # e.g. "youruser/oran-srsran"  — set via Ansible group_vars
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  srsue:
+    repository: ""        # e.g. "youruser/oran-srsue"
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# ----------------------------------------------------------------------------
+# Cross-namespace addresses
+# DNS format: <service>.<namespace>.svc.cluster.local
+# These replace the hardcoded IPs in the original srsran/configs/*.yml files.
+# ----------------------------------------------------------------------------
+amfAddress: "amf-ngap.5g-core.svc.cluster.local"
+e2termAddress: "e2term.near-rt-ric.svc.cluster.local"
+
+# ----------------------------------------------------------------------------
+# Radio / Cell configuration (mirrors .env / du.yml values)
+# ----------------------------------------------------------------------------
+radio:
+  dlArfcn: 368500
+  band: 3
+  bandwidthMhz: 20
+  commonScs: 15
+  pci: 1
+  srate: "23.04e6"
+
+# ----------------------------------------------------------------------------
+# PLMN
+# ----------------------------------------------------------------------------
+plmn:
+  mcc: "001"
+  mnc: "01"
+  tac: "1"
+
+# ----------------------------------------------------------------------------
+# UE credentials (must match Open5GS subscriber database)
+# ----------------------------------------------------------------------------
+ue:
+  imsi: "001010000000001"
+  k: "465B5CE8B199B49FAA5F0A2EE238A6BC"
+  opc: "E8ED289DEBA952E4283B54E88E6183CA"
+  apn: "internet"
+
+# F1 interface port (CU <-> DU user plane)
+f1uPort: 2153
+
+# ZMQ ports (DU <-> UE virtual radio)
+zmq:
+  duTxPort: 2000
+  duRxPort: 2001
+
+# Enable/disable the UE simulator
+deployUE: true

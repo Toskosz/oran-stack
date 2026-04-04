@@ -1,0 +1,16 @@
+apiVersion: v2
+name: ran
+description: >
+  srsRAN CU/DU split + ZMQ UE simulator. Translates docker-compose.cudu.yml
+  into Kubernetes Deployments. Hardcoded IPs are replaced with Kubernetes
+  DNS names (cross-namespace FQDNs for AMF and e2term).
+type: application
+version: 0.1.0
+appVersion: "srsRAN_Project"
+keywords:
+  - srsran
+  - cu
+  - du
+  - ue
+  - o-ran
+  - zmq

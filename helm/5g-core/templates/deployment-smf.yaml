@@ -1,0 +1,69 @@
+# ============================================================================
+# SMF — Session Management Function
+# ============================================================================
+{{- if .Values.nf.smf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: smf
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smf
+  template:
+    metadata:
+      labels:
+        app: smf
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: smf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-smfd", "-c", "/open5gs/install/etc/open5gs/smf.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 7777
+              name: sbi
+            - containerPort: 8805
+              name: pfcp
+              protocol: UDP
+            - containerPort: 2123
+              name: gtpc
+              protocol: UDP
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 150m
+              memory: 192Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: smf
+spec:
+  selector:
+    app: smf
+  ports:
+    - name: sbi
+      port: 7777
+      targetPort: 7777
+    - name: pfcp
+      port: 8805
+      targetPort: 8805
+      protocol: UDP
+{{- end }}

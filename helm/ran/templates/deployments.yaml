@@ -1,0 +1,250 @@
+# ============================================================================
+# srsRAN CU, DU, and UE Deployments + Services
+# ============================================================================
+# Startup ordering: CU → DU → UE (mirrors depends_on in docker-compose.cudu.yml)
+# Implemented with initContainers that wait for the upstream pod's service.
+#
+# Multi-homing approximation:
+#   The original CU had two IPs (core + ran networks). Here a single pod
+#   binds to 0.0.0.0 and all interfaces (N2, F1-C, F1-U, NG-U) use the
+#   pod IP via their respective Services. The GKE node routes packets
+#   correctly through kube-proxy since all services are ClusterIPs.
+# ============================================================================
+
+# --- CU (Central Unit) -------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: srs-cu
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srs-cu
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: srs-cu
+  template:
+    metadata:
+      labels:
+        app: srs-cu
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      containers:
+        - name: srs-cu
+          image: {{ .Values.images.srsran.repository }}:{{ .Values.images.srsran.tag }}
+          imagePullPolicy: {{ .Values.images.srsran.pullPolicy }}
+          command: ["/usr/local/bin/srscu", "-c", "/mnt/srsran/configs/cu.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 38412
+              name: n2-sctp
+              protocol: SCTP
+            - containerPort: 2152
+              name: ngu-gtpu
+              protocol: UDP
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+          volumeMounts:
+            - name: srsran-configs
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsran-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: srsran-configs
+          configMap:
+            name: srsran-configs
+        - name: srsran-logs
+          emptyDir: {}
+---
+# ClusterIP for CU — DU uses 'srs-cu' as the F1 peer address (cu_cp_addr in du.yml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: srs-cu
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srs-cu
+spec:
+  selector:
+    app: srs-cu
+  ports:
+    - name: f1u
+      port: 2153
+      targetPort: 2153
+      protocol: UDP
+---
+# --- DU (Distributed Unit) ---------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: srs-du
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srs-du
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: srs-du
+  template:
+    metadata:
+      labels:
+        app: srs-du
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      initContainers:
+        - name: wait-for-cu
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z srs-cu 2153; do echo waiting for CU F1-U; sleep 3; done"]
+      containers:
+        - name: srs-du
+          image: {{ .Values.images.srsran.repository }}:{{ .Values.images.srsran.tag }}
+          imagePullPolicy: {{ .Values.images.srsran.pullPolicy }}
+          command: ["/usr/local/bin/srsdu", "-c", "/mnt/srsran/configs/du.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+            - containerPort: 36421
+              name: e2-sctp
+              protocol: SCTP
+            - containerPort: {{ .Values.zmq.duTxPort }}
+              name: zmq-tx
+              protocol: TCP
+            - containerPort: {{ .Values.zmq.duRxPort }}
+              name: zmq-rx
+              protocol: TCP
+          volumeMounts:
+            - name: srsran-configs
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsran-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: srsran-configs
+          configMap:
+            name: srsran-configs
+        - name: srsran-logs
+          emptyDir: {}
+---
+# ClusterIP for DU — UE uses 'srs-du' as the ZMQ rx_port peer (in ue.conf).
+apiVersion: v1
+kind: Service
+metadata:
+  name: srs-du
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srs-du
+spec:
+  selector:
+    app: srs-du
+  ports:
+    - name: zmq-tx
+      port: {{ .Values.zmq.duTxPort }}
+      targetPort: {{ .Values.zmq.duTxPort }}
+      protocol: TCP
+    - name: zmq-rx
+      port: {{ .Values.zmq.duRxPort }}
+      targetPort: {{ .Values.zmq.duRxPort }}
+      protocol: TCP
+---
+# --- UE (User Equipment Simulator) -------------------------------------------
+{{- if .Values.deployUE }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: srsue
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srsue
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: srsue
+  template:
+    metadata:
+      labels:
+        app: srsue
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      initContainers:
+        - name: wait-for-du
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z srs-du {{ .Values.zmq.duTxPort }}; do echo waiting for DU ZMQ; sleep 3; done"]
+      containers:
+        - name: srsue
+          image: {{ .Values.images.srsue.repository }}:{{ .Values.images.srsue.tag }}
+          imagePullPolicy: {{ .Values.images.srsue.pullPolicy }}
+          command: ["/usr/local/bin/srsue", "/mnt/srsran/configs/ue.conf"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: {{ .Values.zmq.duRxPort }}
+              name: zmq-ul
+              protocol: TCP
+          volumeMounts:
+            - name: srsran-configs
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsran-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: srsran-configs
+          configMap:
+            name: srsran-configs
+        - name: srsran-logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: srsue
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: srsue
+spec:
+  selector:
+    app: srsue
+  ports:
+    - name: zmq-ul
+      port: {{ .Values.zmq.duRxPort }}
+      targetPort: {{ .Values.zmq.duRxPort }}
+      protocol: TCP
+{{- end }}

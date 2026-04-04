@@ -1,0 +1,358 @@
+# ============================================================================
+# ConfigMaps for Near-RT RIC components
+# ============================================================================
+# Each RIC component has its own ConfigMap. This mirrors the per-component
+# volume mounts in docker-compose.ric.yml.
+#
+# IMPORTANT: The RMR routing table files (router.txt, dockerRouter.txt, etc.)
+# use hostnames like 'ric-e2mgr', 'ric-e2term', 'ric-submgr'. These resolve
+# correctly in Kubernetes because the Service names in this chart match those
+# hostnames exactly — same as they did in Docker Compose.
+# ============================================================================
+
+# --- e2mgr configuration and routing table -----------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2mgr-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  configuration.yaml: |
+    logging:
+      logLevel: debug
+    http:
+      port: 3800
+    rmr:
+      port: 3801
+      maxMsgSize: 65536
+    routingManager:
+      baseUrl: http://ric-rtmgr:3800/ric/v1/handles/
+    notificationResponseBuffer: 100
+    bigRedButtonTimeoutSec: 5
+    maxRnibConnectionAttempts: 3
+    rnibRetryIntervalMs: 10
+    keepAliveResponseTimeoutMs: 60000
+    keepAliveDelayMs: 30000
+    e2tInstanceDeletionTimeoutMs: 120000
+    e2ResetTimeOutSec: 10
+    globalRicId:
+      ricId: {{ .Values.ric.id | quote }}
+      mcc: {{ .Values.ric.mcc | quote }}
+      mnc: {{ .Values.ric.mnc | quote }}
+    rnibWriter:
+      stateChangeMessageChannel: RAN_CONNECTION_STATUS_CHANGE
+      ranManipulationMessageChannel: RAN_MANIPULATION
+
+  router.txt: |
+    newrt|start
+    rte|1080|ric-e2term:38000
+    rte|1090|ric-e2term:38000
+    rte|1100|ric-e2term:38000
+    rte|1101|ric-e2term:38000
+    rte|1102|ric-e2mgr:3801
+    rte|1200|ric-submgr:4560
+    rte|1210|ric-submgr:4560
+    rte|1220|ric-submgr:4560
+    rte|12010|ric-e2mgr:3801
+    rte|12011|ric-e2mgr:3801
+    rte|12012|ric-e2mgr:3801
+    rte|12020|ric-e2mgr:3801
+    rte|12021|ric-e2mgr:3801
+    rte|12050|ric-e2mgr:3801
+    rte|12052|ric-e2mgr:3801
+    newrt|end
+---
+# --- e2term configuration and routing table ----------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: e2term-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  # config.conf: local-ip and external-fqdn use the Downward API pod IP.
+  # They are set via environment variable E2TERM_POD_IP in the Deployment
+  # and rendered here as a template — see deployment-e2term.yaml.
+  config.conf: |
+    nano=38000
+    volume=log
+    local-ip=0.0.0.0
+    prometheusMode=pull
+    prometheusPushTimeOut=10
+    prometheusPushAddr=127.0.0.1:7676
+    prometheusPort=8088
+    trace=stop
+    external-fqdn=ric-e2term
+    pod_name=E2TERM_POD_NAME
+    sctp-port=36421
+
+  dockerRouter.txt: |
+    newrt|start
+    rte|1080|ric-e2mgr:3801
+    rte|1090|ric-e2mgr:3801
+    rte|1100|ric-e2mgr:3801
+    rte|1101|ric-e2mgr:3801
+    rte|1102|ric-e2mgr:3801
+    rte|12001|ric-e2mgr:3801
+    rte|12010|ric-e2mgr:3801
+    rte|12011|ric-e2mgr:3801
+    rte|12012|ric-e2mgr:3801
+    rte|12020|ric-e2mgr:3801
+    rte|12021|ric-e2mgr:3801
+    rte|12050|ric-e2mgr:3801
+    rte|12052|ric-e2mgr:3801
+    rte|1200|ric-submgr:4560
+    rte|1210|ric-submgr:4560
+    rte|1220|ric-submgr:4560
+    newrt|end
+---
+# --- rtmgr configuration -----------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rtmgr-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  rtmgr-config.yaml: |
+    PlatformComponents:
+      - name: E2TERM
+        fqdn: ric-e2term
+        port: 38000
+      - name: E2TERMINST
+        fqdn: ric-e2term
+        port: 38000
+      - name: SUBMAN
+        fqdn: ric-submgr
+        port: 4560
+      - name: E2MAN
+        fqdn: ric-e2mgr
+        port: 3801
+      - name: APPMGR
+        fqdn: ric-appmgr
+        port: 8080
+      - name: A1MEDIATOR
+        fqdn: ric-a1mediator
+        port: 4562
+    PlatformRoutes:
+      - messagetype: E2_TERM_INIT
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: E2_TERM_KEEP_ALIVE_RESP
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_E2_SETUP_REQ
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_E2_RESET_REQ
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_SERVICE_UPDATE
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_SUB_REQ
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: SUBMAN
+        meid: ""
+      - messagetype: RIC_SUB_DEL_REQ
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: SUBMAN
+        meid: ""
+      - messagetype: RIC_SUB_DEL_REQUIRED
+        senderendpoint: E2MAN
+        subscriptionid: -1
+        endpoint: SUBMAN
+        meid: ""
+    messagetypes:
+      - "E2_TERM_INIT=1100"
+      - "E2_TERM_KEEP_ALIVE_REQ=1101"
+      - "E2_TERM_KEEP_ALIVE_RESP=1102"
+      - "RIC_SCTP_CONNECTION_FAILURE=1080"
+      - "RIC_SCTP_CLEAR_ALL=1090"
+      - "RAN_CONNECTED=1200"
+      - "RAN_RESTARTED=1210"
+      - "RAN_RECONFIGURED=1220"
+      - "RIC_E2_SETUP_REQ=12001"
+      - "RIC_E2_SETUP_RESP=12002"
+      - "RIC_E2_SETUP_FAILURE=12003"
+      - "RIC_E2_RESET_REQ=12004"
+      - "RIC_E2_RESET_RESP=12005"
+      - "RIC_E2_RAN_ERROR_INDICATION=12006"
+      - "RIC_SUB_REQ=12010"
+      - "RIC_SUB_RESP=12011"
+      - "RIC_SUB_FAILURE=12012"
+      - "RIC_SUB_DEL_REQ=12020"
+      - "RIC_SUB_DEL_RESP=12021"
+      - "RIC_SUB_DEL_FAILURE=12022"
+      - "RIC_SUB_DEL_REQUIRED=12023"
+      - "RIC_SERVICE_UPDATE=12030"
+      - "RIC_SERVICE_UPDATE_ACK=12031"
+      - "RIC_SERVICE_UPDATE_FAILURE=12032"
+      - "RIC_CONTROL_REQ=12040"
+      - "RIC_CONTROL_ACK=12041"
+      - "RIC_CONTROL_FAILURE=12042"
+      - "RIC_INDICATION=12050"
+      - "RIC_SERVICE_QUERY=12060"
+      - "RIC_E2NODE_CONFIG_UPDATE=12070"
+      - "RIC_E2NODE_CONFIG_UPDATE_ACK=12071"
+      - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
+      - "RIC_HEALTH_CHECK_REQ=100"
+      - "RIC_HEALTH_CHECK_RESP=101"
+      - "A1_POLICY_REQ=20010"
+      - "A1_POLICY_RESP=20011"
+      - "A1_POLICY_QUERY=20012"
+    local:
+      host: ":8989"
+    logger:
+      level: 4
+    rmr:
+      protPort: "tcp:4560"
+      maxSize: 2072
+      numWorkers: 1
+    rtfile: "/db/rt.json"
+    cfgfile: "/cfg/rtmgr-config.yaml"
+    nbiurl: "http://ric-e2mgr:3800"
+    nbi: "httpRESTful"
+    sbi: "rmrpush"
+    rpe: "rmrpush"
+    sdl: "file"
+    xmurl: "http://ric-appmgr:8080/ric/v1/xapps"
+    e2murl: "http://ric-e2mgr:3800/v1/e2t/list"
+    subscription:
+      host: "ric-submgr"
+      port: 8088
+      timeout: 30
+
+  rt.json: |
+    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"E2TERMINST","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"APPMGR","fqdn":"ric-appmgr","port":8080},{"name":"A1MEDIATOR","fqdn":"ric-a1mediator","port":4562}]}
+---
+# --- submgr configuration ----------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: submgr-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  submgr-config.yaml: |
+    "local":
+      "host": ":8080"
+    "logger":
+      "level": 3
+    "rmr":
+      "protPort": "tcp:4560"
+      "maxSize": 8192
+      "numWorkers": 1
+    "rtmgr":
+      "hostAddr": "ric-rtmgr"
+      "port": "8989"
+      "baseUrl": "/ric/v1"
+    "db":
+      "sessionNamespace": "XMSession"
+      "host": "ric-dbaas:6379"
+      "prot": "tcp"
+      "maxIdle": 80
+      "maxActive": 12000
+    "controls":
+      "e2tSubReqTimeout_ms": 2000
+      "e2tSubDelReqTime_ms": 2000
+      "e2tRecvMsgTimeout_ms": 2000
+      "e2tMaxSubReqTryCount": 2
+      "e2tMaxSubDelReqTryCount": 2
+      "checkE2State": "true"
+      "readSubsFromDb": "true"
+      "dbTryCount": 200
+      "dbRetryForever": "true"
+      "checkE2IEOrder": 1
+
+  submgr-uta-rtg.rt: |
+    newrt|start
+    rte|1080|ric-e2term:38000
+    rte|1090|ric-e2term:38000
+    rte|1100|ric-e2term:38000
+    rte|1101|ric-e2term:38000
+    rte|1200|ric-e2term:38000
+    rte|1210|ric-e2term:38000
+    rte|1220|ric-e2term:38000
+    rte|12010|ric-e2mgr:3801
+    rte|12011|ric-e2mgr:3801
+    rte|12012|ric-e2mgr:3801
+    rte|12020|ric-e2mgr:3801
+    rte|12021|ric-e2mgr:3801
+    rte|12050|ric-e2mgr:3801
+    rte|12052|ric-e2mgr:3801
+    newrt|end
+---
+# --- appmgr configuration ----------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appmgr-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  appmgr.yaml: |
+    "local":
+      "host": ":8080"
+    "logger":
+      "level": 3
+    "rmr":
+      "protPort": "tcp:4560"
+      "maxSize": 8192
+      "numWorkers": 1
+    "db":
+      "namespacePrefix": "appmgr"
+      "host": "ric-dbaas"
+      "port": 6379
+    "helm":
+      "host": ""
+      "serviceHost": ""
+      "helmdir": "/opt/ric/helm"
+      "helmversion": "3"
+      "tillerNamespace": ""
+      "chartmuseumusername": ""
+      "chartmuseumpassword": ""
+      "caasIngress": ""
+
+  appmgr.rt: |
+    newrt|start
+    rte|12010|ric-e2mgr:3801
+    rte|12020|ric-e2mgr:3801
+    newrt|end
+---
+# --- a1mediator configuration ------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a1mediator-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  config.yaml: |
+    log-level: debug
+    NAME: ""
+    MAX_SIZE: 65534
+    THREAD_TYPE: 0
+    LOW_LATENCY: false
+    FAST_ACK: false
+    MAX_RETRY_ON_FAILURE: 1
+    PORT: 4562

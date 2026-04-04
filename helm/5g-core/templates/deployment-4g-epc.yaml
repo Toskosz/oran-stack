@@ -1,0 +1,175 @@
+# ============================================================================
+# 4G EPC NFs: MME, SGW-C, SGW-U, HSS, PCRF
+# ============================================================================
+# These NFs are known to crash on startup (SIGSEGV, signal 139) in this
+# deployment. They are deployed but not required for 5G SA operation.
+# Set mme.enabled=false in values.yaml to skip all of them.
+#
+# The crash is a known Open5GS issue with freeDiameter linking when compiled
+# from source on Ubuntu 22.04. See docs/LEARNINGS.md for details.
+# ============================================================================
+
+{{- if .Values.mme.enabled }}
+# --- MME (Mobility Management Entity) ----------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mme
+  namespace: {{ .Values.namespace }}
+  labels: { app: mme, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mme }
+  template:
+    metadata:
+      labels: { app: mme }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: mme
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-mmed", "-c", "/open5gs/install/etc/open5gs/mme.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mme
+  namespace: {{ .Values.namespace }}
+  labels: { app: mme }
+spec:
+  selector: { app: mme }
+  ports: [{ name: s1ap, port: 36412, targetPort: 36412, protocol: SCTP }]
+---
+# --- SGW-C (Serving Gateway Control Plane) -----------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgwc
+  namespace: {{ .Values.namespace }}
+  labels: { app: sgwc, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sgwc }
+  template:
+    metadata:
+      labels: { app: sgwc }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: sgwc
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-sgwcd", "-c", "/open5gs/install/etc/open5gs/sgwc.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgwc
+  namespace: {{ .Values.namespace }}
+  labels: { app: sgwc }
+spec:
+  selector: { app: sgwc }
+  ports: [{ name: pfcp, port: 8805, targetPort: 8805, protocol: UDP }]
+---
+# --- SGW-U (Serving Gateway User Plane) --------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgwu
+  namespace: {{ .Values.namespace }}
+  labels: { app: sgwu, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sgwu }
+  template:
+    metadata:
+      labels: { app: sgwu }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: sgwu
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-sgwud", "-c", "/open5gs/install/etc/open5gs/sgwu.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+# --- HSS (Home Subscriber Server) --------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hss
+  namespace: {{ .Values.namespace }}
+  labels: { app: hss, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: hss }
+  template:
+    metadata:
+      labels: { app: hss }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: hss
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-hssd", "-c", "/open5gs/install/etc/open5gs/hss.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+# --- PCRF (Policy and Charging Rules Function) --------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pcrf
+  namespace: {{ .Values.namespace }}
+  labels: { app: pcrf, app.kubernetes.io/part-of: oran-stack }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pcrf }
+  template:
+    metadata:
+      labels: { app: pcrf }
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: pcrf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-pcrfd", "-c", "/open5gs/install/etc/open5gs/pcrf.yaml"]
+          workingDir: /open5gs
+          env: {{ include "5g-core.commonEnv" . | nindent 12 }}
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts: {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources: { requests: { cpu: 100m, memory: 128Mi } }
+      volumes: {{ include "5g-core.nfVolumes" . | nindent 8 }}
+{{- end }}

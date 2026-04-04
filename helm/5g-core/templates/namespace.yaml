@@ -1,0 +1,12 @@
+# Creates the dedicated namespace for the 5G core workloads.
+# Using a dedicated namespace (instead of 'default') allows:
+#   - Independent RBAC policies per stack
+#   - kubectl filtering:  kubectl get pods -n 5g-core
+#   - Clean teardown:     helm uninstall 5g-core -n 5g-core
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: oran-stack

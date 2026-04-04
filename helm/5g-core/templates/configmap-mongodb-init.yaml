@@ -1,0 +1,83 @@
+# ============================================================================
+# ConfigMap: MongoDB Initialization Scripts
+# ============================================================================
+# These scripts are mounted at /docker-entrypoint-initdb.d/ inside the
+# MongoDB StatefulSet pod. MongoDB's official entrypoint runs all *.js files
+# in that directory on first startup (when the data volume is empty).
+#
+# init-rs.js    — initialises the replica set 'rs0' (single member for lab)
+# init-data.js  — seeds the admin user and two test subscribers
+#
+# The content is taken verbatim from the repo root init-mongodb.js and
+# init-webui-data.js files, which are already stable and tested.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-init-scripts
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  init-rs.js: |
+    try {
+      rs.initiate({
+        _id: 'rs0',
+        members: [{ _id: 0, host: 'mongodb:27017', priority: 1 }]
+      });
+      print('Replica set initialized successfully');
+    } catch (e) {
+      print('Replica set initialization message: ' + e.message);
+    }
+
+  init-data.js: |
+    db = db.getSiblingDB('admin');
+    try {
+      const adminResult = db.administrators.updateOne(
+        { username: 'admin' },
+        { $setOnInsert: {
+            username: 'admin',
+            password: '$2a$10$9D3nYrAb.tF.lL.hzjvJJOTxMTtDZdv/mUwvN8OJZBJLwYMrKvEOq',
+            created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print(adminResult.upsertedCount === 1 ? 'Admin user initialized' : 'Admin user already exists');
+    } catch (e) { print('Admin: ' + e.message); }
+
+    db = db.getSiblingDB('open5gs');
+
+    try {
+      db.subscribers.updateOne(
+        { imsi: '001010000000001' },
+        { $setOnInsert: {
+            imsi: '001010000000001', msisdn: '+82100000001',
+            subscriber_status: 0, network_access_mode: 0,
+            access_restriction_data: 32, subscribed_rau_tau_timer: 12,
+            pdn: [{ apn: 'internet', type: 2, dnn: 'internet', qci: 9,
+              arp: { priority_level: 8, pre_emption_capability: 0, pre_emption_vulnerability: 0 },
+              mbr: { downlink: 1024, uplink: 1024 },
+              ambr: { downlink: 1024000, uplink: 1024000 }
+            }],
+            ambr: { downlink: 1024000, uplink: 1024000 },
+            slice: [{ sst: 1, default: true }],
+            schema_version: 1, created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print('5G subscriber seeded: 001010000000001');
+    } catch (e) { print('5G subscriber: ' + e.message); }
+
+    try {
+      db.auths.updateOne(
+        { imsi: '001010000000001' },
+        { $setOnInsert: {
+            imsi: '001010000000001',
+            k: '465B5CE8B199B49FAA5F0A2EE238A6BC',
+            opc: 'E8ED289DEBA952E4283B54E88E6183CA',
+            amf: 32770, sqn: 0, ck: null, ik: null,
+            created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print('5G auth seeded');
+    } catch (e) { print('5G auth: ' + e.message); }

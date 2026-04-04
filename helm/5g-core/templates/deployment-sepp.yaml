@@ -1,0 +1,59 @@
+# ============================================================================
+# SEPP — Security Edge Protection Proxy
+# ============================================================================
+{{- if .Values.nf.sepp.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sepp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: sepp
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sepp
+  template:
+    metadata:
+      labels:
+        app: sepp
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: sepp
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-seppd", "-c", "/open5gs/install/etc/open5gs/sepp1.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 7777
+              name: sbi
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sepp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: sepp
+spec:
+  selector:
+    app: sepp
+  ports:
+    - name: sbi
+      port: 7777
+      targetPort: 7777
+{{- end }}

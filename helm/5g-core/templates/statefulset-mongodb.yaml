@@ -1,0 +1,113 @@
+# ============================================================================
+# MongoDB StatefulSet + Service
+# ============================================================================
+# StatefulSet gives MongoDB:
+#   - A stable DNS name: mongodb.5g-core.svc.cluster.local
+#   - A stable PersistentVolumeClaim that survives pod restarts
+#   - Ordered, one-at-a-time startup (important for replica set init)
+#
+# The replica set (rs0) has a single member for this lab deployment.
+# MONGODB_URI in all NFs is set to mongodb://mongodb:27017/open5gs, which
+# resolves to the headless ClusterIP Service below.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: mongodb
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  serviceName: mongodb   # Must match the headless Service name below.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      containers:
+        - name: mongodb
+          image: mongo:7.0
+          command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_DATABASE
+              value: open5gs
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+            - name: mongodb-config
+              mountPath: /data/configdb
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: mongodb-init-scripts
+  # VolumeClaimTemplates create a PersistentVolumeClaim per replica.
+  # GKE's standard-rwo StorageClass provisions a GCP Persistent Disk (pd-ssd)
+  # automatically when the pod is first scheduled.
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.mongodb.storage.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.mongodb.storage.size }}
+    - metadata:
+        name: mongodb-config
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.mongodb.storage.storageClass | quote }}
+        resources:
+          requests:
+            storage: 1Gi
+---
+# Headless ClusterIP Service for MongoDB.
+# 'clusterIP: None' means DNS returns the pod IP directly (no VIP).
+# This is the standard pattern for StatefulSets — the stable hostname
+# 'mongodb' resolves to the pod's IP inside the namespace.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: mongodb
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017

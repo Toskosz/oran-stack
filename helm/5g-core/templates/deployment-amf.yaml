@@ -1,0 +1,96 @@
+# ============================================================================
+# AMF — Access and Mobility Management Function
+# ============================================================================
+# Two Services:
+#   1. amf-sbi    (ClusterIP)    — SBI HTTP/2 on port 7777, internal only
+#   2. amf-ngap   (LoadBalancer) — SCTP N2/NGAP on port 38412, external
+#
+# The LoadBalancer Service is exposed externally so the CU (srs_cu pod in the
+# ran namespace) can connect via the GCP Network Load Balancer.
+# protocol: SCTP is supported in GKE >= 1.28 (GA in K8s 1.28).
+# The SCTP kernel module must be loaded first — see daemonset-sctp-init.yaml.
+{{- if .Values.nf.amf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: amf
+  template:
+    metadata:
+      labels:
+        app: amf
+    spec:
+      {{ include "5g-core.imagePullSecrets" . }}
+      containers:
+        - name: amf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+          ports:
+            - containerPort: 7777
+              name: sbi
+            - containerPort: 38412
+              name: ngap
+              protocol: SCTP
+            - containerPort: 9090
+              name: metrics
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+# Internal SBI service (HTTP/2) — used by other NFs to reach AMF.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+spec:
+  selector:
+    app: amf
+  ports:
+    - name: sbi
+      port: 7777
+      targetPort: 7777
+---
+# External SCTP service for N2/NGAP — CU connects to this LoadBalancer IP.
+# externalTrafficPolicy: Local preserves source IP and avoids extra hop.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf-ngap
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+  annotations:
+    # GCP NLB passthrough mode — required for SCTP (no L7 proxy involved).
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: amf
+  ports:
+    - name: ngap
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP
+{{- end }}

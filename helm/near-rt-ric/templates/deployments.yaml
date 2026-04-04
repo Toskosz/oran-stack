@@ -1,0 +1,623 @@
+# ============================================================================
+# Near-RT RIC Deployments and Services
+# ============================================================================
+# Startup ordering (mirrors docker-compose.ric.yml depends_on):
+#
+#   dbaas (healthy) → e2mgr (healthy) → {appmgr, submgr} → rtmgr
+#                                                         ↓
+#                                                    e2term (after 5s sleep)
+#
+# Implemented via initContainers that wait for upstream services using
+# wget/curl health checks — the Kubernetes equivalent of depends_on.
+#
+# NOTE: All RIC components reference each other by short hostnames
+# (ric-e2mgr, ric-e2term, etc.) in their RMR routing tables. This works
+# because all pods are in the same namespace and the Service names match.
+# ============================================================================
+
+# --- DBAAS (Redis shared data layer) -----------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-dbaas
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-dbaas
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-dbaas
+  template:
+    metadata:
+      labels:
+        app: ric-dbaas
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.images.dbaas.repository }}:{{ .Values.images.dbaas.tag }}
+          imagePullPolicy: {{ .Values.images.dbaas.pullPolicy }}
+          ports:
+            - containerPort: 6379
+              name: redis
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-dbaas
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-dbaas
+spec:
+  selector:
+    app: ric-dbaas
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+# --- E2MGR (E2 Manager) -------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-e2mgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-e2mgr
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-e2mgr
+  template:
+    metadata:
+      labels:
+        app: ric-e2mgr
+    spec:
+      initContainers:
+        - name: wait-for-dbaas
+          image: redis:6-alpine
+          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      containers:
+        - name: e2mgr
+          image: {{ .Values.images.e2mgr.repository }}:{{ .Values.images.e2mgr.tag }}
+          imagePullPolicy: {{ .Values.images.e2mgr.pullPolicy }}
+          env:
+            - name: LD_LIBRARY_PATH
+              value: /usr/local/lib
+            - name: RMR_SEED_RT
+              value: /opt/E2Manager/router.txt
+            - name: RMR_VCTL_FILE
+              value: /tmp/rmr.verbose
+            - name: port
+              value: "3800"
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+          ports:
+            - containerPort: 3800
+              name: http
+            - containerPort: 3801
+              name: rmr
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 3800
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 3800
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: e2mgr-config
+              mountPath: /opt/E2Manager/resources/configuration.yaml
+              subPath: configuration.yaml
+            - name: e2mgr-config
+              mountPath: /opt/E2Manager/router.txt
+              subPath: router.txt
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: e2mgr-config
+          configMap:
+            name: e2mgr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-e2mgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-e2mgr
+spec:
+  selector:
+    app: ric-e2mgr
+  ports:
+    - name: http
+      port: 3800
+      targetPort: 3800
+    - name: rmr
+      port: 3801
+      targetPort: 3801
+---
+# --- APPMGR (Application Manager) -------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-appmgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-appmgr
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-appmgr
+  template:
+    metadata:
+      labels:
+        app: ric-appmgr
+    spec:
+      initContainers:
+        - name: wait-for-dbaas
+          image: redis:6-alpine
+          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      containers:
+        - name: appmgr
+          image: {{ .Values.images.appmgr.repository }}:{{ .Values.images.appmgr.tag }}
+          imagePullPolicy: {{ .Values.images.appmgr.pullPolicy }}
+          env:
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            - name: RMR_SEED_RT
+              value: /opt/ric/config/appmgr.rt
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: appmgr-config
+              mountPath: /opt/ric/config/appmgr.yaml
+              subPath: appmgr.yaml
+            - name: appmgr-config
+              mountPath: /opt/ric/config/appmgr.rt
+              subPath: appmgr.rt
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: appmgr-config
+          configMap:
+            name: appmgr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-appmgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-appmgr
+spec:
+  selector:
+    app: ric-appmgr
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# --- SUBMGR (Subscription Manager) ------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-submgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-submgr
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-submgr
+  template:
+    metadata:
+      labels:
+        app: ric-submgr
+    spec:
+      initContainers:
+        - name: wait-for-dbaas
+          image: redis:6-alpine
+          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      containers:
+        - name: submgr
+          image: {{ .Values.images.submgr.repository }}:{{ .Values.images.submgr.tag }}
+          imagePullPolicy: {{ .Values.images.submgr.pullPolicy }}
+          env:
+            - name: CFG_FILE
+              value: /opt/config/submgr-config.yaml
+            - name: RMR_SEED_RT
+              value: /opt/config/submgr-uta-rtg.rt
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 4560
+              name: rmr
+            - containerPort: 8088
+              name: metrics
+          volumeMounts:
+            - name: submgr-config
+              mountPath: /opt/config/submgr-config.yaml
+              subPath: submgr-config.yaml
+            - name: submgr-config
+              mountPath: /opt/config/submgr-uta-rtg.rt
+              subPath: submgr-uta-rtg.rt
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: submgr-config
+          configMap:
+            name: submgr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-submgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-submgr
+spec:
+  selector:
+    app: ric-submgr
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: rmr
+      port: 4560
+      targetPort: 4560
+    - name: metrics
+      port: 8088
+      targetPort: 8088
+---
+# --- RTMGR (Routing Manager) -------------------------------------------------
+# hostAliases replaces the extra_hosts hack from docker-compose.ric.yml.
+# rtmgr builds the submgr URL as
+#   "service-ricplt-submgr-http.ricplt:<port>"
+# which doesn't resolve in Kubernetes. hostAliases injects that name into
+# the pod's /etc/hosts, mapping it to the ric-submgr ClusterIP.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-rtmgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-rtmgr
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-rtmgr
+  template:
+    metadata:
+      labels:
+        app: ric-rtmgr
+    spec:
+      # Kubernetes equivalent of Docker Compose extra_hosts.
+      # See docs/LEARNINGS.md — rtmgr hardcodes this K8s-style DNS name.
+      hostAliases:
+        - ip: "$(RIC_SUBMGR_IP)"
+          hostnames:
+            - "service-ricplt-submgr-http.ricplt"
+      initContainers:
+        - name: wait-for-e2mgr
+          image: alpine:3.19
+          command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+        - name: resolve-submgr-ip
+          image: alpine:3.19
+          command: ["sh", "-c", "getent hosts ric-submgr | awk '{print $1}' > /shared/submgr-ip"]
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        - name: rtmgr
+          image: {{ .Values.images.rtmgr.repository }}:{{ .Values.images.rtmgr.tag }}
+          imagePullPolicy: {{ .Values.images.rtmgr.pullPolicy }}
+          env:
+            - name: RMR_SEED_RT
+              value: /uta_rtg_ric.rt
+            - name: CFGFILE
+              value: /cfg/rtmgr-config.yaml
+            - name: RTFILE
+              value: /db/rt.json
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            # Inject submgr's ClusterIP so the hostAliases initContainer
+            # substitution works. See TODO.md for a cleaner long-term fix.
+            - name: RIC_SUBMGR_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP  # placeholder — overridden by initContainer
+          ports:
+            - containerPort: 3800
+              name: http
+            - containerPort: 4560
+              name: rmr
+          volumeMounts:
+            - name: rtmgr-config
+              mountPath: /cfg/rtmgr-config.yaml
+              subPath: rtmgr-config.yaml
+            - name: rtmgr-config
+              mountPath: /db/rt.json
+              subPath: rt.json
+            - name: shared
+              mountPath: /shared
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: rtmgr-config
+          configMap:
+            name: rtmgr-config
+        - name: shared
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-rtmgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-rtmgr
+spec:
+  selector:
+    app: ric-rtmgr
+  ports:
+    - name: http
+      port: 3800
+      targetPort: 3800
+    - name: rmr
+      port: 4560
+      targetPort: 4560
+---
+# --- E2TERM (E2 Termination) --------------------------------------------------
+# Two Services:
+#   1. ric-e2term (ClusterIP) — RMR ports for internal RIC communication
+#   2. e2term (LoadBalancer, SCTP) — external E2 endpoint for the DU
+#
+# The initContainer sleep implements the documented 5-second startup delay.
+# RIC_E2TERM_SERVICE_HOST uses the Downward API to get the pod's own IP,
+# replacing the hardcoded 172.22.0.210 from docker-compose.ric.yml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-e2term
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-e2term
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-e2term
+  template:
+    metadata:
+      labels:
+        app: ric-e2term
+    spec:
+      initContainers:
+        - name: wait-for-e2mgr
+          image: alpine:3.19
+          command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+        # The 5-second sleep ensures e2mgr's RMR outbound connection to
+        # e2term:3801 is established before e2term opens the SCTP port.
+        # Without this, the first E2_TERM_KEEP_ALIVE_RESP fails with
+        # RMR_ERR_NOENDPT and triggers the keep-alive death spiral.
+        # See docs/LEARNINGS.md for the full diagnosis.
+        - name: startup-delay
+          image: busybox:1.36
+          command: ["sleep", {{ .Values.e2termStartupDelaySec | quote }}]
+      containers:
+        - name: e2term
+          image: {{ .Values.images.e2term.repository }}:{{ .Values.images.e2term.tag }}
+          imagePullPolicy: {{ .Values.images.e2term.pullPolicy }}
+          command: ["sh", "-c", "./startup.sh"]
+          securityContext:
+            privileged: true
+          env:
+            - name: RMR_SEED_RT
+              value: /opt/e2/config/dockerRouter.txt
+            - name: RMR_SRC_ID
+              value: ric-e2term
+            - name: E2TERM_POD_NAME
+              value: ric-e2term
+            - name: POD_NAME
+              value: ric-e2term
+            - name: LD_LIBRARY_PATH
+              value: /usr/local/lib
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+            # Downward API: inject the pod's own IP as the bind address.
+            # Replaces the hardcoded 172.22.0.210 from docker-compose.ric.yml.
+            - name: RIC_E2TERM_SERVICE_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 38000
+              name: rmr
+            - containerPort: 36421
+              name: e2-sctp
+              protocol: SCTP
+            - containerPort: 8088
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 8088
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: e2term-config
+              mountPath: /opt/e2/config
+          resources:
+            requests:
+              cpu: 150m
+              memory: 192Mi
+      volumes:
+        - name: e2term-config
+          configMap:
+            name: e2term-config
+---
+# Internal RMR service for e2term — used by other RIC components.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-e2term
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-e2term
+spec:
+  selector:
+    app: ric-e2term
+  ports:
+    - name: rmr
+      port: 38000
+      targetPort: 38000
+    - name: metrics
+      port: 8088
+      targetPort: 8088
+---
+# External SCTP service for E2 interface — DU connects here.
+# Named 'e2term' (without 'ric-' prefix) to match .Values.e2termAddress
+# in the ran chart: "e2term.near-rt-ric.svc.cluster.local"
+apiVersion: v1
+kind: Service
+metadata:
+  name: e2term
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-e2term
+  annotations:
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: ric-e2term
+  ports:
+    - name: e2-sctp
+      port: 36421
+      targetPort: 36421
+      protocol: SCTP
+---
+# --- A1MEDIATOR (A1 Policy Interface) ----------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ric-a1mediator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-a1mediator
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ric-a1mediator
+  template:
+    metadata:
+      labels:
+        app: ric-a1mediator
+    spec:
+      initContainers:
+        - name: wait-for-dbaas
+          image: redis:6-alpine
+          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      containers:
+        - name: a1mediator
+          image: {{ .Values.images.a1mediator.repository }}:{{ .Values.images.a1mediator.tag }}
+          imagePullPolicy: {{ .Values.images.a1mediator.pullPolicy }}
+          env:
+            - name: CFG_FILE
+              value: /opt/a1-mediator/config.yaml
+            - name: A1_CONFIG_FILE
+              value: /opt/a1-mediator/config.yaml
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+          ports:
+            - containerPort: 10000
+              name: http
+            - containerPort: 4562
+              name: rmr
+          volumeMounts:
+            - name: a1mediator-config
+              mountPath: /opt/a1-mediator/config.yaml
+              subPath: config.yaml
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: a1mediator-config
+          configMap:
+            name: a1mediator-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ric-a1mediator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: ric-a1mediator
+spec:
+  selector:
+    app: ric-a1mediator
+  ports:
+    - name: http
+      port: 10000
+      targetPort: 10000
+    - name: rmr
+      port: 4562
+      targetPort: 4562
