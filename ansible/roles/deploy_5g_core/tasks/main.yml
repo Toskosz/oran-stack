@@ -1,0 +1,141 @@
+# ============================================================================
+# Role: deploy_5g_core
+# Purpose: Deploy the 5g-core Helm chart onto the GKE cluster.
+#   1. Create the namespace (idempotent)
+#   2. Create the Docker Hub imagePullSecret in the namespace
+#   3. helm upgrade --install 5g-core
+#   4. Wait for all Deployments and StatefulSets to roll out
+# ============================================================================
+---
+
+# ----------------------------------------------------------------------------
+# 1. Create namespace (helm chart also creates it, but doing it here first
+#    lets us create the imagePullSecret before helm tries to pull images)
+# ----------------------------------------------------------------------------
+- name: Create 5g-core namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespaces.core }}"
+
+# ----------------------------------------------------------------------------
+# 2. Create Docker Hub imagePullSecret
+#    kubernetes.core.k8s_secret creates a kubernetes.io/dockerconfigjson
+#    Secret from plain credentials so the kubelet can pull private images.
+# ----------------------------------------------------------------------------
+- name: Create Docker Hub imagePullSecret in 5g-core namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name:      "{{ image_pull_secret_name }}"
+        namespace: "{{ namespaces.core }}"
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: >-
+          {{ ({
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "username": dockerhub_username,
+                "password": dockerhub_password,
+                "auth": (dockerhub_username ~ ":" ~ dockerhub_password) | b64encode
+              }
+            }
+          }) | to_json | b64encode }}
+  no_log: true
+
+# ----------------------------------------------------------------------------
+# 3. Helm upgrade --install 5g-core
+#    --set overrides are used for anything that differs between environments
+#    (image repos/tags) so the values.yaml committed to git stays generic.
+# ----------------------------------------------------------------------------
+- name: Deploy 5g-core Helm chart
+  kubernetes.core.helm:
+    name:             "{{ helm_releases.core }}"
+    chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.core }}"
+    release_namespace: "{{ namespaces.core }}"
+    create_namespace: false   # already created above
+    wait:             true
+    wait_timeout:     "{{ helm_timeout }}"
+    values:
+      images:
+        core:
+          repository: "{{ images.core.repository }}"
+          tag:         "{{ images.core.tag }}"
+        webui:
+          repository: "{{ images.webui.repository }}"
+          tag:         "{{ images.webui.tag }}"
+      plmn:
+        mcc: "{{ plmn.mcc }}"
+        mnc: "{{ plmn.mnc }}"
+        tac: "{{ plmn.tac }}"
+  register: helm_core
+
+- name: Show 5g-core Helm release status
+  ansible.builtin.debug:
+    msg: "5g-core release status: {{ helm_core.status }}"
+
+# ----------------------------------------------------------------------------
+# 4. Wait for MongoDB StatefulSet to be ready (other NFs depend on it)
+# ----------------------------------------------------------------------------
+- name: Wait for MongoDB StatefulSet to be ready
+  kubernetes.core.k8s_info:
+    kind: StatefulSet
+    name: mongodb
+    namespace: "{{ namespaces.core }}"
+    wait: true
+    wait_condition:
+      type:   Ready
+      status: "True"
+    wait_timeout: 300
+
+# ----------------------------------------------------------------------------
+# 5. Wait for all 5g-core Deployments to be Available
+# ----------------------------------------------------------------------------
+- name: Get all Deployments in 5g-core namespace
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: "{{ namespaces.core }}"
+  register: core_deployments
+
+- name: Wait for each 5g-core Deployment to be Available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name:      "{{ item.metadata.name }}"
+    namespace: "{{ namespaces.core }}"
+    wait: true
+    wait_condition:
+      type:   Available
+      status: "True"
+    wait_timeout: 300
+  loop: "{{ core_deployments.resources }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# ----------------------------------------------------------------------------
+# 6. Print the external IP of the AMF SCTP LoadBalancer
+#    (needed for srsRAN CU configuration)
+# ----------------------------------------------------------------------------
+- name: Get AMF NGAP LoadBalancer Service
+  kubernetes.core.k8s_info:
+    kind: Service
+    name: amf-ngap
+    namespace: "{{ namespaces.core }}"
+  register: amf_svc
+  retries: 20
+  delay: 15
+  until: >-
+    amf_svc.resources | length > 0 and
+    amf_svc.resources[0].status.loadBalancer.ingress | default([]) | length > 0
+
+- name: Show AMF external IP
+  ansible.builtin.debug:
+    msg: >-
+      AMF NGAP LoadBalancer IP:
+      {{ amf_svc.resources[0].status.loadBalancer.ingress[0].ip }}
+  when: amf_svc.resources | length > 0

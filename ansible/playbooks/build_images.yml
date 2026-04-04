@@ -1,0 +1,23 @@
+# ============================================================================
+# Playbook: build_images.yml
+# Purpose:  Build Docker images for Open5GS NFs, WebUI, and srsRAN from the
+#           local repository and push them to Docker Hub.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/build_images.yml \
+#     -e dockerhub_username=myuser \
+#     --ask-vault-pass          # vault holds dockerhub_password
+#
+# Pre-requisites (see TODO.md):
+#   - Docker daemon running on the Ansible controller
+#   - All Dockerfiles present in their expected locations
+#   - dockerhub_username and dockerhub_password set (group_vars or vault)
+# ============================================================================
+---
+- name: Build and push container images to Docker Hub
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: container_images

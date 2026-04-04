@@ -1,0 +1,112 @@
+# ============================================================================
+# Role: deploy_ran
+# Purpose: Deploy the ran Helm chart (srsRAN CU, DU, UE) onto the GKE cluster.
+#   1. Create namespace
+#   2. Create imagePullSecret
+#   3. helm upgrade --install ran
+#   4. Wait for Deployments
+# ============================================================================
+---
+
+# ----------------------------------------------------------------------------
+# 1. Create ran namespace
+# ----------------------------------------------------------------------------
+- name: Create ran namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespaces.ran }}"
+
+# ----------------------------------------------------------------------------
+# 2. Create Docker Hub imagePullSecret in ran namespace
+# ----------------------------------------------------------------------------
+- name: Create Docker Hub imagePullSecret in ran namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name:      "{{ image_pull_secret_name }}"
+        namespace: "{{ namespaces.ran }}"
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: >-
+          {{ ({
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "username": dockerhub_username,
+                "password": dockerhub_password,
+                "auth": (dockerhub_username ~ ":" ~ dockerhub_password) | b64encode
+              }
+            }
+          }) | to_json | b64encode }}
+  no_log: true
+
+# ----------------------------------------------------------------------------
+# 3. Helm upgrade --install ran
+#    Image repos/tags for srsran and srsue are overridden from group_vars.
+#    amfAddress and e2termAddress use the default cross-namespace DNS names
+#    from helm/ran/values.yaml (they work for pods inside the same cluster).
+# ----------------------------------------------------------------------------
+- name: Deploy ran Helm chart
+  kubernetes.core.helm:
+    name:             "{{ helm_releases.ran }}"
+    chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.ran }}"
+    release_namespace: "{{ namespaces.ran }}"
+    create_namespace: false
+    wait:             true
+    wait_timeout:     "{{ helm_timeout }}"
+    values:
+      images:
+        srsran:
+          repository: "{{ images.srsran.repository }}"
+          tag:         "{{ images.srsran.tag }}"
+        srsue:
+          repository: "{{ images.srsue.repository }}"
+          tag:         "{{ images.srsue.tag }}"
+      plmn:
+        mcc: "{{ plmn.mcc }}"
+        mnc: "{{ plmn.mnc }}"
+        tac: "{{ plmn.tac }}"
+  register: helm_ran
+
+- name: Show ran Helm release status
+  ansible.builtin.debug:
+    msg: "ran release status: {{ helm_ran.status }}"
+
+# ----------------------------------------------------------------------------
+# 4. Wait for all RAN Deployments to be Available
+# ----------------------------------------------------------------------------
+- name: Get all Deployments in ran namespace
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    namespace: "{{ namespaces.ran }}"
+  register: ran_deployments
+
+- name: Wait for each RAN Deployment to be Available
+  kubernetes.core.k8s_info:
+    kind: Deployment
+    name:      "{{ item.metadata.name }}"
+    namespace: "{{ namespaces.ran }}"
+    wait: true
+    wait_condition:
+      type:   Available
+      status: "True"
+    wait_timeout: 300
+  loop: "{{ ran_deployments.resources }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# ----------------------------------------------------------------------------
+# 5. Reminder: check UE attachment in logs
+# ----------------------------------------------------------------------------
+- name: Remind operator to verify UE attachment
+  ansible.builtin.debug:
+    msg: >-
+      RAN stack deployed. Verify UE attachment with:
+        kubectl logs -n ran deployment/srsue -f
+      Look for 'RRC Connected' and 'PDU Session Established' messages.

@@ -1,0 +1,23 @@
+# ============================================================================
+# Playbook: provision.yml
+# Purpose:  Provision the GCP project and GKE cluster via Terraform.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/provision.yml \
+#     -e gcp_project_id=oran-lab-abc123 \
+#     -e gcp_billing_account=XXXXXX-XXXXXX-XXXXXX \
+#     --ask-vault-pass          # if using Ansible Vault for secrets
+#
+# Pre-requisites (see TODO.md):
+#   - terraform >= 1.6 installed on the Ansible controller
+#   - gcloud CLI installed and authenticated (gcloud auth login)
+#   - Billing account ID known
+# ============================================================================
+---
+- name: Provision GCP project and GKE cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: gke_provision

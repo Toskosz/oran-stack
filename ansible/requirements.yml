@@ -1,0 +1,21 @@
+# ============================================================================
+# Ansible Collection Requirements — O-RAN Stack
+# ============================================================================
+# Install with:  ansible-galaxy collection install -r ansible/requirements.yml
+# ============================================================================
+collections:
+  # Kubernetes / Helm — deploy charts, create Secrets, wait for rollouts
+  - name: kubernetes.core
+    version: ">=3.0"
+
+  # Terraform wrapper — run terraform init/apply/destroy from a playbook task
+  - name: cloud.terraform
+    version: ">=2.0"
+
+  # Docker — build images and push to Docker Hub
+  - name: community.docker
+    version: ">=3.0"
+
+  # Google Cloud — used for gcloud auth helpers and optional GCP resource tasks
+  - name: google.cloud
+    version: ">=1.3"

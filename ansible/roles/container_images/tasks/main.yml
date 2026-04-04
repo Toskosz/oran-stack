@@ -1,0 +1,114 @@
+# ============================================================================
+# Role: container_images
+# Purpose: Build Docker images for Open5GS NFs, WebUI, and srsRAN from the
+#          local repository, tag them, and push to Docker Hub.
+#
+# Pre-requisites (see TODO.md):
+#   - Docker daemon running on the Ansible controller
+#   - 'docker login' already completed, OR dockerhub_password set in vault
+# ============================================================================
+---
+
+# ----------------------------------------------------------------------------
+# 1. Log in to Docker Hub
+#    Uses the community.docker.docker_login module so credentials never appear
+#    in shell history or ansible output.
+# ----------------------------------------------------------------------------
+- name: Log in to Docker Hub
+  community.docker.docker_login:
+    username: "{{ dockerhub_username }}"
+    password: "{{ dockerhub_password }}"
+    registry_url: "https://index.docker.io/v1/"
+  no_log: true   # prevent password from appearing in Ansible output
+
+# ----------------------------------------------------------------------------
+# 2. Build images
+#    Each image is built from its Dockerfile and build context.
+#    build_args lets the Dockerfile use ARG instructions if needed.
+# ----------------------------------------------------------------------------
+- name: Build Open5GS core NF image
+  community.docker.docker_image:
+    name: "{{ images.core.repository }}"
+    tag:  "{{ images.core.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.core }}"
+      dockerfile: "{{ dockerfiles.core }}"
+      pull: true          # always pull the latest base image
+      nocache: false
+  register: build_core
+
+- name: Build Open5GS WebUI image
+  community.docker.docker_image:
+    name: "{{ images.webui.repository }}"
+    tag:  "{{ images.webui.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.webui }}"
+      dockerfile: "{{ dockerfiles.webui }}"
+      pull: true
+      nocache: false
+  register: build_webui
+
+- name: Build srsRAN CU/DU image
+  community.docker.docker_image:
+    name: "{{ images.srsran.repository }}"
+    tag:  "{{ images.srsran.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.srsran }}"
+      dockerfile: "{{ dockerfiles.srsran }}"
+      pull: true
+      nocache: false
+  register: build_srsran
+
+- name: Build srsRAN UE image
+  community.docker.docker_image:
+    name: "{{ images.srsue.repository }}"
+    tag:  "{{ images.srsue.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.srsue }}"
+      dockerfile: "{{ dockerfiles.srsue }}"
+      pull: true
+      nocache: false
+  register: build_srsue
+
+# ----------------------------------------------------------------------------
+# 3. Push images to Docker Hub
+# ----------------------------------------------------------------------------
+- name: Push Open5GS core NF image
+  community.docker.docker_image:
+    name: "{{ images.core.repository }}"
+    tag:  "{{ images.core.tag }}"
+    source: local
+    push: true
+
+- name: Push Open5GS WebUI image
+  community.docker.docker_image:
+    name: "{{ images.webui.repository }}"
+    tag:  "{{ images.webui.tag }}"
+    source: local
+    push: true
+
+- name: Push srsRAN CU/DU image
+  community.docker.docker_image:
+    name: "{{ images.srsran.repository }}"
+    tag:  "{{ images.srsran.tag }}"
+    source: local
+    push: true
+
+- name: Push srsRAN UE image
+  community.docker.docker_image:
+    name: "{{ images.srsue.repository }}"
+    tag:  "{{ images.srsue.tag }}"
+    source: local
+    push: true
+
+# ----------------------------------------------------------------------------
+# 4. Log out of Docker Hub (cleanup)
+# ----------------------------------------------------------------------------
+- name: Log out of Docker Hub
+  community.docker.docker_login:
+    state: absent
+    registry_url: "https://index.docker.io/v1/"

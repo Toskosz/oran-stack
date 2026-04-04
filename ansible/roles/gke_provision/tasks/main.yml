@@ -1,0 +1,79 @@
+# ============================================================================
+# Role: gke_provision
+# Purpose: Run Terraform to create the GCP project, VPC, and GKE cluster,
+#          then configure kubectl to point at the new cluster.
+# ============================================================================
+---
+
+# ----------------------------------------------------------------------------
+# 1. Ensure the Terraform binary is available
+# ----------------------------------------------------------------------------
+- name: Check that terraform binary exists
+  ansible.builtin.command: terraform version
+  register: tf_version_check
+  changed_when: false
+  failed_when: tf_version_check.rc != 0
+
+# ----------------------------------------------------------------------------
+# 2. Terraform init — download providers (google, kubernetes, etc.)
+# ----------------------------------------------------------------------------
+- name: Terraform init
+  cloud.terraform.terraform:
+    project_path: "{{ terraform_dir }}"
+    state: present
+    force_init: true
+  register: tf_init
+
+# ----------------------------------------------------------------------------
+# 3. Terraform apply — create GCP project, VPC, Cloud NAT, GKE cluster
+#    Variables are passed so this role needs nothing in terraform.tfvars.
+# ----------------------------------------------------------------------------
+- name: Terraform apply — provision GKE infrastructure
+  cloud.terraform.terraform:
+    project_path: "{{ terraform_dir }}"
+    state: present
+    variables:
+      gcp_billing_account: "{{ gcp_billing_account }}"
+      gcp_project_id:      "{{ gcp_project_id }}"
+      gcp_project_name:    "{{ gcp_project_name }}"
+      gcp_region:          "{{ gcp_region }}"
+      gcp_zone:            "{{ gcp_zone }}"
+      cluster_name:        "{{ cluster_name }}"
+  register: tf_apply
+
+- name: Show Terraform outputs
+  ansible.builtin.debug:
+    var: tf_apply.outputs
+
+# ----------------------------------------------------------------------------
+# 4. Write cluster name / zone / project to facts for downstream roles
+# ----------------------------------------------------------------------------
+- name: Set GKE cluster facts from Terraform outputs
+  ansible.builtin.set_fact:
+    gke_cluster_name:    "{{ tf_apply.outputs.cluster_name.value }}"
+    gke_cluster_zone:    "{{ tf_apply.outputs.cluster_zone.value }}"
+    gke_project_id:      "{{ tf_apply.outputs.project_id.value }}"
+    gke_cluster_endpoint: "{{ tf_apply.outputs.cluster_endpoint.value }}"
+
+# ----------------------------------------------------------------------------
+# 5. Fetch credentials — writes a kubeconfig entry for the new cluster
+#    Requires gcloud CLI authenticated with an account that has the
+#    container.clusters.getCredentials permission (roles/container.developer).
+#    See TODO.md for the manual gcloud auth step.
+# ----------------------------------------------------------------------------
+- name: Configure kubectl credentials for GKE cluster
+  ansible.builtin.command: >
+    gcloud container clusters get-credentials
+    {{ gke_cluster_name }}
+    --zone {{ gke_cluster_zone }}
+    --project {{ gke_project_id }}
+  changed_when: true   # always refreshes the token
+
+- name: Verify kubectl can reach the cluster
+  ansible.builtin.command: kubectl cluster-info
+  register: kubectl_info
+  changed_when: false
+
+- name: Show cluster info
+  ansible.builtin.debug:
+    var: kubectl_info.stdout_lines

@@ -1,0 +1,113 @@
+# ============================================================================
+# Playbook: teardown.yml
+# Purpose:  Remove all deployed resources in reverse order, then destroy the
+#           GKE cluster and GCP project via Terraform destroy.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/teardown.yml \
+#     -e gcp_project_id=oran-lab-abc123 \
+#     -e gcp_billing_account=XXXXXX-XXXXXX-XXXXXX \
+#     --ask-vault-pass
+#
+# WARNING: This is DESTRUCTIVE.  It will:
+#   - Uninstall all three Helm releases (deletes all K8s resources)
+#   - Run 'terraform destroy' which deletes the GKE cluster, VPC, Cloud NAT,
+#     and the GCP project itself (all data is lost)
+#
+# The play uses 'any_errors_fatal: false' for the Helm uninstalls so that a
+# missing release does not abort the rest of the teardown.
+# ============================================================================
+---
+- name: Uninstall Helm releases (RAN → RIC → core)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: false
+
+  tasks:
+    - name: Uninstall ran Helm release
+      kubernetes.core.helm:
+        name:             "{{ helm_releases.ran }}"
+        release_namespace: "{{ namespaces.ran }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+      ignore_errors: true
+
+    - name: Uninstall near-rt-ric Helm release
+      kubernetes.core.helm:
+        name:             "{{ helm_releases.ric }}"
+        release_namespace: "{{ namespaces.ric }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+      ignore_errors: true
+
+    - name: Uninstall 5g-core Helm release
+      kubernetes.core.helm:
+        name:             "{{ helm_releases.core }}"
+        release_namespace: "{{ namespaces.core }}"
+        state: absent
+        wait: true
+        wait_timeout: "180s"
+      ignore_errors: true
+
+    # Delete namespaces after releases are gone so PVCs are also removed.
+    - name: Delete ran namespace
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.ran }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete near-rt-ric namespace
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.ric }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete 5g-core namespace
+      kubernetes.core.k8s:
+        state: absent
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.core }}"
+        wait: true
+        wait_timeout: 120
+      ignore_errors: true
+
+- name: Destroy GCP infrastructure via Terraform
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Terraform destroy — delete GKE cluster and GCP project
+      cloud.terraform.terraform:
+        project_path: "{{ terraform_dir }}"
+        state: absent
+        variables:
+          gcp_billing_account: "{{ gcp_billing_account }}"
+          gcp_project_id:      "{{ gcp_project_id }}"
+          gcp_project_name:    "{{ gcp_project_name }}"
+          gcp_region:          "{{ gcp_region }}"
+          gcp_zone:            "{{ gcp_zone }}"
+          cluster_name:        "{{ cluster_name }}"
+      register: tf_destroy
+
+    - name: Terraform destroy output
+      ansible.builtin.debug:
+        var: tf_destroy
