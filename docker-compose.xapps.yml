@@ -1,0 +1,156 @@
+version: '3.8'
+# ============================================================================
+# xApps Compose File
+# ============================================================================
+# Brings up the anomaly-detection xApp pipeline alongside the existing
+# oran-stack services.  Launch after the core stack and RIC are running:
+#
+#   docker compose -f docker-compose.yml up -d
+#   docker compose -f docker-compose.ric.yml up -d
+#   docker compose -f docker-compose.xapps.yml up -d
+#
+# Data-plane flow:
+#   UPF (ogstun)  ←sniff─  ads-slice1  ─TCP→  xapp-kpi  ─Redis─  xapp-inference
+#   UPF2(ogstun2) ←sniff─  ads-slice2  ─TCP↗           └─Redis─  xapp-rc
+#
+# Message bus: Redis Streams on ric-dbaas (172.22.0.214:6379)
+#   Stream key: xapp:messages
+#   Status:  0=pending_inference  1=inference_done  2=decryption_done
+# ============================================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # ads-slice1 — ADS sidecar for Slice 1 (SST=1, SD=1, subnet 10.45.0.0/16)
+  # Shares the 5g-core-upf network namespace so it can sniff ogstun directly.
+  # --------------------------------------------------------------------------
+  ads-slice1:
+    build:
+      context: xapps/ads
+      dockerfile: Dockerfile
+    image: xapp-ads:latest
+    container_name: ads-slice1
+    # Share UPF-1 network namespace to reach ogstun
+    network_mode: service:5g-core-upf
+    depends_on:
+      - 5g-core-upf
+      - xapp-kpi
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      ADS_SST: "1"
+      ADS_SD: "1"
+      ADS_SUBNET: "10.45.0.0/16"
+      ADS_IFACE: "ogstun"
+      KPI_HOST: "172.22.0.220"
+      KPI_PORT: "8080"
+
+  # --------------------------------------------------------------------------
+  # ads-slice2 — ADS sidecar for Slice 2 (SST=1, SD=5, subnet 10.46.0.0/16)
+  # Shares the 5g-core-upf2 network namespace so it can sniff ogstun2.
+  # --------------------------------------------------------------------------
+  ads-slice2:
+    build:
+      context: xapps/ads
+      dockerfile: Dockerfile
+    image: xapp-ads:latest
+    container_name: ads-slice2
+    # Share UPF-2 network namespace to reach ogstun2
+    network_mode: service:5g-core-upf2
+    depends_on:
+      - 5g-core-upf2
+      - xapp-kpi
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      ADS_SST: "1"
+      ADS_SD: "5"
+      ADS_SUBNET: "10.46.0.0/16"
+      ADS_IFACE: "ogstun2"
+      KPI_HOST: "172.22.0.220"
+      KPI_PORT: "8080"
+
+  # --------------------------------------------------------------------------
+  # xapp-kpi — FHE preprocessor / encrypt / decrypt
+  # TCP server for ADS; publishes/updates Redis stream entries.
+  # Needs ric-network to reach ric-dbaas (Redis) at 172.22.0.214.
+  # --------------------------------------------------------------------------
+  xapp-kpi:
+    build:
+      context: xapps/kpi
+      dockerfile: Dockerfile
+    image: xapp-kpi:latest
+    container_name: xapp-kpi
+    restart: unless-stopped
+    networks:
+      ric-network:
+        ipv4_address: 172.22.0.220
+    volumes:
+      - ./xapps/model:/model:ro
+      - xapp-keys:/keys
+    environment:
+      REDIS_HOST: "ric-dbaas"
+      REDIS_PORT: "6379"
+      STREAM_KEY: "xapp:messages"
+      PREPROCESSOR: "/model/preprocessor.pkl"
+      KEY_DIR: "/keys"
+      KPI_PORT: "8080"
+    ports:
+      - "8080:8080"
+
+  # --------------------------------------------------------------------------
+  # xapp-inference — FHE server-side inference
+  # Polls Redis stream for status=0, runs FHE computation, sets status=1.
+  # --------------------------------------------------------------------------
+  xapp-inference:
+    build:
+      context: xapps/inference
+      dockerfile: Dockerfile
+    image: xapp-inference:latest
+    container_name: xapp-inference
+    restart: unless-stopped
+    networks:
+      ric-network:
+        ipv4_address: 172.22.0.221
+    volumes:
+      - ./xapps/model:/model:ro
+      - xapp-keys:/keys
+    environment:
+      REDIS_HOST: "ric-dbaas"
+      REDIS_PORT: "6379"
+      STREAM_KEY: "xapp:messages"
+      KEY_DIR: "/keys"
+
+  # --------------------------------------------------------------------------
+  # xapp-rc — RAN Slice Controller
+  # Reads per-slice anomaly ratios from Redis stream, issues E2SM-RC
+  # Slice_level_PRB_quota control messages to srsRAN DU via O-RAN SC RIC.
+  # --------------------------------------------------------------------------
+  xapp-rc:
+    build:
+      context: xapps/rc
+      dockerfile: Dockerfile
+    image: xapp-rc:latest
+    container_name: xapp-rc
+    restart: unless-stopped
+    networks:
+      ric-network:
+        ipv4_address: 172.22.0.222
+    environment:
+      REDIS_ADDR: "ric-dbaas:6379"
+      STREAM_KEY: "xapp:messages"
+      WINDOW: "30"
+      ALERT_THRESHOLD: "0.5"
+      POLL_INTERVAL: "5"
+
+networks:
+  ric-network:
+    external: true
+    name: ric-network
+
+volumes:
+  xapp-keys: {}
