@@ -501,3 +501,255 @@ docker logs ric-e2term --tail 10 2>&1 | grep "RMR \[INFO\] sends"
 | `srsran/configs/ue.conf` | Removed unrecognised `gw.tun_dev_name` option |
 | `ric/config/e2mgr/configuration.yaml` | Fixed rtmgr port (8989→3800), increased keep-alive timers, set debug logging |
 | `ric/config/rtmgr/rtmgr-config.yaml` | Added `messagetypes` (37 entries), added `PlatformRoutes` (8 static routes), set debug logging |
+
+---
+
+---
+
+## Part 3: Anomaly Detection xApp Integration
+
+This section captures design decisions, gotchas, and debugging notes from
+integrating `oai-anomaly-detection` into `oran-stack` as a fully containerised
+xApp pipeline (WP1–WP11).
+
+---
+
+## 14. Multi-Slice Core Network (WP1)
+
+### 14.1 SMF2 / UPF2 IP address selection
+
+**Problem**: Adding a second SMF/UPF pair requires free IP addresses on the
+existing `5g-core-network` (172.20.0.0/24). The subnet was already densely
+populated.
+
+**Fix**: Used `172.20.0.22` (SMF2) and `172.20.0.23` (UPF2). Verified these
+were not allocated by checking all existing `ipv4_address` values in
+`docker-compose.yml`.
+
+**Lesson**: Always audit existing IP allocations before adding new services.
+Docker Compose does not warn about conflicts until container startup.
+
+### 14.2 NSSF requires an explicit NSI entry per SD
+
+**Problem**: Adding `{sst: 1, sd: 5}` to AMF's `s_nssai` list was not enough.
+Without a matching `nsi` entry in `configs/nssf.yaml`, the NSSF rejected
+slice-selection requests for SD=5 with `No NRF`.
+
+**Fix**: Added a second `nsi` entry to `configs/nssf.yaml`:
+```yaml
+nsi:
+  - uri: http://172.20.0.10:7777
+    s_nssai:
+      sst: 1
+      sd: 1
+  - uri: http://172.20.0.10:7777
+    s_nssai:
+      sst: 1
+      sd: 5
+```
+
+### 14.3 srsRAN DU slice configuration
+
+srsRAN's `du.yml` requires an explicit `slice:` section listing every
+S-NSSAI the DU will serve. Without this, the DU accepts only the default
+slice and ignores NSSAI in RRC/PDCP.
+
+```yaml
+slice:
+  - sst: 1
+    sd: 1
+  - sst: 1
+    sd: 5
+```
+
+---
+
+## 15. ADS Sidecar Design (WP2)
+
+### 15.1 `network_mode: service:` shares network namespace
+
+The ADS containers use `network_mode: service:5g-core-upf` to share the UPF's
+network namespace. This gives the sidecar direct access to the `ogstun` TUN
+interface without modifying the UPF image.
+
+**Constraint**: A container using `network_mode: service:X` cannot also have
+`networks:` defined. It inherits all network interfaces from service X.
+This means the sidecar has no independent IP on any bridge network — it can
+only reach hosts visible from the UPF container.
+
+**Implication**: `xapp-kpi` must be reachable from the UPF's network namespace.
+Since `xapp-kpi` is on `ric-network` (172.22.x.x) and the UPF is on
+`5g-core-network` (172.20.x.x), the containers need a route between the two.
+Docker's built-in DNS resolves `xapp-kpi` to its container IP only if they
+share a network. **Workaround**: `xapp-kpi` exposes port 8080 on the host
+(`ports: - "8080:8080"`), and `KPI_HOST` is set to the Docker bridge gateway
+IP (172.17.0.1) or the host IP visible from the UPF namespace.
+
+**Alternative (used)**: Give `xapp-kpi` an address on both `ric-network` and
+attach it to a shared bridge, or use the host network for KPI communication.
+In the current implementation `xapp-kpi` is on `ric-network` and the port is
+published — the ADS sidecar reaches it via the Docker host bridge.
+
+### 15.2 Scapy requires `NET_RAW` + `NET_ADMIN` capabilities
+
+Raw socket sniffing with Scapy requires both capabilities. Without them,
+`sniff()` raises `PermissionError: [Errno 1] Operation not permitted`.
+
+---
+
+## 16. Redis Streams vs. SQLite (WP3)
+
+The original `oai-anomaly-detection` used a SQLite file (`messages.db`) as the
+inter-xApp message bus. This was replaced with Redis Streams on the existing
+`ric-dbaas` container.
+
+### 16.1 Redis Streams do not support in-place field update
+
+**Problem**: The pipeline updates a stream entry in three stages (status 0→1→2),
+but `XADD` only appends new entries and there is no `XUPDATE` command.
+
+**Fix**: Each state transition reads all current fields, deletes the old entry
+with `XDEL`, then re-adds with `XADD` and the updated fields. This preserves
+the entire record while advancing the status.
+
+**Trade-off**: Entry IDs change on every transition. `xapp-rc` uses `XRANGE`
+over the full stream and filters by `status=2`, so ID stability is not
+required.
+
+### 16.2 Stream growth must be bounded
+
+Without trimming, the stream grows unboundedly. `xapp-rc` calls
+`XTRIMMAXLEN(10000)` on each poll tick to cap the stream at 10 000 entries.
+
+### 16.3 `ric-dbaas` is Redis 6 with default config
+
+`ric-dbaas` runs Redis 6 with no authentication and no persistence config.
+`FLUSHALL` is available and used during RIC reboots (see Part 2, section 10).
+Do NOT `FLUSHALL` while xApps are running — it destroys the stream.
+
+---
+
+## 17. FHE Model Loading (WP4/WP5)
+
+### 17.1 `FHEModelClient` and `FHEModelServer` expect an extracted directory
+
+Both `concrete.ml.deployment.FHEModelClient(path)` and
+`FHEModelServer(path)` expect `path` to be a **directory** containing the
+extracted contents of `client.zip` / `server.zip`. Passing the zip path
+directly raises `FileNotFoundError` (it looks for `parameters.json` inside
+the directory).
+
+**Fix**: Each Dockerfile installs `unzip` and ships an `entrypoint.sh` that
+extracts the appropriate zip into `/tmp/fhe_model/` before starting Python.
+`/tmp` is writable even when the `/model` volume is mounted read-only.
+
+```sh
+# xapp-kpi/entrypoint.sh
+unzip -q /model/client.zip -d /tmp/fhe_model
+exec python -u kpi.py
+
+# xapp-inference/entrypoint.sh
+unzip -q /model/server.zip -d /tmp/fhe_model
+unzip -q -o /model/client.zip -d /tmp/fhe_model  # for eval key generation
+exec python -u inference.py
+```
+
+### 17.2 `xapp-inference` needs both `server.zip` and `client.zip`
+
+`FHEModelServer` requires `server.zip` (the compiled FHE circuit).
+`FHEModelClient` is instantiated by `xapp-inference` solely to call
+`get_serialized_evaluation_keys()` — this requires `client.zip`.
+Both zips must be extracted into the same directory.
+
+### 17.3 Evaluation keys are stable per client instance
+
+`FHEModelClient.get_serialized_evaluation_keys()` returns the same bytes on
+every call for the same client instance. The eval keys are generated once at
+startup and reused for every `FHEModelServer.run()` call.
+
+### 17.4 FHE inference is slow
+
+The RandomForest model (2 estimators, depth 2) is the smallest possible FHE
+configuration. Even so, `FHEModelServer.run()` takes several seconds per
+sample on a standard CPU. For production, either:
+- Increase the number of CPU threads available to the container.
+- Batch multiple flows before calling `run()`.
+- Consider compiling the model with a lower precision parameter.
+
+---
+
+## 18. Go xApp and Module Cache (WP6)
+
+### 18.1 LSP errors for `go-redis` in local editor are expected
+
+`xapps/rc/main.go` uses `github.com/go-redis/redis/v8`. The local workspace
+has no Go module cache, so the LSP shows `cannot find package` errors.
+These are **not real errors** — `docker build` runs `go mod download` inside
+the container during the build stage and resolves all dependencies correctly.
+
+### 18.2 Multi-stage Go Dockerfile pattern
+
+The `xapp-rc` Dockerfile uses a two-stage build:
+1. `golang:1.21-alpine` builder: `go mod download` then `go build`.
+2. `alpine:3.19` runtime: only the compiled binary is copied over.
+
+This keeps the final image small (~10 MB vs ~600 MB for the full Go toolchain).
+
+---
+
+## 19. xApp Network Connectivity
+
+### 19.1 `docker-compose.xapps.yml` uses external networks
+
+`ric-network` and `5g-core-network` are declared as `external: true`.
+The xApps compose file joins these pre-existing networks rather than creating
+new ones. If the core stack or RIC is not up, `docker compose up` for xApps
+will fail with `network ric-network not found`.
+
+**Start order**: Always bring up `docker-compose.yml` (core) and
+`docker-compose.ric.yml` (RIC) before `docker-compose.xapps.yml`.
+
+### 19.2 `xapp-kpi` port 8080 conflicts with rtmgr xApp HTTP port
+
+`ric-rtmgr` also uses port 8080 for the xApp HTTP interface (NBI).
+Publishing `8080:8080` from `xapp-kpi` will fail if rtmgr is already bound
+to host port 8080.
+
+**Check**: `docker ps | grep 8080` before launching xApps.
+If rtmgr has already claimed 8080, change `xapp-kpi`'s host port in
+`docker-compose.xapps.yml` (e.g., `"18080:8080"`) and update
+`KPI_HOST`/`KPI_PORT` in the ADS sidecar environment accordingly.
+
+---
+
+## 20. Files Created / Modified (WP1–WP11)
+
+| File | Change |
+|---|---|
+| `.env` | Added `NSSAI_SD_1`, `NSSAI_SD_2`, SMF2/UPF2 subnet and container vars |
+| `docker-compose.yml` | Added SMF2/UPF2 to `x-open5gs-common-env` and as new services |
+| `docker-compose.xapps.yml` | **New** — brings up all 5 xApp containers |
+| `configs/amf.yaml` | Added `{sst: 1, sd: 5}` to `s_nssai` |
+| `configs/nssf.yaml` | Added SD=5 NSI entry |
+| `configs/smf2.yaml` | **New** — Open5GS SMF config for slice 2 |
+| `configs/upf2.yaml` | **New** — Open5GS UPF config for slice 2 |
+| `srsran/configs/du.yml` | Added `slice:` section (SST=1/SD=1 and SST=1/SD=5) |
+| `init-webui-data.js` | Updated subscriber 1 (sd:1); added subscriber 3 (IMSI `001010000000003`, slice 2) |
+| `scripts/launch-all.sh` | Added `start_xapps()`, `stop_xapps()`, `--xapps-only`, `--no-xapps` options |
+| `ric/config/rtmgr/rt.json` | Added xapp-rc XApp entry and `XAPPRC` Pc entry |
+| `xapps/ads/ads.py` | **New** — parameterised ADS sidecar |
+| `xapps/ads/Dockerfile` | **New** |
+| `xapps/kpi/kpi.py` | **New** — FHE KPI processor |
+| `xapps/kpi/Dockerfile` | **New** — installs `unzip`, uses entrypoint |
+| `xapps/kpi/entrypoint.sh` | **New** — extracts `client.zip` → `/tmp/fhe_model/` |
+| `xapps/inference/inference.py` | **New** — FHE server inference |
+| `xapps/inference/Dockerfile` | **New** — installs `unzip`, uses entrypoint |
+| `xapps/inference/entrypoint.sh` | **New** — extracts `server.zip` + `client.zip` → `/tmp/fhe_model/` |
+| `xapps/rc/main.go` | **New** — Go sliding-window RC controller |
+| `xapps/rc/go.mod` | **New** |
+| `xapps/rc/Dockerfile` | **New** — multi-stage Go build |
+| `xapps/model/preprocessor.pkl` | **Copied** from `oai-anomaly-detection/` |
+| `xapps/model/client.zip` | **Copied** from `oai-anomaly-detection/fhe_model_2_estimators_2_depth/` |
+| `xapps/model/server.zip` | **Copied** from `oai-anomaly-detection/fhe_model_2_estimators_2_depth/` |
+| `xapps/README.md` | **New** — xApps directory documentation |
+| `docs/ANOMALY_DETECTION.md` | **New** — full architecture document |
