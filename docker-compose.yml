@@ -47,7 +47,7 @@ services:
   5g-core-webui:
     build:
       context: .
-      dockerfile: Dockerfile.webui
+      dockerfile: dockerfiles/Dockerfile.webui
     image: open5gs-webui:latest
     container_name: 5g-core-webui
     depends_on:

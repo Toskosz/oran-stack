@@ -73,33 +73,33 @@ cd oran-stack
 
 ### 2. Setup Host Network
 ```bash
-sudo ./setup-host-tun.sh
-sudo ./setup-host-network.sh
+sudo ./scripts/setup-host-tun.sh
+sudo ./scripts/setup-host-network.sh
 ```
 
 ### 3. Build All Docker Images
 ```bash
 # Core NF image
-docker build -f Dockerfile.5gscore -t teste-core:latest .
+docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 
 # WebUI image
 docker-compose build 5g-core-webui
 
 # srsRAN CU/DU image (multi-stage, ~15 min first time)
-docker build -f Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 
 # srsRAN UE image (multi-stage, ~10 min first time)
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 ```
 
 ### 4. Launch Everything
 ```bash
-./launch-all.sh
+./scripts/launch-all.sh
 ```
 
 ### 5. Verify
 ```bash
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ./scripts/check-nf-health.sh
 ```
 
@@ -127,7 +127,7 @@ free -h                   # 8GB+ available
 ### Step 2: Configure TUN Interfaces
 
 ```bash
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Verify
 ip tuntap list
@@ -137,7 +137,7 @@ ip tuntap list
 ### Step 3: Configure Data Plane Networking
 
 ```bash
-sudo ./setup-host-network.sh
+sudo ./scripts/setup-host-network.sh
 
 # Verify
 sysctl net.ipv4.ip_forward              # Should be 1
@@ -162,17 +162,17 @@ See [Image Build](#image-build) section below.
 
 ```bash
 # All stacks
-./launch-all.sh
+./scripts/launch-all.sh
 
 # Or selectively:
-./launch-all.sh --core-only   # Core only
-./launch-all.sh --no-ue       # Core + RIC + CU/DU (no UE)
+./scripts/launch-all.sh --core-only   # Core only
+./scripts/launch-all.sh --no-ue       # Core + RIC + CU/DU (no UE)
 ```
 
 ### Step 7: Verify
 
 ```bash
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ./scripts/check-nf-health.sh watch
 ```
 
@@ -184,7 +184,7 @@ Four Docker images need to be built:
 
 ### Core NF Image (teste-core)
 ```bash
-docker build -f Dockerfile.5gscore -t teste-core:latest .
+docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 # Time: ~10-15 minutes (first build)
 # Used by: All 17 Open5GS NF containers
 ```
@@ -198,7 +198,7 @@ docker-compose build 5g-core-webui
 
 ### srsRAN CU/DU Image (srsran-split)
 ```bash
-docker build -f Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 # Time: ~15-20 minutes (clones srsRAN_Project from GitHub)
 # Used by: srs_cu, srs_du containers
 # Multi-stage build: builder -> runtime
@@ -206,7 +206,7 @@ docker build -f Dockerfile.srsran -t srsran-split:latest .
 
 ### srsRAN UE Image (srsue)
 ```bash
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 # Time: ~10-15 minutes (clones srsRAN_4G from GitHub)
 # Used by: srsue_5g_zmq container
 # Multi-stage build: builder -> runtime
@@ -355,7 +355,7 @@ docker exec ric-a1mediator curl -s http://localhost:10000/a1-p/healthcheck
 docker run --rm curlimages/curl curl -I https://github.com
 
 # Try no-cache rebuild
-docker build --no-cache -f Dockerfile.srsran -t srsran-split:latest .
+docker build --no-cache -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 ```
 
 ### NFs Not Starting
@@ -363,7 +363,7 @@ docker build --no-cache -f Dockerfile.srsran -t srsran-split:latest .
 docker logs 5g-core-nrf -f
 
 # Common: TUN not created
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Common: MongoDB not ready
 docker logs 5g-mongodb
@@ -487,7 +487,7 @@ docker logs -f srs_cu
 ./scripts/check-nf-health.sh watch
 
 # Quick status
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 ```
 
 ### Common Log Patterns

@@ -10,7 +10,7 @@
 #   /usr/local/bin/gnb     - Monolithic gNB (fallback, optional)
 #
 # Build:
-#   docker build -f Dockerfile.srsran -t srsran-split:latest .
+#   docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 #
 # Note: Build takes 15-30 minutes due to full C++ compilation.
 # ============================================================================

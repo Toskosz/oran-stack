@@ -15,12 +15,12 @@ Accumulated debugging notes for the srsRAN + Open5GS + Near-RT RIC Docker stack.
 **Symptom:** `envsubst` not found; NF config templates were never processed at container start,
 leaving all `${VAR}` placeholders as empty strings.
 
-**Cause:** `Dockerfile.5gscore` listed `gettext-base` but the image in use pre-dated that line
+**Cause:** `dockerfiles/Dockerfile.5gscore` listed `gettext-base` but the image in use pre-dated that line
 (built March 19 before the change, or the layer was cached before the fix).
 
 **Fix:** Rebuild `teste-core:latest` image.
 ```
-docker build -f Dockerfile.5gscore -t teste-core:latest .
+docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 ```
 
 ---
@@ -183,7 +183,7 @@ no longer a recognised key in v2.7.7. It is harmless but can be removed.
 **Cause:** `libpcsclite-dev` was in the builder stage only. The runtime stage did not
 install `libpcsclite1`.
 
-**Fix:** Add `libpcsclite1` to the runtime apt-get install block in `Dockerfile.srsue`.
+**Fix:** Add `libpcsclite1` to the runtime apt-get install block in `dockerfiles/Dockerfile.srsue`.
 
 ### 2.2 `libsrsran_rf.so.0` not found at runtime
 
@@ -489,8 +489,8 @@ docker logs ric-e2term --tail 10 2>&1 | grep "RMR \[INFO\] sends"
 | File | Change |
 |---|---|
 | `docker-compose.yml` | Added 9 NF IP/port vars to `x-open5gs-common-env` |
-| `Dockerfile.5gscore` | Added `gettext-base`; rebuilt image |
-| `Dockerfile.srsue` | Added `libpcsclite1`; fixed shared lib copy with bind-mount find |
+| `dockerfiles/Dockerfile.5gscore` | Added `gettext-base`; rebuilt image |
+| `dockerfiles/Dockerfile.srsue` | Added `libpcsclite1`; fixed shared lib copy with bind-mount find |
 | `configs/amf.yaml` | Added `amf_name`, `network_name`, `time.t3512` |
 | `configs/smf.yaml` | `gtp` → `gtpc` + `gtpu`; PFCP UPF `uri` → `address/port` |
 | `configs/nssf.yaml` | `nssai_supported` → `sbi.client.nsi` |

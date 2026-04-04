@@ -64,32 +64,32 @@ This project deploys a complete O-RAN-compliant 5G network across **three Docker
 ### 1. Set Up Host TUN Interfaces
 
 ```bash
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 ```
 
 ### 2. Build srsRAN Images (first time only)
 
 ```bash
-docker build -f Dockerfile.srsran -t srsran-split:latest .
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 ```
 
 ### 3. Launch All Stacks
 
 ```bash
 # Start everything (core -> RIC -> CU/DU + UE)
-./launch-all.sh
+./scripts/launch-all.sh
 
 # Or start with options:
-./launch-all.sh --core-only    # Only 5G core
-./launch-all.sh --no-ue        # Skip UE container
+./scripts/launch-all.sh --core-only    # Only 5G core
+./scripts/launch-all.sh --no-ue        # Skip UE container
 ```
 
 ### 4. Verify Deployment
 
 ```bash
 # Quick status across all stacks
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 
 # Detailed health report
 ./scripts/check-nf-health.sh
@@ -101,7 +101,7 @@ docker build -f Dockerfile.srsue -t srsue:latest .
 ### 5. Shut Down
 
 ```bash
-./launch-all.sh --down
+./scripts/launch-all.sh --down
 ```
 
 ---
@@ -119,7 +119,7 @@ docker build -f Dockerfile.srsue -t srsue:latest .
 ### Step 1: Create Host TUN Interfaces
 
 ```bash
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 ```
 
 This creates:
@@ -133,13 +133,13 @@ This creates:
 
 ```bash
 # Build the 5G core image (if not already built)
-docker build -f Dockerfile.5gscore -t teste-core:latest .
+docker build -f dockerfiles/Dockerfile.5gscore -t teste-core:latest .
 
 # Build srsRAN CU/DU image (multi-stage, clones from GitHub)
-docker build -f Dockerfile.srsran -t srsran-split:latest .
+docker build -f dockerfiles/Dockerfile.srsran -t srsran-split:latest .
 
 # Build srsUE image (multi-stage, clones srsRAN_4G)
-docker build -f Dockerfile.srsue -t srsue:latest .
+docker build -f dockerfiles/Dockerfile.srsue -t srsue:latest .
 
 # Build WebUI image
 docker-compose build 5g-core-webui
@@ -149,7 +149,7 @@ docker-compose build 5g-core-webui
 
 ```bash
 # Recommended: use the orchestration script
-./launch-all.sh
+./scripts/launch-all.sh
 
 # Or start stacks individually:
 docker-compose up -d                                                    # Core
@@ -161,10 +161,10 @@ docker-compose -f docker-compose.cudu.yml up -d                        # CU/DU +
 
 ```bash
 # Check all containers
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 
 # View logs across stacks
-./launch-all.sh --logs
+./scripts/launch-all.sh --logs
 
 # Health check
 ./scripts/check-nf-health.sh
@@ -264,7 +264,7 @@ ric-dbaas (Redis) -> ric-e2mgr -> ric-appmgr -> ric-submgr -> ric-rtmgr -> ric-e
 srs_cu -> srs_du -> srsue_5g_zmq
 ```
 
-The `launch-all.sh` script orchestrates all three stacks in order.
+The `scripts/launch-all.sh` script orchestrates all three stacks in order.
 
 ---
 
@@ -274,7 +274,7 @@ The `launch-all.sh` script orchestrates all three stacks in order.
 
 ```bash
 # All stacks
-./launch-all.sh --status
+./scripts/launch-all.sh --status
 
 # Individual stacks
 docker-compose ps
@@ -296,14 +296,14 @@ docker-compose -f docker-compose.ric.yml logs -f
 docker-compose -f docker-compose.cudu.yml logs -f
 
 # Cross-stack logs via orchestrator
-./launch-all.sh --logs
+./scripts/launch-all.sh --logs
 ```
 
 ### Stop/Restart Containers
 
 ```bash
 # Stop everything
-./launch-all.sh --down
+./scripts/launch-all.sh --down
 
 # Or individually
 docker-compose down
@@ -426,7 +426,7 @@ docker logs srs_cu
 ```
 
 Common causes:
-1. Image not built yet (`docker build -f Dockerfile.srsran ...`)
+1. Image not built yet (`docker build -f dockerfiles/Dockerfile.srsran ...`)
 2. MongoDB not healthy (wait longer, check `docker logs 5g-mongodb`)
 3. Dependent service not running (check startup order)
 
@@ -470,7 +470,7 @@ docker exec ric-dbaas redis-cli ping
 ip tuntap list
 
 # Recreate
-sudo ./setup-host-tun.sh
+sudo ./scripts/setup-host-tun.sh
 
 # Verify in UPF container
 docker exec 5g-core-upf ip addr show ogstun
@@ -498,17 +498,21 @@ docker inspect srs_du --format '{{json .NetworkSettings.Networks}}' | python3 -m
 ├── docker-compose.yml           # 5G Core (17 NFs + MongoDB + WebUI)
 ├── docker-compose.ric.yml       # Near-RT RIC (6 services)
 ├── docker-compose.cudu.yml      # CU/DU Split + UE (3 services)
-├── Dockerfile.5gscore           # Open5GS build image
-├── Dockerfile.webui             # Open5GS WebUI image
-├── Dockerfile.srsran            # srsRAN CU/DU build (multi-stage)
-├── Dockerfile.srsue             # srsRAN 4G UE build (multi-stage)
+├── dockerfiles/
+│   ├── Dockerfile.5gscore           # Open5GS build image
+│   ├── Dockerfile.webui             # Open5GS WebUI image
+│   ├── Dockerfile.srsran            # srsRAN CU/DU build (multi-stage)
+│   └── Dockerfile.srsue             # srsRAN 4G UE build (multi-stage)
 ├── .env                         # All IP/port/PLMN configuration
 ├── entrypoint.sh                # Container initialization script
 ├── init-mongodb.js              # MongoDB replica set setup
 ├── init-webui-data.js           # Subscriber + admin initialization
-├── setup-host-tun.sh            # TUN interface creation
-├── launch-all.sh                # Multi-stack orchestration script
-├── launch-5g-core.sh            # Legacy core-only launcher
+├── scripts/
+│   ├── launch-all.sh            # Multi-stack orchestration script
+│   ├── launch-5g-core.sh        # Legacy core-only launcher
+│   ├── setup-host-tun.sh        # TUN interface creation
+│   ├── export-logs.sh           # Log export utility
+│   └── check-nf-health.sh      # Health monitoring (all 3 stacks)
 ├── srsran/
 │   ├── configs/
 │   │   ├── cu.yml               # CU configuration (N2, F1)
@@ -523,9 +527,6 @@ docker inspect srs_du --format '{{json .NetworkSettings.Networks}}' | python3 -m
 │       ├── rtmgr/               # Routing manager config
 │       └── a1mediator/          # A1 mediator config
 ├── configs/                     # Open5GS NF YAML templates
-├── scripts/
-│   ├── export-logs.sh           # Log export utility
-│   └── check-nf-health.sh      # Health monitoring (all 3 stacks)
 ├── logs/                        # Runtime logs (auto-generated)
 ├── cu-du-split-report.md        # CU/DU split research report
 └── docs (*.md)                  # Documentation files

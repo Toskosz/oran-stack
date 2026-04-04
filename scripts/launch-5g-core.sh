@@ -4,7 +4,7 @@
 # 5G Core Docker Compose - Launcher Script
 # ========================================================================
 # Convenience script to start the full 5G core and export logs
-# Usage: ./launch-5g-core.sh [logs]
+# Usage: ./scripts/launch-5g-core.sh [logs]
 # Arguments:
 #   logs - Also export logs and show health check after startup
 # ========================================================================
@@ -12,6 +12,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 # Color codes
 GREEN='\033[0;32m'
@@ -34,8 +35,8 @@ echo -e "${GREEN}[✓] Docker is running${NC}"
 echo ""
 
 # Check if docker-compose.yml exists
-if [ ! -f "$SCRIPT_DIR/docker-compose.yml" ]; then
-  echo -e "${YELLOW}[!] docker-compose.yml not found in $SCRIPT_DIR${NC}"
+if [ ! -f "docker-compose.yml" ]; then
+  echo -e "${YELLOW}[!] docker-compose.yml not found in $(pwd)${NC}"
   exit 1
 fi
 
@@ -43,7 +44,6 @@ echo -e "${BLUE}[*] Starting 5G Core containers...${NC}"
 echo ""
 
 # Start the containers
-cd "$SCRIPT_DIR"
 docker compose up -d
 
 echo ""
@@ -67,7 +67,7 @@ if [ "$1" = "logs" ]; then
   ./scripts/check-nf-health.sh
 else
   echo -e "${BLUE}[*] To export logs and view health status, run:${NC}"
-  echo -e "${GREEN}    ./launch-5g-core.sh logs${NC}"
+  echo -e "${GREEN}    ./scripts/launch-5g-core.sh logs${NC}"
   echo ""
   echo -e "${BLUE}[*] Or manually:${NC}"
   echo -e "${GREEN}    ./scripts/export-logs.sh${NC}"
