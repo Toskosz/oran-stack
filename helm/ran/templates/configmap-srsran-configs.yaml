@@ -10,11 +10,14 @@
 #   172.21.0.51 (DU ZMQ) → srs-du  (ClusterIP Service in same namespace)
 #   172.21.0.34 (UE ZMQ) → srsue   (ClusterIP Service in same namespace)
 #
-# CU multi-homing approximation:
-#   In Docker Compose, the CU had two IPs (core-network + ran-network).
-#   In Kubernetes, a single pod IP is used. The CU binds to 0.0.0.0 and
-#   connects to AMF via DNS. The F1 interface uses the pod's cluster IP,
-#   which the DU reaches via the srs-cu Service.
+# CU/DU bind addresses:
+#   srsRAN requires specific bind addresses (not 0.0.0.0) on F1AP/F1-U so that
+#   the correct IP is advertised in the TNL address IEs of F1SetupResponse and
+#   F1SetupRequest. With 0.0.0.0 the CU closes the SCTP association after
+#   F1SetupResponse because it cannot resolve a valid peer TNL address for F1-U.
+#
+#   Fix: cu.yml.tpl and du.yml.tpl use ${POD_IP} which is substituted at pod
+#   startup via an initContainer using envsubst + the Kubernetes Downward API.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -23,11 +26,11 @@ metadata:
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
-  cu.yml: |
+  cu.yml.tpl: |
     cu_cp:
       amf:
         addr: {{ .Values.amfAddress }}
-        bind_addr: 0.0.0.0
+        bind_addr: ${POD_IP}
         supported_tracking_areas:
           - tac: {{ .Values.plmn.tac }}
             plmn_list:
@@ -35,34 +38,37 @@ data:
                 tai_slice_support_list:
                   - sst: 1
       f1ap:
-        bind_addr: 0.0.0.0
+        bind_addr: ${POD_IP}
     cu_up:
       f1u:
         bind_port: {{ .Values.f1uPort }}
         peer_port: {{ .Values.f1uPort }}
         socket:
-          - bind_addr: 0.0.0.0
+          - bind_addr: ${POD_IP}
       ngu:
         socket:
-          - bind_addr: 0.0.0.0
+          - bind_addr: ${POD_IP}
     log:
-      filename: /mnt/srsran/logs/cu.log
-      all_level: info
+      filename: /dev/stdout
+      all_level: debug
+      f1ap_level: debug
+      f1ap_json_enabled: true
+      ngap_level: info
 
-  du.yml: |
+  du.yml.tpl: |
     f1ap:
       cu_cp_addr: srs-cu
-      bind_addr: 0.0.0.0
+      bind_addr: ${POD_IP}
     f1u:
       bind_port: {{ .Values.f1uPort }}
       peer_port: {{ .Values.f1uPort }}
       socket:
-        - bind_addr: 0.0.0.0
+        - bind_addr: ${POD_IP}
     e2:
       enable_du_e2: true
       addr: {{ .Values.e2termAddress }}
       port: 36421
-      bind_addr: 0.0.0.0
+      bind_addr: ${POD_IP}
       e2sm_kpm_enabled: true
       e2sm_rc_enabled: true
     ru_sdr:
@@ -93,7 +99,7 @@ data:
       prach:
         prach_config_index: 1
     log:
-      filename: /mnt/srsran/logs/du.log
+      filename: /dev/stdout
       all_level: info
 
   ue.conf: |
@@ -125,7 +131,7 @@ data:
     all_level = info
     phy_lib_level = none
     all_hex_limit = 32
-    filename = /mnt/srsran/logs/ue.log
+    filename = /dev/stdout
     file_max_size = -1
 
     [usim]
@@ -145,7 +151,7 @@ data:
     apn_protocol = ipv4
 
     [gw]
-    netns = ue1
+    
 
     [gui]
     enable = false

@@ -1,13 +1,19 @@
 # ============================================================================
 # AMF — Access and Mobility Management Function
 # ============================================================================
-# Two Services:
-#   1. amf-sbi    (ClusterIP)    — SBI HTTP/2 on port 7777, internal only
-#   2. amf-ngap   (LoadBalancer) — SCTP N2/NGAP on port 38412, external
+# Three Services:
+#   1. amf               (ClusterIP)  — SBI HTTP/2 on port 7777, internal only
+#   2. amf-ngap          (NodePort)   — SCTP N2/NGAP on port 38412, external
+#                                       For real gNBs outside the cluster or
+#                                       future use. GCP LBs don't support SCTP
+#                                       so NodePort is used instead.
+#   3. amf-ngap-headless (headless)   — SCTP N2/NGAP on port 38412, internal
+#                                       Used by the srs-cu pod (same cluster).
+#                                       clusterIP: None bypasses kube-proxy
+#                                       DNAT which breaks SCTP multi-stream
+#                                       conntrack (same fix applied to srs-cu
+#                                       F1AP service in the ran chart).
 #
-# The LoadBalancer Service is exposed externally so the CU (srs_cu pod in the
-# ran namespace) can connect via the GCP Network Load Balancer.
-# protocol: SCTP is supported in GKE >= 1.28 (GA in K8s 1.28).
 # The SCTP kernel module must be loaded first — see daemonset-sctp-init.yaml.
 {{- if .Values.nf.amf.enabled }}
 apiVersion: apps/v1
@@ -28,12 +34,12 @@ spec:
       labels:
         app: amf
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: amf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}
@@ -71,8 +77,10 @@ spec:
       port: 7777
       targetPort: 7777
 ---
-# External SCTP service for N2/NGAP — CU connects to this LoadBalancer IP.
-# externalTrafficPolicy: Local preserves source IP and avoids extra hop.
+# External SCTP service for N2/NGAP — for real gNBs outside the cluster.
+# NOTE: GCP external load balancers do not support SCTP as a forwarding rule
+# protocol, so NodePort is used. externalTrafficPolicy: Local preserves the
+# source IP so AMF can identify the gNB correctly.
 apiVersion: v1
 kind: Service
 metadata:
@@ -80,12 +88,31 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: amf
-  annotations:
-    # GCP NLB passthrough mode — required for SCTP (no L7 proxy involved).
-    cloud.google.com/load-balancer-type: "External"
 spec:
-  type: LoadBalancer
+  type: NodePort
   externalTrafficPolicy: Local
+  selector:
+    app: amf
+  ports:
+    - name: ngap
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP
+---
+# Headless SCTP service for N2/NGAP — used by srs-cu inside the cluster.
+# clusterIP: None means DNS resolves directly to the pod IP, bypassing
+# kube-proxy DNAT. This prevents the SCTP conntrack breakage that occurs
+# when a NodePort/ClusterIP service rewrites the destination address of an
+# established SCTP multi-stream association.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf-ngap-headless
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+spec:
+  clusterIP: None
   selector:
     app: amf
   ports:

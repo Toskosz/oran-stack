@@ -21,7 +21,7 @@ images:
 # DNS format: <service>.<namespace>.svc.cluster.local
 # These replace the hardcoded IPs in the original srsran/configs/*.yml files.
 # ----------------------------------------------------------------------------
-amfAddress: "amf-ngap.5g-core.svc.cluster.local"
+amfAddress: "amf-ngap-headless.5g-core.svc.cluster.local"
 e2termAddress: "e2term.near-rt-ric.svc.cluster.local"
 
 # ----------------------------------------------------------------------------
