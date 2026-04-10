@@ -1,16 +1,21 @@
 # ============================================================================
 # Playbook: teardown.yml
-# Purpose:  Uninstall all deployed Helm releases and clean up Kubernetes
-#           namespaces in reverse order.  The GKE cluster and GCP project
-#           are left intact — destroy them manually with 'terraform destroy'
-#           if needed.
+# Purpose:  Remove all deployed resources in reverse order, then destroy the
+#           GKE cluster and supporting GCP infrastructure via Terraform.
+#           The GCP project itself is preserved so it can be re-provisioned
+#           without needing to recreate billing links and API enablements.
 #
 # Usage:
-#   ansible-playbook ansible/playbooks/teardown.yml --ask-vault-pass
+#   ansible-playbook ansible/playbooks/teardown.yml \
+#     -e gcp_project_id=oran-lab-abc123 \
+#     --ask-vault-pass
 #
 # WARNING: This is DESTRUCTIVE.  It will:
 #   - Uninstall all three Helm releases (deletes all K8s resources)
 #   - Delete the 5g-core, near-rt-ric, and ran namespaces (removes PVCs)
+#   - Destroy the GKE cluster, node pool, VPC, Cloud NAT, firewall rules,
+#     and IAM service account via targeted terraform destroy
+#   - The GCP project is intentionally left intact
 #
 # The play uses 'any_errors_fatal: false' for the Helm uninstalls so that a
 # missing release does not abort the rest of the teardown.
@@ -86,3 +91,49 @@
         wait: true
         wait_timeout: 120
       ignore_errors: true
+
+- name: Destroy GCP infrastructure via Terraform (preserving the GCP project)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    # The cloud.terraform module's state:absent runs a full 'terraform destroy'
+    # which would also delete google_project.oran_lab.  Instead we use the
+    # terraform CLI directly with -target flags to destroy only the cluster,
+    # node pool, networking, and IAM resources — leaving the project and its
+    # API enablements intact for future re-provisioning.
+    - name: Terraform destroy — GKE cluster, VPC, NAT, IAM (project preserved)
+      ansible.builtin.command:
+        argv:
+          - terraform
+          - destroy
+          - -no-color
+          - -input=false
+          - -auto-approve
+          - -target=google_container_node_pool.default
+          - -target=google_container_cluster.oran_lab
+          - -target=google_service_account.ansible
+          - -target=google_project_iam_member.ansible_container_admin
+          - -target=google_project_iam_member.ansible_compute_viewer
+          - -target=google_project_iam_member.ansible_sa_token_creator
+          - -target=google_compute_firewall.allow_lb_health_checks
+          - -target=google_compute_firewall.allow_internal
+          - -target=google_compute_router_nat.oran_lab
+          - -target=google_compute_router.oran_lab
+          - -target=google_compute_subnetwork.oran_lab
+          - -target=google_compute_network.oran_lab
+        chdir: "{{ terraform_dir }}"
+      environment:
+        TF_VAR_gcp_billing_account: "{{ gcp_billing_account }}"
+        TF_VAR_gcp_project_id:      "{{ gcp_project_id }}"
+        TF_VAR_gcp_project_name:    "{{ gcp_project_name }}"
+        TF_VAR_gcp_region:          "{{ gcp_region }}"
+        TF_VAR_gcp_zone:            "{{ gcp_zone }}"
+        TF_VAR_cluster_name:        "{{ cluster_name }}"
+        GODEBUG: netdns=cgo
+      register: tf_destroy
+
+    - name: Terraform destroy output
+      ansible.builtin.debug:
+        var: tf_destroy.stdout_lines
