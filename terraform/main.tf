@@ -208,7 +208,9 @@ resource "google_container_cluster" "oran_lab" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  min_master_version = var.kubernetes_version
+  # min_master_version is intentionally omitted — GKE will use the default
+  # version for the REGULAR release channel, avoiding stalls caused by
+  # pinning a version that doesn't exist yet.
 
   network    = google_compute_network.oran_lab.id
   subnetwork = google_compute_subnetwork.oran_lab.id
@@ -259,6 +261,18 @@ resource "google_container_cluster" "oran_lab" {
     channel = "REGULAR"
   }
 
+  # Allow terraform destroy to delete this cluster (provider v5+ defaults to true).
+  deletion_protection = false
+
+  # Extend create/update/delete timeouts beyond the 40-minute provider default.
+  # GKE cluster creation can take 15–25 min; private clusters with Workload
+  # Identity occasionally need longer if GCP API activation is slow.
+  timeouts {
+    create = "60m"
+    update = "60m"
+    delete = "60m"
+  }
+
   depends_on = [
     google_project_service.apis,
     google_compute_subnetwork.oran_lab,
@@ -285,7 +299,7 @@ resource "google_container_node_pool" "default" {
     machine_type = var.node_machine_type
     disk_size_gb = var.node_disk_size_gb
     disk_type    = "pd-ssd"
-    image_type   = "COS_CONTAINERD"
+    image_type   = "UBUNTU_CONTAINERD"
 
     # Preemptible VMs: ~80% cheaper, can be reclaimed by GCP with 30s notice.
     # Acceptable for a lab environment where NFs can restart.

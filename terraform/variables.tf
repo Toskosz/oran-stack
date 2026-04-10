@@ -53,20 +53,14 @@ variable "cluster_name" {
   default     = "oran-lab"
 }
 
-variable "kubernetes_version" {
-  description = "Minimum Kubernetes version for GKE. Must be >= 1.28 for SCTP Service support."
-  type        = string
-  default     = "1.30"
-}
-
 # ----------------------------------------------------------------------------
 # Node Pool
 # ----------------------------------------------------------------------------
 
 variable "node_machine_type" {
-  description = "GCE machine type for the default node pool. n2-standard-4 gives 4 vCPU / 16 GB."
+  description = "GCE machine type for the default node pool. e2-standard-4 gives 4 vCPU / 16 GB with broader zone availability than n2."
   type        = string
-  default     = "n2-standard-4"
+  default     = "e2-standard-4"
 }
 
 variable "node_count" {
