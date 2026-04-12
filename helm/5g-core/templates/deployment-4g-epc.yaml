@@ -25,12 +25,12 @@ spec:
     metadata:
       labels: { app: mme }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: mme
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-mmed", "-c", "/open5gs/install/etc/open5gs/mme.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-mmed", "-c", "/open5gs/install/etc/open5gs/mme.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
@@ -63,12 +63,12 @@ spec:
     metadata:
       labels: { app: sgwc }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: sgwc
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-sgwcd", "-c", "/open5gs/install/etc/open5gs/sgwc.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-sgwcd", "-c", "/open5gs/install/etc/open5gs/sgwc.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
@@ -101,12 +101,12 @@ spec:
     metadata:
       labels: { app: sgwu }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: sgwu
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-sgwud", "-c", "/open5gs/install/etc/open5gs/sgwu.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-sgwud", "-c", "/open5gs/install/etc/open5gs/sgwu.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           securityContext:
@@ -132,12 +132,12 @@ spec:
     metadata:
       labels: { app: hss }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: hss
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-hssd", "-c", "/open5gs/install/etc/open5gs/hss.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-hssd", "-c", "/open5gs/install/etc/open5gs/hss.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
@@ -160,12 +160,12 @@ spec:
     metadata:
       labels: { app: pcrf }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: pcrf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-pcrfd", "-c", "/open5gs/install/etc/open5gs/pcrf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-pcrfd", "-c", "/open5gs/install/etc/open5gs/pcrf.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}

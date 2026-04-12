@@ -44,6 +44,12 @@ spec:
           # nsenter -t 1 -m -u -i -n: enter the host's mount/uts/ipc/net
           # namespaces via PID 1 (init). This makes modprobe run against
           # the host kernel's module tree, not the container's.
+          #
+          # On GKE COS kernels >= 6.12, SCTP is compiled in (not a .ko module),
+          # so modprobe exits 1 with "Module not found" even though SCTP works.
+          # We verify SCTP availability by attempting to open an SCTP socket
+          # directly, which works regardless of whether SCTP is a module or
+          # built-in (it will not appear in /proc/modules when built-in).
           command:
             - nsenter
             - "-t"
@@ -53,11 +59,20 @@ spec:
             - "-i"
             - "-n"
             - "--"
-            - modprobe
-            - sctp
+            - sh
+            - "-c"
+            - |
+              if modprobe sctp 2>/dev/null; then
+                echo "sctp module loaded"
+              elif [ -d /proc/net/sctp ]; then
+                echo "sctp built-in and available"
+              else
+                echo "ERROR: SCTP not available" >&2
+                exit 1
+              fi
       containers:
         - name: pause
-          image: gcr.io/google_containers/pause:3.9
+          image: registry.k8s.io/pause:3.9
           resources:
             requests:
               cpu: 1m

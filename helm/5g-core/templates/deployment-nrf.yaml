@@ -22,16 +22,22 @@ spec:
       labels:
         app: nrf
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       initContainers:
         - name: wait-for-mongodb
           image: mongo:7.0
-          command: ["mongosh", "--host", "mongodb:27017", "--eval", "db.adminCommand('ping')", "--quiet"]
+          command:
+            - sh
+            - -c
+            - |
+              until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
+                echo "Waiting for MongoDB..."; sleep 5;
+              done
       containers:
         - name: nrf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-nrfd", "-c", "/open5gs/install/etc/open5gs/nrf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-nrfd", "-c", "/open5gs/install/etc/open5gs/nrf.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}

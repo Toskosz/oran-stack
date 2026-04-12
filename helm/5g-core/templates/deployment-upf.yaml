@@ -36,14 +36,14 @@ spec:
       labels:
         app: upf
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet  # Required when hostNetwork:true to still use cluster DNS.
       containers:
         - name: upf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-upfd", "-c", "/open5gs/install/etc/open5gs/upf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-upfd", "-c", "/open5gs/install/etc/open5gs/upf.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}

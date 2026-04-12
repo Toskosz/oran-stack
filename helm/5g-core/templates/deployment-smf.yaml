@@ -20,12 +20,12 @@ spec:
       labels:
         app: smf
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: smf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-smfd", "-c", "/open5gs/install/etc/open5gs/smf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-smfd", "-c", "/open5gs/install/etc/open5gs/smf.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}

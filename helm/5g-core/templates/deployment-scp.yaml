@@ -20,12 +20,12 @@ spec:
       labels:
         app: scp
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: scp
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-scpd", "-c", "/open5gs/install/etc/open5gs/scp.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-scpd", "-c", "/open5gs/install/etc/open5gs/scp.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}

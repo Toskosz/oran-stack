@@ -25,12 +25,12 @@ spec:
     metadata:
       labels: { app: ausf }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: ausf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-ausfde", "-c", "/open5gs/install/etc/open5gs/ausf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-ausfd", "-c", "/open5gs/install/etc/open5gs/ausf.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }]
@@ -66,12 +66,12 @@ spec:
     metadata:
       labels: { app: udm }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: udm
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-udmd", "-c", "/open5gs/install/etc/open5gs/udm.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-udmd", "-c", "/open5gs/install/etc/open5gs/udm.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }]
@@ -107,12 +107,12 @@ spec:
     metadata:
       labels: { app: pcf }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: pcf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-pcfd", "-c", "/open5gs/install/etc/open5gs/pcf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-pcfd", "-c", "/open5gs/install/etc/open5gs/pcf.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }, { containerPort: 9090, name: metrics }]
@@ -148,12 +148,12 @@ spec:
     metadata:
       labels: { app: nssf }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: nssf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-nssfd", "-c", "/open5gs/install/etc/open5gs/nssf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-nssfd", "-c", "/open5gs/install/etc/open5gs/nssf.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }]
@@ -189,12 +189,12 @@ spec:
     metadata:
       labels: { app: bsf }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: bsf
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-bsfd", "-c", "/open5gs/install/etc/open5gs/bsf.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-bsfd", "-c", "/open5gs/install/etc/open5gs/bsf.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }]
@@ -230,12 +230,12 @@ spec:
     metadata:
       labels: { app: udr }
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: udr
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-udrd", "-c", "/open5gs/install/etc/open5gs/udr.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-udrd", "-c", "/open5gs/install/etc/open5gs/udr.yaml"]
           workingDir: /open5gs
           env: {{ include "5g-core.commonEnv" . | nindent 12 }}
           ports: [{ containerPort: 7777, name: sbi }]

@@ -20,12 +20,12 @@ spec:
       labels:
         app: sepp
     spec:
-      {{ include "5g-core.imagePullSecrets" . }}
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: sepp
           image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
           imagePullPolicy: {{ .Values.images.core.pullPolicy }}
-          command: ["./install/bin/open5gs-seppd", "-c", "/open5gs/install/etc/open5gs/sepp1.yaml"]
+          command: ["/entrypoint.sh", "./install/bin/open5gs-seppd", "-c", "/open5gs/install/etc/open5gs/sepp1.yaml"]
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}

@@ -60,7 +60,7 @@ mme:
   s1apPort: "36412"
   metricsPort: "9090"
   # Set to false to skip deploying the 4G EPC NFs entirely.
-  enabled: true
+  enabled: false
 
 # ----------------------------------------------------------------------------
 # Network Slice

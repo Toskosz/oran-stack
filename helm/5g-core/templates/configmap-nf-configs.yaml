@@ -73,6 +73,11 @@ data:
             - uri: http://nrf:${NRF_SBI_PORT}
           scp:
             - uri: http://scp:${SCP_SBI_PORT}
+      n32:
+        server:
+          - sender: ${MCC}${MNC}
+            address: 0.0.0.0
+            port: 7778
     logger:
       file:
         path: /var/log/open5gs/sepp.log
@@ -294,6 +299,10 @@ data:
             - uri: http://nrf:${NRF_SBI_PORT}
           scp:
             - uri: http://scp:${SCP_SBI_PORT}
+          nsi:
+            - uri: http://nrf:${NRF_SBI_PORT}
+              s_nssai:
+                sst: 1
     logger:
       file:
         path: /var/log/open5gs/nssf.log
