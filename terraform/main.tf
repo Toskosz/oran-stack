@@ -7,7 +7,7 @@
 #   3. Cloud Router + Cloud NAT  (outbound internet for private nodes)
 #   4. IAM service account for Ansible
 #   5. GKE cluster (private nodes, Dataplane V2 / Cilium, no default pool)
-#   6. GKE node pool (e2-standard-4, preemptible, ubuntu_containerd)
+#   6. GKE node pool (e2-standard-4, on-demand/standard, ubuntu_containerd)
 # ============================================================================
 
 # ----------------------------------------------------------------------------

@@ -70,9 +70,9 @@ variable "node_count" {
 }
 
 variable "preemptible_nodes" {
-  description = "Use preemptible (spot) VMs for ~80% cost reduction. Fine for a lab; not for production."
+  description = "Use preemptible (spot) VMs. Disabled for the baseline lab: preemption causes cascading pod restarts on a stateful, connection-heavy telco stack (P6)."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "node_disk_size_gb" {
