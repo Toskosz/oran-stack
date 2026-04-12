@@ -765,20 +765,28 @@ use `grep -v "Waiting for"` when reading DU logs.
 
 ---
 
-## 23. F1SetupFailure: `message-not-compatible-with-receiver-state` on DU restart
+## 23. F1SetupFailure: `message-not-compatible-with-receiver-state` on DU restart (**RESOLVED — P4**)
 
 **Symptom:** After the DU pod restarts (new pod, new IP), the new DU sends `F1SetupRequest`
 and immediately receives `F1SetupFailure` with cause
-`message-not-compatible-with-receiver-state`. The DU has `max_retries: 1` and gives up,
-so the cell never activates.
+`message-not-compatible-with-receiver-state`. The DU has `max_retries: 1` (hardcoded, not
+configurable) and gives up, so the cell never activates.
 
 **Root cause:** The CU retains DU state in memory. When the previous DU pod terminates, its
 SCTP association to the CU drops. The CU marks DU 0 as disconnected but does not remove it
 from its internal state immediately. When the new DU connects and sends `F1SetupRequest`,
-the CU sees a duplicate DU ID while the old DU entry is still present, and rejects it.
+the CU sees a duplicate DU ID while the old DU entry is still present, and rejects it. The
+CU purges the stale entry ~23 s after SCTP COMM_LOST.
 
-**Fix:** Restart the CU whenever the DU is replaced. Since the CU holds no persistent state
-that matters (it re-registers with AMF on startup via NG Setup), a CU restart is clean:
+**Fix (implemented):** The DU Deployment's `wait-for-cu` initContainer
+(`helm/ran/templates/deployments.yaml`) was extended with a post-ready hold-off step.
+After confirming the CU process is reachable (DNS + UDP F1-U port probe), the container
+sleeps for `duF1SetupHoldOffSec` seconds (default: **30 s**, set in
+`helm/ran/values.yaml`) before allowing srsRAN to start. This guarantees the 23 s CU
+cleanup window has elapsed before the DU's single F1Setup attempt is made, eliminating
+the race entirely without requiring a CU restart.
+
+**Previous workaround (no longer needed for normal restarts):**
 
 ```bash
 kubectl rollout restart deployment/srs-cu -n ran
@@ -786,11 +794,7 @@ kubectl rollout restart deployment/srs-cu -n ran
 kubectl rollout restart deployment/srs-du -n ran
 ```
 
-**Workaround for future-proofing:** Increase the DU F1AP retry count so it retries after
-the CU clears the stale entry (typically within 5–10 seconds). Currently hardcoded to 1
-in the srsRAN DU — no config option exposed.
-
-**Restart order that works:**
+**Restart order that works (still valid for hard CU crashes):**
 1. Restart CU → wait `rollout status`
 2. Restart DU → F1 Setup succeeds on first attempt against fresh CU state
 3. Restart UE → ZMQ connects to active cell

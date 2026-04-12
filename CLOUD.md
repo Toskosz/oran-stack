@@ -28,7 +28,7 @@ each section asks *why* a decision was made, not just *what* was done.
 16. [Why Downward API for e2term's external FQDN?](#16-why-downward-api-for-e2terms-external-fqdn)
 17. [Why LoadBalancer Services for SCTP?](#17-why-loadbalancer-services-for-sctp)
 18. [Why Ansible Vault for secrets?](#18-why-ansible-vault-for-secrets)
-19. [Why preemptible nodes for the GKE node pool?](#19-why-preemptible-nodes-for-the-gke-node-pool)
+19. [Why standard (on-demand) nodes for the GKE node pool?](#19-why-standard-on-demand-nodes-for-the-gke-node-pool)
 20. [Why Autopilot OFF for GKE?](#20-why-autopilot-off-for-gke)
 21. [Why private nodes + Cloud NAT?](#21-why-private-nodes--cloud-nat)
 22. [Known limitations and accepted trade-offs](#22-known-limitations-and-accepted-trade-offs)
@@ -549,20 +549,30 @@ account ID.  These must not be committed to git in plaintext.
 
 ---
 
-## 19. Why preemptible nodes for the GKE node pool?
+## 19. Why standard (on-demand) nodes for the GKE node pool?
 
-**Context:** The lab runs in GCP where compute costs money 24/7.
+**Context:** The lab runs in GCP where compute costs money 24/7. Preemptible
+nodes were used initially for ~80% cost savings, but proved incompatible with
+the stateful, connection-heavy telco workload (P6).
 
-**Decision:** `preemptible = true` in the Terraform node pool spec.
+**Decision:** `preemptible = false` in the Terraform node pool spec (on-demand
+`e2-standard-4` nodes).
 
 **Why:**
-- Preemptible (spot) VMs are ~80% cheaper than on-demand.
-- GCP can reclaim them with 30 seconds notice, but for a lab that is acceptable.
-- 5G NF pods are stateless (except MongoDB) and restart cleanly after eviction.
-- MongoDB's persistent disk survives node preemption because it is detached and
-  re-attached to the replacement node.
-- **Production note:** Never use preemptible nodes for the control plane (GKE
-  manages that) or for stateful workloads in production.
+- When a preemptible node is reclaimed, all pods on it are deleted
+  simultaneously. For a telco stack (SCTP associations, stateful AMF, MongoDB),
+  this causes cascading restarts across all interface layers (N2, F1, E2) and
+  requires a full coordinated restart sequence to recover cleanly.
+- Preemption was observed to reliably trigger the Duplicate DU ID race (P4)
+  on every occurrence — making stable E2E testing impossible.
+- Both nodes were preempted simultaneously in one session, causing full cluster
+  loss and MongoDB data loss (the PVC was wiped before it could be re-attached).
+- Standard nodes provide a stable, predictable baseline. Cost is ~$0.57/hour
+  per node (~$1.14/hour total) vs ~$0.17/hour preemptible — acceptable for a
+  focused lab session that is torn down when not in use.
+- **To re-enable preemptible nodes** (e.g. for cost-only workloads): set
+  `preemptible_nodes = true` in `terraform/variables.tf` or pass
+  `-var="preemptible_nodes=true"` at `terraform apply` time.
 
 ---
 
@@ -614,4 +624,4 @@ without having public IPs.
 | hostAliases for rtmgr | Depends on submgr ClusterIP not changing. Requires `helm upgrade` after cluster rebuild. | Yes for lab use. |
 | Single MongoDB replica | MongoDB is deployed as a single replica set member (`rs0`). No replication or automatic failover. | Yes — this is a lab, not production. |
 | UPF on a shared node | UPF uses `hostNetwork: true` on one of the 2 cluster nodes. Other pods on the same node share the host network namespace. | Yes for lab use. Mitigate with `nodeAffinity` in production. |
-| Preemptible nodes | Cluster can be forcibly stopped by GCP at any time. | Yes for lab use. |
+| Preemptible nodes | Disabled — caused cascading restarts and cluster loss (P6). Standard on-demand nodes are used. | N/A — resolved. |
