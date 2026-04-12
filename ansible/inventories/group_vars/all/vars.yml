@@ -1,0 +1,122 @@
+# ============================================================================
+# Ansible Group Variables — O-RAN Stack GKE Deployment
+# ============================================================================
+# These variables are shared across all roles and playbooks.
+#
+# SENSITIVE FIELDS: Any variable suffixed _vault should be stored in an
+# Ansible Vault file.  Create it with:
+#   ansible-vault create ansible/inventories/group_vars/all/vault.yml
+# Then reference it in each sensitive variable below by pointing at the
+# vaulted counterpart, or keep this file vault-encrypted altogether with:
+#   ansible-vault encrypt ansible/inventories/group_vars/all/vars.yml
+#
+# Override per-run with:
+#   ansible-playbook ... -e gcp_project_id=my-project-xyz
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# GCP / Terraform
+# ----------------------------------------------------------------------------
+# Globally unique GCP project ID that Terraform will CREATE.
+# Must be 6-30 lowercase letters, digits, or hyphens.
+gcp_project_id: "oran-lab"
+
+# Human-readable display name for the GCP project.
+gcp_project_name: "O-RAN Lab"
+
+# Billing Account ID attached to the project.  Format: XXXXXX-XXXXXX-XXXXXX
+# Find yours at https://console.cloud.google.com/billing
+# KEEP THIS PRIVATE — store the real value in all.vault.yml.
+gcp_billing_account: "{{ vault_gcp_billing_account }}"   # override from vault
+
+# GCP region / zone.
+gcp_region: "us-central1"
+gcp_zone:   "us-central1-a"
+
+# GKE cluster name (must match terraform variable default or be overridden).
+cluster_name: "oran-lab"
+
+# Path to the Terraform root module, relative to the repo root.
+terraform_dir: "{{ playbook_dir }}/../../terraform"
+
+# ----------------------------------------------------------------------------
+# Docker Hub — image push & imagePullSecret
+# ----------------------------------------------------------------------------
+# Your Docker Hub username.  Images will be pushed as:
+#   <dockerhub_username>/<image_name>:<tag>
+dockerhub_username: "x0tok"
+
+# Docker Hub password / personal access token.
+# KEEP THIS SECRET — store the real value in all.vault.yml and reference it:
+#   dockerhub_password: "{{ vault_dockerhub_password }}"
+dockerhub_password: "{{ vault_dockerhub_password }}"   # override from vault
+
+# ----------------------------------------------------------------------------
+# Container image names & tags
+# ----------------------------------------------------------------------------
+# These map onto the helm values.images.* fields in each chart.
+images:
+  core:
+    repository: "{{ dockerhub_username }}/oran-5gcore"
+    tag: "latest"
+  webui:
+    repository: "{{ dockerhub_username }}/oran-webui"
+    tag: "latest"
+  srsran:
+    repository: "{{ dockerhub_username }}/oran-srsran"
+    tag: "latest"
+  srsue:
+    repository: "{{ dockerhub_username }}/oran-srsue"
+    tag: "latest"
+
+# Local Dockerfile paths (relative to repo root) used by the
+# container_images role to build each image before pushing.
+dockerfiles:
+  core:   "dockerfiles/Dockerfile.5gscore"
+  webui:  "dockerfiles/Dockerfile.webui"
+  srsran: "dockerfiles/Dockerfile.srsran"
+  srsue:  "dockerfiles/Dockerfile.srsue"
+
+# Build context (relative to repo root) for each image.
+build_contexts:
+  core:   "."
+  webui:  "."
+  srsran: "."
+  srsue:  "."
+
+# ----------------------------------------------------------------------------
+# Helm chart paths (relative to repo root)
+# ----------------------------------------------------------------------------
+helm_charts:
+  core:    "helm/5g-core"
+  ric:     "helm/near-rt-ric"
+  ran:     "helm/ran"
+
+# Helm release names
+helm_releases:
+  core:    "5g-core"
+  ric:     "near-rt-ric"
+  ran:     "ran"
+
+# Helm deploy timeout (seconds).  The core chart can take a while to pull
+# images and start MongoDB on the first run.
+helm_timeout: "600s"
+
+# ----------------------------------------------------------------------------
+# Kubernetes namespaces (must match namespace: field in each chart's values)
+# ----------------------------------------------------------------------------
+namespaces:
+  core:    "5g-core"
+  ric:     "near-rt-ric"
+  ran:     "ran"
+
+# Name of the imagePullSecret created in each namespace by Ansible.
+image_pull_secret_name: "dockerhub-secret"
+
+# ----------------------------------------------------------------------------
+# PLMN (must stay in sync with helm/5g-core/values.yaml and helm/ran/values.yaml)
+# ----------------------------------------------------------------------------
+plmn:
+  mcc: "001"
+  mnc: "01"
+  tac: "1"
