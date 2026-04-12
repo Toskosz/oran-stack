@@ -76,7 +76,7 @@ metadata:
   labels:
     app: webui
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: webui
   ports:

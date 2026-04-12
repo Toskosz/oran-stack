@@ -1,12 +1,13 @@
 # ============================================================================
 # SCTP Kernel Module DaemonSet
 # ============================================================================
-# GKE nodes do not load the SCTP kernel module by default. This DaemonSet
-# runs a privileged initContainer on every node that calls `modprobe sctp`.
+# Ubuntu nodes may not have the SCTP kernel module loaded by default.
+# This DaemonSet runs a privileged initContainer on every node that calls
+# `modprobe sctp`. If SCTP is already built into the kernel it is a no-op.
 #
 # This is required for:
-#   - AMF: LoadBalancer Service with protocol: SCTP on port 38412 (N2/NGAP)
-#   - e2term (near-rt-ric chart): LoadBalancer with SCTP on port 36421 (E2)
+#   - AMF: NodePort Service with protocol: SCTP on port 38412 (N2/NGAP)
+#   - e2term (near-rt-ric chart): NodePort with SCTP on port 36421 (E2)
 #
 # The main container is a permanent pause so the DaemonSet pod stays Running
 # and can be monitored. The actual work happens in initContainers.

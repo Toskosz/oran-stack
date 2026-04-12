@@ -90,9 +90,9 @@ mongodb:
   uri: "mongodb://mongodb:27017/open5gs"
   storage:
     size: 20Gi
-    # GKE standard StorageClass backed by pd-ssd.
+    # local-path-provisioner StorageClass (installed by provision.yml).
     # Run: kubectl get storageclass  to see available classes.
-    storageClass: "standard-rwo"
+    storageClass: "local-path"
 
 # ----------------------------------------------------------------------------
 # NF SBI port (all NFs share the same SBI port in this deployment)
