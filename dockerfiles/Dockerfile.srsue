@@ -76,9 +76,12 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /opt/srsRAN_4G/build/srsue/src/srsue /usr/local/bin/srsue
 
 # Copy all shared libraries built by srsRAN 4G into /usr/local/lib
-# The build tree has libs spread across multiple subdirectories
-RUN --mount=type=bind,from=builder,source=/opt/srsRAN_4G/build,target=/srsran-build \
-    find /srsran-build -name "*.so*" -exec cp -P {} /usr/local/lib/ \; && ldconfig
+# The build tree has libs spread across multiple subdirectories.
+# We copy the entire build tree then find+symlink-preserve the .so files.
+COPY --from=builder /opt/srsRAN_4G/build /srsran-build
+RUN find /srsran-build -name "*.so*" -exec cp -P {} /usr/local/lib/ \; \
+    && ldconfig \
+    && rm -rf /srsran-build
 
 WORKDIR /mnt/srsran
 

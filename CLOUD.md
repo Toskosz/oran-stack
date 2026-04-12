@@ -9,6 +9,7 @@ each section asks *why* a decision was made, not just *what* was done.
 
 ## Table of Contents
 
+0. [Launch Guide](#0-launch-guide)
 1. [Why GKE instead of a self-managed cluster?](#1-why-gke-instead-of-a-self-managed-cluster)
 2. [Why Terraform for infrastructure provisioning?](#2-why-terraform-for-infrastructure-provisioning)
 3. [Why Ansible as the outer orchestrator?](#3-why-ansible-as-the-outer-orchestrator)
@@ -31,6 +32,99 @@ each section asks *why* a decision was made, not just *what* was done.
 20. [Why Autopilot OFF for GKE?](#20-why-autopilot-off-for-gke)
 21. [Why private nodes + Cloud NAT?](#21-why-private-nodes--cloud-nat)
 22. [Known limitations and accepted trade-offs](#22-known-limitations-and-accepted-trade-offs)
+
+---
+
+## 0. Launch Guide
+
+End-to-end steps to bring the stack up from scratch.  All commands are run from
+the **`ansible/` directory** so that `ansible.cfg` is picked up correctly.
+
+```bash
+cd ~/oran-stack/ansible
+```
+
+### Step 1 — One-time prerequisites (see TODO.md §1–6)
+
+| Task | Command / action |
+|------|-----------------|
+| Pick a GCP project ID | Edit `ansible/inventories/group_vars/all/vars.yml` → `gcp_project_id` |
+| Store billing account + Docker PAT | `ansible-vault create ansible/inventories/group_vars/all/vault.yml` |
+| Authenticate gcloud | `gcloud auth login && gcloud auth application-default login` |
+| Install tools | `ansible`, `terraform`, `gcloud`, `helm`, `kubectl`, `docker` |
+| Install Ansible collections | `ansible-galaxy collection install -r requirements.yml` |
+| Create Docker Hub account + PAT | <https://hub.docker.com/settings/security> |
+
+### Step 2 — Build and push Docker images
+
+```bash
+ansible-playbook playbooks/build_images.yml --ask-vault-pass
+```
+
+Builds the Open5GS NF images and srsRAN images from the local Dockerfiles and
+pushes them to your Docker Hub account.
+
+### Step 3 — Provision GCP infrastructure
+
+```bash
+ansible-playbook playbooks/provision.yml --ask-vault-pass
+```
+
+Runs Terraform to create the GCP project, VPC, Cloud NAT, and GKE cluster.
+On completion, kubectl is automatically configured to point at the new cluster.
+
+### Step 4 — Pre-deploy verification (see TODO.md §7–11)
+
+Before deploying workloads, verify the cluster context is correct:
+
+```bash
+# Confirm kubectl context points at the new cluster
+kubectl config current-context
+```
+
+Optional: set `mme.enabled: false` in `helm/5g-core/values.yaml` to skip the
+4G EPC NFs that crash on startup (not needed for 5G SA operation).
+
+### Step 5 — Deploy the stack
+
+```bash
+ansible-playbook playbooks/deploy.yml --ask-vault-pass
+```
+
+Deploys the three Helm charts in dependency order:
+`5g-core` → `near-rt-ric` → `ran`.
+
+### Step 6 — Post-deploy checks (see TODO.md §8–9)
+
+The SCTP DaemonSet is created by the `5g-core` chart in Step 5.  Verify it
+loaded the kernel module on all nodes before checking other services:
+
+```bash
+# Check the SCTP DaemonSet loaded the kernel module on all nodes
+kubectl logs -n 5g-core -l app=sctp-init --tail=20
+# Expected: "sctp module loaded" or "sctp already loaded or built-in"
+# Note: GKE COS kernels >= 6.12 compile SCTP in rather than as a .ko module;
+# modprobe will report "Module not found" but SCTP is still functional.
+
+# Get external LoadBalancer IPs
+kubectl get svc -n 5g-core amf-ngap
+kubectl get svc -n near-rt-ric e2term
+kubectl get svc -n 5g-core webui
+
+# Verify UPF TUN interface exists on its node
+kubectl get pod -n 5g-core -l app=upf -o wide
+# Then SSH to that node and run: ip addr show ogstun
+```
+
+Open `http://<webui-external-ip>:9999` to add subscribers (admin / 1423).
+
+### Teardown
+
+When done, destroy all GCP resources to stop billing:
+
+```bash
+ansible-playbook playbooks/teardown.yml --ask-vault-pass
+```
 
 ---
 
@@ -256,25 +350,32 @@ Kubernetes (cloud) — only the environment variables differ.
 ## 11. Why a DaemonSet for SCTP kernel module loading?
 
 **Context:** SCTP (Stream Control Transmission Protocol) is used by AMF NGAP
-(N2 interface, port 38412) and e2term E2 (port 36421).  GKE nodes run Container-
-Optimized OS (COS), which does not auto-load the `sctp` kernel module.
+(N2 interface, port 38412) and e2term E2 (port 36421).  GKE nodes must have
+the `sctp` kernel module available.
 
 **Decision:** A DaemonSet (`daemonset-sctp-init.yaml`) with an `initContainer`
-that runs `nsenter --target 1 --mount --uts --ipc --net --pid -- modprobe sctp`
-on every node.
+that runs `nsenter --target 1 --mount --uts --ipc --net -- modprobe sctp`
+on every node.  The node pool uses `image_type = "UBUNTU_CONTAINERD"` so that
+`sctp.ko` is present as a loadable module.
 
 **Why:**
 - A DaemonSet runs exactly one Pod per node, so the module is loaded on every
   node that could schedule the AMF or e2term pods.
-- `nsenter --target 1` enters the host's PID 1 (systemd) namespace, so
-  `modprobe` affects the host kernel rather than the container's isolated view.
+- `nsenter --target 1` enters the host's PID 1 namespace, so `modprobe`
+  affects the host kernel rather than the container's isolated view.
 - This approach requires a privileged `initContainer` (necessary for `nsenter`)
   but the main DaemonSet container can be a simple `pause` that does nothing —
   minimising the attack surface of a long-running privileged container.
+- **Why UBUNTU_CONTAINERD, not COS_CONTAINERD:** GKE Container-Optimized OS
+  (COS) kernel 6.12+ was built with `CONFIG_IP_SCTP=n` — SCTP is not available
+  as a loadable module or built-in.  Ubuntu nodes ship `sctp.ko` in
+  `/lib/modules/$(uname -r)/kernel/net/sctp/sctp.ko` and `modprobe sctp`
+  succeeds.  COS nodes with kernels < 6.1 did ship `sctp.ko`; this changed in
+  the GKE 1.32+ node image series.
 - **GKE version requirement:** SCTP in Kubernetes Services requires the
   `SCTPSupport` feature gate, which became GA in Kubernetes 1.20 and is
   enabled by default on GKE >= 1.28.  The Terraform cluster spec sets
-  `kubernetes_version = "1.30"` to guarantee this.
+  `kubernetes_version = "1.35"` to guarantee this.
 
 ---
 
@@ -436,7 +537,7 @@ env:
 **Context:** Several secrets are needed: Docker Hub password, GCP billing
 account ID.  These must not be committed to git in plaintext.
 
-**Decision:** Ansible Vault encrypts secrets in `ansible/group_vars/all.vault.yml`.
+**Decision:** Ansible Vault encrypts secrets in `ansible/inventories/group_vars/all/vault.yml`.
 
 **Why:**
 - Ansible Vault uses AES-256 encryption.  The encrypted file is safe to commit

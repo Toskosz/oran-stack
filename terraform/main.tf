@@ -6,8 +6,8 @@
 #   2. VPC network + subnet (VPC-native / alias-IP)
 #   3. Cloud Router + Cloud NAT  (outbound internet for private nodes)
 #   4. IAM service account for Ansible
-#   5. GKE cluster (private nodes, no default pool)
-#   6. GKE node pool (n2-standard-4, preemptible, cos_containerd)
+#   5. GKE cluster (private nodes, Dataplane V2 / Cilium, no default pool)
+#   6. GKE node pool (e2-standard-4, preemptible, ubuntu_containerd)
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -244,6 +244,14 @@ resource "google_container_cluster" "oran_lab" {
     workload_pool = "${google_project.oran_lab.project_id}.svc.id.goog"
   }
 
+  # GKE Dataplane V2: replaces kube-proxy iptables with Cilium eBPF.
+  # Required for correct SCTP conntrack (pod-to-pod and pod-to-service).
+  # Without this, SCTP associations over cross-node paths are aborted by
+  # the kernel conntrack immediately after handshake — causing the AMF
+  # flapping seen with the standard netd datapath.
+  # NOTE: cannot be changed on an existing cluster; requires destroy + apply.
+  datapath_provider = "ADVANCED_DATAPATH"
+
   addons_config {
     # HTTP load balancing is needed for the GKE LoadBalancer Service controller.
     http_load_balancing {
@@ -282,10 +290,10 @@ resource "google_container_cluster" "oran_lab" {
 # ----------------------------------------------------------------------------
 # 6. GKE Node Pool
 # ----------------------------------------------------------------------------
-# cos_containerd: Container-Optimized OS with containerd runtime.
-# - Minimal OS surface, auto-patched by Google.
-# - Supports loading kernel modules (required for SCTP DaemonSet: modprobe sctp).
-# - Required for privileged pod / hostNetwork workloads (UPF, SCTP init).
+# UBUNTU_CONTAINERD: Ubuntu with containerd runtime.
+# - Required for SCTP kernel module loading (modprobe sctp via DaemonSet).
+# - Required by GKE Dataplane V2 (ADVANCED_DATAPATH); COS is not supported.
+# - Supports privileged pod / hostNetwork workloads (UPF, SCTP init).
 
 resource "google_container_node_pool" "default" {
   name     = "default-pool"

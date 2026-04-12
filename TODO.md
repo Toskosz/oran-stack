@@ -13,7 +13,7 @@ GCP project IDs are **globally unique across all GCP customers**.  You must pick
 one yourself.  Rules: 6–30 characters, lowercase letters, digits, and hyphens;
 must start with a letter.
 
-**Action:** Edit `ansible/group_vars/all.yml` and replace the placeholder:
+**Action:** Edit `ansible/inventories/group_vars/all/vars.yml` and replace the placeholder:
 ```yaml
 gcp_project_id: "oran-lab-CHANGEME"
 ```
@@ -29,14 +29,14 @@ The format is `XXXXXX-XXXXXX-XXXXXX`.
 
 **Action:** Store the real value in an Ansible Vault file to keep it out of git:
 ```bash
-ansible-vault create ansible/group_vars/all.vault.yml
+ansible-vault create ansible/inventories/group_vars/all/vault.yml
 ```
 Add:
 ```yaml
 gcp_billing_account: "ABCDEF-123456-FEDCBA"
 vault_dockerhub_password: "your-docker-hub-token"
 ```
-Then in `ansible/group_vars/all.yml` reference it:
+Then in `ansible/inventories/group_vars/all/vars.yml` reference it:
 ```yaml
 gcp_billing_account: "{{ vault_gcp_billing_account }}"
 dockerhub_password:  "{{ vault_dockerhub_password }}"
@@ -82,8 +82,8 @@ The `container_images` role pushes images to your Docker Hub account.
 - Create a Docker Hub account if you do not have one: <https://hub.docker.com>
 - Create a **Personal Access Token** (PAT) with Read/Write scope:
   <https://hub.docker.com/settings/security>
-- Store the PAT in `all.vault.yml` as `vault_dockerhub_password`
-- Set your username in `ansible/group_vars/all.yml`:
+- Store the PAT in `ansible/inventories/group_vars/all/vault.yml` as `vault_dockerhub_password`
+- Set your username in `ansible/inventories/group_vars/all/vars.yml`:
   ```yaml
   dockerhub_username: "your-dockerhub-username"
   ```
