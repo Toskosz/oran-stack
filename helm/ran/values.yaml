@@ -55,6 +55,16 @@ ue:
 # F1 interface port (CU <-> DU user plane)
 f1uPort: 2153
 
+# How long (seconds) the DU initContainer waits after the CU is reachable
+# before allowing srsRAN to send F1SetupRequest.
+#
+# The CU takes ~23 s to purge a stale DU entry after SCTP COMM_LOST (F8).
+# srsRAN's internal F1 setup retry count is hardcoded to 1 — if the first
+# attempt hits "Duplicate DU ID" the DU gives up. Setting this to 30 s
+# ensures the CU cleanup window has fully elapsed before the first attempt
+# is ever made, eliminating the race entirely (P4).
+duF1SetupHoldOffSec: 30
+
 # ZMQ ports (DU <-> UE virtual radio)
 zmq:
   duTxPort: 2000
