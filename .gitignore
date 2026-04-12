@@ -19,3 +19,15 @@ ric/config/e2term/dockerRouter.txt.stash
 ric/config/e2term/dockerRouter.txt.stash.inc
 ric/config/e2mgr/router.txt.stash
 ric/config/e2mgr/router.txt.stash.inc
+
+# Terraform state and generated files (may contain sensitive resource IDs)
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/.terraform/
+
+# Ansible Vault secrets (never commit plaintext secrets)
+ansible/inventories/group_vars/all/vault.yml
+
+# Downloaded binaries
+kubectl
+kubectl.sha256
