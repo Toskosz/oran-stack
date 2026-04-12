@@ -105,6 +105,8 @@ spec:
               value: /opt/E2Manager/router.txt
             - name: RMR_VCTL_FILE
               value: /tmp/rmr.verbose
+            - name: RMR_RTG_SVC
+              value: ric-rtmgr:4561
             - name: port
               value: "3800"
             - name: DBAAS_SERVICE_HOST
@@ -162,6 +164,9 @@ spec:
     - name: rmr
       port: 3801
       targetPort: 3801
+    - name: rmr-mgmt
+      port: 4561
+      targetPort: 4561
 ---
 # --- APPMGR (Application Manager) -------------------------------------------
 apiVersion: apps/v1
@@ -263,6 +268,8 @@ spec:
               value: /opt/config/submgr-config.yaml
             - name: RMR_SEED_RT
               value: /opt/config/submgr-uta-rtg.rt
+            - name: RMR_RTG_SVC
+              value: ric-rtmgr:4561
             - name: DBAAS_SERVICE_HOST
               value: ric-dbaas
             - name: DBAAS_SERVICE_PORT
@@ -310,6 +317,9 @@ spec:
     - name: metrics
       port: 8088
       targetPort: 8088
+    - name: rmr-mgmt
+      port: 4561
+      targetPort: 4561
 ---
 # --- RTMGR (Routing Manager) -------------------------------------------------
 # hostAliases replaces the extra_hosts hack from docker-compose.ric.yml.
@@ -345,6 +355,13 @@ spec:
       labels:
         app: ric-rtmgr
     spec:
+      hostAliases:
+        # rtmgr internally dials "rtmgr:4560" for its self-wormhole.
+        # Without this alias, DNS fails and rtmgr cannot build any routes.
+        - ip: "127.0.0.1"
+          hostnames:
+            - rtmgr
+            - routingmanager
       initContainers:
         - name: wait-for-e2mgr
           image: alpine:3.19
@@ -382,6 +399,8 @@ spec:
           env:
             - name: RMR_SEED_RT
               value: /uta_rtg_ric.rt
+            - name: RMR_RTG_SVC
+              value: ric-rtmgr:4561
             - name: CFGFILE
               value: /cfg/rtmgr-config.yaml
             - name: RTFILE
@@ -399,9 +418,11 @@ spec:
             - name: rtmgr-config
               mountPath: /cfg/rtmgr-config.yaml
               subPath: rtmgr-config.yaml
-            - name: rtmgr-config
-              mountPath: /db/rt.json
-              subPath: rt.json
+            # /db/rt.json must be writable — rtmgr writes the computed route
+            # table here at runtime. Mount an emptyDir so the ConfigMap seed
+            # (read-only subPath) does not block writes.
+            - name: rtmgr-db
+              mountPath: /db
             - name: shared
               mountPath: /shared
           resources:
@@ -412,6 +433,8 @@ spec:
         - name: rtmgr-config
           configMap:
             name: rtmgr-config
+        - name: rtmgr-db
+          emptyDir: {}
         - name: shared
           emptyDir: {}
 ---
@@ -432,6 +455,9 @@ spec:
     - name: rmr
       port: 4560
       targetPort: 4560
+    - name: rmr-mgmt
+      port: 4561
+      targetPort: 4561
 ---
 # --- E2TERM (E2 Termination) --------------------------------------------------
 # Two Services:
@@ -463,6 +489,22 @@ spec:
         - name: wait-for-e2mgr
           image: alpine:3.19
           command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+        # render-config: copy the read-only ConfigMap into an emptyDir so that
+        # startup.sh's `sed -i` calls can write local-ip and external-fqdn.
+        # ConfigMap subPath mounts are read-only and cannot be modified in place.
+        - name: render-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              cp /config-ro/config.conf /config-rw/config.conf
+              cp /config-ro/dockerRouter.txt /config-rw/dockerRouter.txt
+          volumeMounts:
+            - name: e2term-config-ro
+              mountPath: /config-ro
+            - name: e2term-config-rw
+              mountPath: /config-rw
         # The 5-second sleep ensures e2mgr's RMR outbound connection to
         # e2term:3801 is established before e2term opens the SCTP port.
         # Without this, the first E2_TERM_KEEP_ALIVE_RESP fails with
@@ -481,6 +523,8 @@ spec:
           env:
             - name: RMR_SEED_RT
               value: /opt/e2/config/dockerRouter.txt
+            - name: RMR_RTG_SVC
+              value: ric-rtmgr:4561
             - name: RMR_SRC_ID
               value: ric-e2term
             - name: E2TERM_POD_NAME
@@ -515,16 +559,19 @@ spec:
             periodSeconds: 5
             failureThreshold: 6
           volumeMounts:
-            - name: e2term-config
+            # Use the writable copy produced by the render-config initContainer.
+            - name: e2term-config-rw
               mountPath: /opt/e2/config
           resources:
             requests:
               cpu: 150m
               memory: 192Mi
       volumes:
-        - name: e2term-config
+        - name: e2term-config-ro
           configMap:
             name: e2term-config
+        - name: e2term-config-rw
+          emptyDir: {}
 ---
 # Internal RMR service for e2term — used by other RIC components.
 apiVersion: v1
@@ -544,6 +591,9 @@ spec:
     - name: metrics
       port: 8088
       targetPort: 8088
+    - name: rmr-mgmt
+      port: 4561
+      targetPort: 4561
 ---
 # External SCTP service for E2 interface — DU connects here.
 # Named 'e2term' (without 'ric-' prefix) to match .Values.e2termAddress

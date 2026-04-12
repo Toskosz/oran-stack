@@ -79,13 +79,13 @@ data:
   config.conf: |
     nano=38000
     volume=log
-    local-ip=0.0.0.0
+    local-ip=127.0.0.1
     prometheusMode=pull
     prometheusPushTimeOut=10
     prometheusPushAddr=127.0.0.1:7676
     prometheusPort=8088
     trace=stop
-    external-fqdn=ric-e2term
+    external-fqdn=e2t.com
     pod_name=E2TERM_POD_NAME
     sctp-port=36421
 
