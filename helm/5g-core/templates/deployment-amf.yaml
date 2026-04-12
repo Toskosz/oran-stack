@@ -43,6 +43,14 @@ spec:
           workingDir: /open5gs
           env:
             {{ include "5g-core.commonEnv" . | nindent 12 }}
+            # Override AMF_IP with the actual pod IP so SCTP binds only to eth0.
+            # Without this, binding to 0.0.0.0 causes the kernel to advertise
+            # all local IPs (including ogstun) in SCTP INIT-ACK, which makes
+            # the CU's N2 association die ~200ms after NGSetupResponse.
+            - name: AMF_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           ports:
             - containerPort: 7777
               name: sbi

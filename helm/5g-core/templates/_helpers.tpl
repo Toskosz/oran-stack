@@ -22,8 +22,6 @@ final NF YAML configs under /open5gs/install/etc/open5gs/.
   value: {{ .Values.amf.region | quote }}
 - name: AMF_SET
   value: {{ .Values.amf.set | quote }}
-- name: AMF_IP
-  value: "0.0.0.0"
 - name: AMF_SBI_PORT
   value: {{ .Values.amf.sbiPort | quote }}
 - name: AMF_NGAP_PORT

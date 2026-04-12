@@ -100,7 +100,7 @@ data:
             - uri: http://scp:${SCP_SBI_PORT}
       ngap:
         server:
-          - address: 0.0.0.0
+          - address: ${AMF_IP}
             port: ${AMF_NGAP_PORT}
       metrics:
         server:
