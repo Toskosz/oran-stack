@@ -32,6 +32,26 @@ spec:
     spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecretName }}
+      initContainers:
+        - name: render-config
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              sed "s|\${POD_IP}|${POD_IP}|g" /mnt/srsran/templates/cu.yml.tpl > /mnt/srsran/configs/cu.yml
+              echo "Rendered cu.yml with POD_IP=${POD_IP}"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: srsran-templates
+              mountPath: /mnt/srsran/templates
+              readOnly: true
+            - name: srsran-rendered
+              mountPath: /mnt/srsran/configs
       containers:
         - name: srs-cu
           image: {{ .Values.images.srsran.repository }}:{{ .Values.images.srsran.tag }}
@@ -45,6 +65,9 @@ spec:
             - containerPort: 38412
               name: n2-sctp
               protocol: SCTP
+            - containerPort: 38472
+              name: f1ap
+              protocol: SCTP
             - containerPort: 2152
               name: ngu-gtpu
               protocol: UDP
@@ -52,7 +75,7 @@ spec:
               name: f1u
               protocol: UDP
           volumeMounts:
-            - name: srsran-configs
+            - name: srsran-rendered
               mountPath: /mnt/srsran/configs
               readOnly: true
             - name: srsran-logs
@@ -64,13 +87,19 @@ spec:
               cpu: 500m
               memory: 512Mi
       volumes:
-        - name: srsran-configs
+        - name: srsran-templates
           configMap:
             name: srsran-configs
+        - name: srsran-rendered
+          emptyDir: {}
         - name: srsran-logs
           emptyDir: {}
 ---
-# ClusterIP for CU — DU uses 'srs-cu' as the F1 peer address (cu_cp_addr in du.yml).
+# Headless Service for CU — clusterIP: None bypasses kube-proxy DNAT entirely.
+# DNS resolves srs-cu directly to the CU pod IP so SCTP packets are never
+# NAT'd. kube-proxy DNAT causes conntrack to synthesise a spurious SCTP
+# SHUTDOWN after F1SetupResponse, leaving the CU in SHUTDOWN_ACK_SENT while
+# the DU stays ESTABLISHED (half-open ghost connection).
 apiVersion: v1
 kind: Service
 metadata:
@@ -79,9 +108,14 @@ metadata:
   labels:
     app: srs-cu
 spec:
+  clusterIP: None
   selector:
     app: srs-cu
   ports:
+    - name: f1ap
+      port: 38472
+      targetPort: 38472
+      protocol: SCTP
     - name: f1u
       port: 2153
       targetPort: 2153
@@ -109,9 +143,45 @@ spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecretName }}
       initContainers:
+        - name: render-config
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              sed "s|\${POD_IP}|${POD_IP}|g" /mnt/srsran/templates/du.yml.tpl > /mnt/srsran/configs/du.yml
+              echo "Rendered du.yml with POD_IP=${POD_IP}"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: srsran-templates
+              mountPath: /mnt/srsran/templates
+              readOnly: true
+            - name: srsran-rendered
+              mountPath: /mnt/srsran/configs
         - name: wait-for-cu
-          image: busybox:1.36
-          command: ["sh", "-c", "until nc -z srs-cu 2153; do echo waiting for CU F1-U; sleep 3; done"]
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              until nslookup srs-cu.ran.svc.cluster.local > /dev/null 2>&1; do
+                echo "waiting for srs-cu DNS..."
+                sleep 3
+              done
+              echo "srs-cu DNS resolved — waiting for F1-U UDP port 2153..."
+              # F1AP uses SCTP which alpine nc cannot probe; use the F1-U UDP
+              # port as a proxy — the CU process opens both listeners together.
+              # nc -zu sends a UDP probe and succeeds unless ICMP unreachable
+              # is received (i.e., the port is closed).
+              until nc -zuw1 srs-cu.ran.svc.cluster.local 2153 2>/dev/null; do
+                echo "waiting for CU F1-U UDP port 2153..."
+                sleep 3
+              done
+              echo "CU is ready"
       containers:
         - name: srs-du
           image: {{ .Values.images.srsran.repository }}:{{ .Values.images.srsran.tag }}
@@ -135,7 +205,7 @@ spec:
               name: zmq-rx
               protocol: TCP
           volumeMounts:
-            - name: srsran-configs
+            - name: srsran-rendered
               mountPath: /mnt/srsran/configs
               readOnly: true
             - name: srsran-logs
@@ -147,9 +217,11 @@ spec:
               cpu: 500m
               memory: 512Mi
       volumes:
-        - name: srsran-configs
+        - name: srsran-templates
           configMap:
             name: srsran-configs
+        - name: srsran-rendered
+          emptyDir: {}
         - name: srsran-logs
           emptyDir: {}
 ---
@@ -199,7 +271,16 @@ spec:
       initContainers:
         - name: wait-for-du
           image: busybox:1.36
-          command: ["sh", "-c", "until nc -z srs-du {{ .Values.zmq.duTxPort }}; do echo waiting for DU ZMQ; sleep 3; done"]
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z srs-du {{ .Values.zmq.duTxPort }}; do
+                echo "waiting for DU ZMQ port..."
+                sleep 3
+              done
+              echo "DU ZMQ port open — waiting 10s for cell to activate..."
+              sleep 10
       containers:
         - name: srsue
           image: {{ .Values.images.srsue.repository }}:{{ .Values.images.srsue.tag }}
@@ -214,7 +295,7 @@ spec:
               name: zmq-ul
               protocol: TCP
           volumeMounts:
-            - name: srsran-configs
+            - name: srsran-templates
               mountPath: /mnt/srsran/configs
               readOnly: true
             - name: srsran-logs
@@ -226,7 +307,7 @@ spec:
               cpu: 250m
               memory: 256Mi
       volumes:
-        - name: srsran-configs
+        - name: srsran-templates
           configMap:
             name: srsran-configs
         - name: srsran-logs

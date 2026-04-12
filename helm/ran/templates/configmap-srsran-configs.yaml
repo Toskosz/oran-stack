@@ -100,7 +100,7 @@ data:
         prach_config_index: 1
     log:
       filename: /dev/stdout
-      all_level: info
+      all_level: debug
 
   ue.conf: |
     [rf]
