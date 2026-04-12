@@ -1,60 +1,50 @@
 # ============================================================================
-# Ansible Group Variables — O-RAN Stack GKE Deployment
+# Ansible Group Variables — O-RAN Stack (kubeadm local cluster)
 # ============================================================================
-# These variables are shared across all roles and playbooks.
+# Shared across all roles and playbooks.
 #
-# SENSITIVE FIELDS: Any variable suffixed _vault should be stored in an
-# Ansible Vault file.  Create it with:
+# SENSITIVE FIELDS: Store secrets in Ansible Vault:
 #   ansible-vault create ansible/inventories/group_vars/all/vault.yml
-# Then reference it in each sensitive variable below by pointing at the
-# vaulted counterpart, or keep this file vault-encrypted altogether with:
-#   ansible-vault encrypt ansible/inventories/group_vars/all/vars.yml
+# Then reference them below (vault_* prefix convention).
 #
-# Override per-run with:
-#   ansible-playbook ... -e gcp_project_id=my-project-xyz
+# Override per-run with -e, e.g.:
+#   ansible-playbook ... -e dockerhub_username=myuser
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# GCP / Terraform
+# kubeadm / Cluster
 # ----------------------------------------------------------------------------
-# Globally unique GCP project ID that Terraform will CREATE.
-# Must be 6-30 lowercase letters, digits, or hyphens.
-gcp_project_id: "oran-lab"
+# Kubernetes minor version to install (apt repo channel).
+kubernetes_version: "1.30"
 
-# Human-readable display name for the GCP project.
-gcp_project_name: "O-RAN Lab"
+# Pod and service CIDRs. Must not overlap with VM or host networks.
+pod_cidr:     "10.244.0.0/16"
+service_cidr: "10.96.0.0/12"
 
-# Billing Account ID attached to the project.  Format: XXXXXX-XXXXXX-XXXXXX
-# Find yours at https://console.cloud.google.com/billing
-# KEEP THIS PRIVATE — store the real value in all.vault.yml.
-gcp_billing_account: "{{ vault_gcp_billing_account }}"   # override from vault
+# Control-plane private IP (Vagrant private network).
+control_plane_ip: "192.168.56.10"
 
-# GCP region / zone.
-gcp_region: "us-central1"
-gcp_zone:   "us-central1-a"
+# Calico CNI version.
+calico_version: "3.28"
 
-# GKE cluster name (must match terraform variable default or be overridden).
-cluster_name: "oran-lab"
-
-# Path to the Terraform root module, relative to the repo root.
-terraform_dir: "{{ playbook_dir }}/../../terraform"
+# StorageClass for MongoDB PVCs (provisioned by local-path-provisioner).
+storage_provisioner: "local-path"
 
 # ----------------------------------------------------------------------------
 # Docker Hub — image push & imagePullSecret
 # ----------------------------------------------------------------------------
-# Your Docker Hub username.  Images will be pushed as:
+# Your Docker Hub username. Images are pushed as:
 #   <dockerhub_username>/<image_name>:<tag>
 dockerhub_username: "x0tok"
 
 # Docker Hub password / personal access token.
-# KEEP THIS SECRET — store the real value in all.vault.yml and reference it:
-#   dockerhub_password: "{{ vault_dockerhub_password }}"
-dockerhub_password: "{{ vault_dockerhub_password }}"   # override from vault
+# KEEP THIS SECRET — store the real value in vault.yml:
+#   vault_dockerhub_password: "your-pat-here"
+dockerhub_password: "{{ vault_dockerhub_password }}"
 
 # ----------------------------------------------------------------------------
 # Container image names & tags
 # ----------------------------------------------------------------------------
-# These map onto the helm values.images.* fields in each chart.
 images:
   core:
     repository: "{{ dockerhub_username }}/oran-5gcore"
@@ -69,8 +59,7 @@ images:
     repository: "{{ dockerhub_username }}/oran-srsue"
     tag: "latest"
 
-# Local Dockerfile paths (relative to repo root) used by the
-# container_images role to build each image before pushing.
+# Local Dockerfile paths (relative to repo root).
 dockerfiles:
   core:   "dockerfiles/Dockerfile.5gscore"
   webui:  "dockerfiles/Dockerfile.webui"
@@ -98,12 +87,11 @@ helm_releases:
   ric:     "near-rt-ric"
   ran:     "ran"
 
-# Helm deploy timeout (seconds).  The core chart can take a while to pull
-# images and start MongoDB on the first run.
+# Helm deploy timeout. The core chart can take a while on first pull.
 helm_timeout: "600s"
 
 # ----------------------------------------------------------------------------
-# Kubernetes namespaces (must match namespace: field in each chart's values)
+# Kubernetes namespaces
 # ----------------------------------------------------------------------------
 namespaces:
   core:    "5g-core"

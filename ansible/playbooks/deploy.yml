@@ -1,6 +1,6 @@
 # ============================================================================
 # Playbook: deploy.yml
-# Purpose:  Deploy all three Helm charts to the GKE cluster in dependency
+# Purpose:  Deploy all three Helm charts to the kubeadm cluster in dependency
 #           order: 5g-core → near-rt-ric → ran.
 #
 # Usage:
@@ -8,15 +8,13 @@
 #     --ask-vault-pass          # vault holds dockerhub_password
 #
 # Pre-requisites:
-#   - provision.yml has been run (GKE cluster exists and kubectl is configured)
+#   - provision.yml has been run (kubeadm cluster up, ./kubeconfig written)
 #   - build_images.yml has been run (images exist on Docker Hub)
-#   - kubectl context points at the correct cluster
-#     (verify: kubectl config current-context)
 #
 # Deployment order rationale:
-#   1. 5g-core   — MongoDB and NFs must be up before RIC or RAN try to connect
+#   1. 5g-core     — MongoDB and NFs must be up before RIC or RAN connect
 #   2. near-rt-ric — e2term must be running before the DU sends E2 Setup
-#   3. ran        — CU/DU/UE start last; they connect to an already-live core
+#   3. ran         — CU/DU/UE start last; they connect to an already-live core
 # ============================================================================
 ---
 - name: Deploy 5G core (Open5GS NFs + MongoDB)

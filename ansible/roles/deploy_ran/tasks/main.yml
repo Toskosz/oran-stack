@@ -1,30 +1,40 @@
 # ============================================================================
 # Role: deploy_ran
-# Purpose: Deploy the ran Helm chart (srsRAN CU, DU, UE) onto the GKE cluster.
-#   1. Create namespace
+# Purpose: Deploy the ran Helm chart (srsRAN CU, DU, UE) onto the kubeadm cluster.
+#   1. Create namespace with privileged pod-security label
 #   2. Create imagePullSecret
 #   3. helm upgrade --install ran
 #   4. Wait for Deployments
 # ============================================================================
 ---
 
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
 # ----------------------------------------------------------------------------
 # 1. Create ran namespace
 # ----------------------------------------------------------------------------
 - name: Create ran namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
       kind: Namespace
       metadata:
         name: "{{ namespaces.ran }}"
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/warn:    privileged
+          pod-security.kubernetes.io/audit:   privileged
 
 # ----------------------------------------------------------------------------
 # 2. Create Docker Hub imagePullSecret in ran namespace
 # ----------------------------------------------------------------------------
 - name: Create Docker Hub imagePullSecret in ran namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
@@ -48,12 +58,14 @@
 
 # ----------------------------------------------------------------------------
 # 3. Helm upgrade --install ran
-#    Image repos/tags for srsran and srsue are overridden from group_vars.
-#    amfAddress and e2termAddress use the default cross-namespace DNS names
-#    from helm/ran/values.yaml (they work for pods inside the same cluster).
+#    amfAddress and e2termAddress use cross-namespace DNS names from
+#    helm/ran/values.yaml (amf-ngap-headless.5g-core.svc.cluster.local,
+#    e2term.near-rt-ric.svc.cluster.local) — these work identically on
+#    kubeadm with CoreDNS.
 # ----------------------------------------------------------------------------
 - name: Deploy ran Helm chart
   kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
     name:             "{{ helm_releases.ran }}"
     chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.ran }}"
     release_namespace: "{{ namespaces.ran }}"
@@ -83,12 +95,14 @@
 # ----------------------------------------------------------------------------
 - name: Get all Deployments in ran namespace
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     namespace: "{{ namespaces.ran }}"
   register: ran_deployments
 
 - name: Wait for each RAN Deployment to be Available
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     name:      "{{ item.metadata.name }}"
     namespace: "{{ namespaces.ran }}"
@@ -108,5 +122,5 @@
   ansible.builtin.debug:
     msg: >-
       RAN stack deployed. Verify UE attachment with:
-        kubectl logs -n ran deployment/srsue -f
+        kubectl --kubeconfig=kubeconfig logs -n ran deployment/srsue -f
       Look for 'RRC Connected' and 'PDU Session Established' messages.

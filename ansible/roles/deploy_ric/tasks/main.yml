@@ -1,32 +1,41 @@
 # ============================================================================
 # Role: deploy_ric
-# Purpose: Deploy the near-rt-ric Helm chart onto the GKE cluster.
-#   1. Create namespace
-#   2. Create imagePullSecret (needed only for e2term/e2mgr/etc. from Nexus3;
-#      those are public, but having the secret present is harmless)
+# Purpose: Deploy the near-rt-ric Helm chart onto the kubeadm cluster.
+#   1. Create namespace with privileged pod-security label
+#   2. Create imagePullSecret
 #   3. helm upgrade --install near-rt-ric
 #   4. Wait for all Deployments to be Available
-#   5. Print the e2term SCTP external IP (needed by srsRAN DU)
+#   5. Print the e2term SCTP NodePort endpoint
 # ============================================================================
 ---
+
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
 
 # ----------------------------------------------------------------------------
 # 1. Create near-rt-ric namespace
 # ----------------------------------------------------------------------------
 - name: Create near-rt-ric namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
       kind: Namespace
       metadata:
         name: "{{ namespaces.ric }}"
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/warn:    privileged
+          pod-security.kubernetes.io/audit:   privileged
 
 # ----------------------------------------------------------------------------
-# 2. Create Docker Hub imagePullSecret (kept consistent with other namespaces)
+# 2. Create Docker Hub imagePullSecret
 # ----------------------------------------------------------------------------
 - name: Create Docker Hub imagePullSecret in near-rt-ric namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
@@ -50,11 +59,11 @@
 
 # ----------------------------------------------------------------------------
 # 3. Helm upgrade --install near-rt-ric
-#    The RIC chart uses public images from Nexus3 (no overrides needed for
-#    image repos), so we only need to pass the chart with its default values.
+#    RIC images are public (O-RAN SC Nexus3); no image overrides needed.
 # ----------------------------------------------------------------------------
 - name: Deploy near-rt-ric Helm chart
   kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
     name:             "{{ helm_releases.ric }}"
     chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.ric }}"
     release_namespace: "{{ namespaces.ric }}"
@@ -72,12 +81,14 @@
 # ----------------------------------------------------------------------------
 - name: Get all Deployments in near-rt-ric namespace
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     namespace: "{{ namespaces.ric }}"
   register: ric_deployments
 
 - name: Wait for each RIC Deployment to be Available
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     name:      "{{ item.metadata.name }}"
     namespace: "{{ namespaces.ric }}"
@@ -91,39 +102,33 @@
     label: "{{ item.metadata.name }}"
 
 # ----------------------------------------------------------------------------
-# 5. Print e2term SCTP NodePort endpoint
-#    NOTE: e2term is now a NodePort service (GCP external LBs reject SCTP).
-#    For in-cluster DU pods, e2term.near-rt-ric.svc.cluster.local:36421 works
-#    directly via ClusterIP. The NodePort is only needed for an external DU
-#    running outside GKE.
+# 5. Print e2term SCTP NodePort endpoint (node InternalIP on kubeadm)
+#    For in-cluster DU pods, e2term.near-rt-ric.svc.cluster.local:36421
+#    is used directly via ClusterIP (no NodePort needed).
 # ----------------------------------------------------------------------------
 - name: Get e2term SCTP NodePort Service
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Service
     name: e2term
     namespace: "{{ namespaces.ric }}"
   register: e2term_svc
 
-- name: Get GKE node external IPs
+- name: Get cluster node IPs
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Node
   register: cluster_nodes
 
 - name: Show e2term SCTP NodePort endpoint
   ansible.builtin.debug:
     msg: >-
-      e2term SCTP endpoint (NodePort, external DU only):
+      e2term SCTP endpoint (NodePort):
       {{ (cluster_nodes.resources[0].status.addresses
-         | selectattr('type', 'equalto', 'ExternalIP')
+         | selectattr('type', 'equalto', 'InternalIP')
          | map(attribute='address')
          | list
-         | first | default(
-           cluster_nodes.resources[0].status.addresses
-           | selectattr('type', 'equalto', 'InternalIP')
-           | map(attribute='address')
-           | list
-           | first | default('UNKNOWN')
-         )) }}:{{
+         | first | default('UNKNOWN')) }}:{{
       e2term_svc.resources[0].spec.ports
          | selectattr('name', 'equalto', 'e2-sctp')
          | map(attribute='nodePort') | first }}

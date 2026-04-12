@@ -1,33 +1,44 @@
 # ============================================================================
 # Role: deploy_5g_core
-# Purpose: Deploy the 5g-core Helm chart onto the GKE cluster.
-#   1. Create the namespace (idempotent)
+# Purpose: Deploy the 5g-core Helm chart onto the kubeadm cluster.
+#   1. Create the namespace with privileged pod-security label
 #   2. Create the Docker Hub imagePullSecret in the namespace
 #   3. helm upgrade --install 5g-core
 #   4. Wait for all Deployments and StatefulSets to roll out
 # ============================================================================
 ---
 
+# kubeconfig path — fetched from cp1 by kubeadm_control_plane into repo root
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
 # ----------------------------------------------------------------------------
 # 1. Create namespace (helm chart also creates it, but doing it here first
-#    lets us create the imagePullSecret before helm tries to pull images)
+#    lets us create the imagePullSecret before helm tries to pull images).
+#    The privileged label is required for pods that use hostNetwork, SYS_ADMIN,
+#    and NET_ADMIN capabilities (UPF, AMF, SMF, and all NFs).
 # ----------------------------------------------------------------------------
 - name: Create 5g-core namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
       kind: Namespace
       metadata:
         name: "{{ namespaces.core }}"
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/warn:    privileged
+          pod-security.kubernetes.io/audit:   privileged
 
 # ----------------------------------------------------------------------------
 # 2. Create Docker Hub imagePullSecret
-#    kubernetes.core.k8s_secret creates a kubernetes.io/dockerconfigjson
-#    Secret from plain credentials so the kubelet can pull private images.
 # ----------------------------------------------------------------------------
 - name: Create Docker Hub imagePullSecret in 5g-core namespace
   kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
     state: present
     definition:
       apiVersion: v1
@@ -51,15 +62,14 @@
 
 # ----------------------------------------------------------------------------
 # 3. Helm upgrade --install 5g-core
-#    --set overrides are used for anything that differs between environments
-#    (image repos/tags) so the values.yaml committed to git stays generic.
 # ----------------------------------------------------------------------------
 - name: Deploy 5g-core Helm chart
   kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
     name:             "{{ helm_releases.core }}"
     chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.core }}"
     release_namespace: "{{ namespaces.core }}"
-    create_namespace: false   # already created above
+    create_namespace: false
     wait:             true
     wait_timeout:     "{{ helm_timeout }}"
     values:
@@ -82,12 +92,10 @@
 
 # ----------------------------------------------------------------------------
 # 4. Wait for MongoDB pod to be ready (other NFs depend on it)
-#    StatefulSets do not surface a "Ready" condition at the resource level;
-#    wait on the pod instead, which has a real Ready condition from its
-#    readiness probe.
 # ----------------------------------------------------------------------------
 - name: Wait for MongoDB pod to be ready
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Pod
     label_selectors:
       - "app=mongodb"
@@ -103,12 +111,14 @@
 # ----------------------------------------------------------------------------
 - name: Get all Deployments in 5g-core namespace
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     namespace: "{{ namespaces.core }}"
   register: core_deployments
 
 - name: Wait for each 5g-core Deployment to be Available
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
     name:      "{{ item.metadata.name }}"
     namespace: "{{ namespaces.core }}"
@@ -122,21 +132,19 @@
     label: "{{ item.metadata.name }}"
 
 # ----------------------------------------------------------------------------
-# 6. Print the NodePort and a node IP for AMF NGAP SCTP
-#    (needed for srsRAN CU configuration)
-#    NOTE: amf-ngap is now a NodePort service (nodePort 38412) because GCP
-#    external load balancers do not support SCTP forwarding rules.
-#    The CU must be configured with: <any-node-external-ip>:38412
+# 6. Print the AMF NGAP NodePort endpoint (uses node InternalIP on kubeadm)
 # ----------------------------------------------------------------------------
 - name: Get AMF NGAP NodePort Service
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Service
     name: amf-ngap
     namespace: "{{ namespaces.core }}"
   register: amf_svc
 
-- name: Get GKE node external IPs
+- name: Get cluster node IPs
   kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
     kind: Node
   register: cluster_nodes
 
@@ -145,16 +153,10 @@
     msg: >-
       AMF NGAP SCTP endpoint (NodePort):
       {{ (cluster_nodes.resources[0].status.addresses
-         | selectattr('type', 'equalto', 'ExternalIP')
+         | selectattr('type', 'equalto', 'InternalIP')
          | map(attribute='address')
          | list
-         | first | default(
-           cluster_nodes.resources[0].status.addresses
-           | selectattr('type', 'equalto', 'InternalIP')
-           | map(attribute='address')
-           | list
-           | first | default('UNKNOWN')
-         )) }}:{{
+         | first | default('UNKNOWN')) }}:{{
       amf_svc.resources[0].spec.ports
          | selectattr('name', 'equalto', 'ngap')
          | map(attribute='nodePort') | first }}
