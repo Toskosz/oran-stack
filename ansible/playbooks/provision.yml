@@ -1,24 +1,47 @@
 # ============================================================================
 # Playbook: provision.yml
-# Purpose:  Provision the GCP project and GKE cluster via Terraform.
+# Purpose:  Bootstrap a local kubeadm Kubernetes cluster on the two Vagrant VMs.
 #
 # Usage:
-#   ansible-playbook ansible/playbooks/provision.yml \
-#     -e gcp_project_id=oran-lab-abc123 \
-#     -e gcp_billing_account=XXXXXX-XXXXXX-XXXXXX \
-#     --ask-vault-pass          # if using Ansible Vault for secrets
+#   ansible-playbook ansible/playbooks/provision.yml
 #
-# Pre-requisites (see TODO.md):
-#   - terraform >= 1.6 installed on the Ansible controller
-#   - gcloud CLI installed and authenticated (gcloud auth login)
-#   - gke-gcloud-auth-plugin installed: sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
-#   - Billing account ID known
+# Pre-requisites:
+#   - Vagrant VMs are running: vagrant up
+#   - Ansible Galaxy collections installed:
+#       ansible-galaxy collection install -r ansible/requirements.yml
+#
+# What this playbook does:
+#   1. Prepares both nodes (swap, kernel modules, sysctl, containerd, kubeadm)
+#   2. Initialises the control-plane with kubeadm init + Calico CNI
+#   3. Installs local-path-provisioner for MongoDB PVC storage
+#   4. Joins the worker node to the cluster
+#   5. Fetches kubeconfig to the repo root as ./kubeconfig
+#
+# After this playbook:
+#   export KUBECONFIG=$(pwd)/kubeconfig
+#   kubectl get nodes        # should show cp1 + w1 Ready
 # ============================================================================
 ---
-- name: Provision GCP project and GKE cluster
-  hosts: localhost
-  connection: local
+- name: Prepare all cluster nodes
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: kubeadm_prereqs
+
+- name: Initialise control-plane
+  hosts: control_plane
+  become: true
   gather_facts: false
 
   roles:
-    - role: gke_provision
+    - role: kubeadm_control_plane
+
+- name: Join worker nodes
+  hosts: workers
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: kubeadm_worker

@@ -1,0 +1,153 @@
+---
+# kubeadm_control_plane/tasks/main.yml
+# Runs on the control-plane node only.
+# Initialises the cluster, installs Calico CNI and local-path-provisioner,
+# fetches the kubeconfig to the Ansible controller, and generates the join
+# command for workers.
+
+# ── kubeadm init ───────────────────────────────────────────────────────────────
+
+- name: Check if cluster is already initialised
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_admin_conf
+
+- name: Run kubeadm init
+  command: >
+    kubeadm init
+    --apiserver-advertise-address={{ control_plane_ip }}
+    --pod-network-cidr={{ pod_cidr }}
+    --service-cidr={{ service_cidr }}
+    --node-name=cp1
+  when: not kubeadm_admin_conf.stat.exists
+  register: kubeadm_init_result
+
+- name: Create .kube directory for vagrant user
+  file:
+    path: /home/vagrant/.kube
+    state: directory
+    owner: vagrant
+    group: vagrant
+    mode: '0755'
+
+- name: Copy admin.conf to vagrant user kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/vagrant/.kube/config
+    remote_src: true
+    owner: vagrant
+    group: vagrant
+    mode: '0600'
+
+- name: Copy admin.conf to root kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /root/.kube/config
+    remote_src: true
+    mode: '0600'
+
+# ── Calico CNI ─────────────────────────────────────────────────────────────────
+
+- name: Download Tigera operator manifest
+  get_url:
+    url: "https://raw.githubusercontent.com/projectcalico/calico/v{{ calico_version }}/manifests/tigera-operator.yaml"
+    dest: /tmp/tigera-operator.yaml
+    mode: '0644'
+
+- name: Apply Tigera operator
+  command: kubectl apply -f /tmp/tigera-operator.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: tigera_apply
+  changed_when: "'configured' in tigera_apply.stdout or 'created' in tigera_apply.stdout"
+
+- name: Write Calico custom-resources manifest
+  copy:
+    dest: /tmp/calico-custom-resources.yaml
+    mode: '0644'
+    content: |
+      apiVersion: operator.tigera.io/v1
+      kind: Installation
+      metadata:
+        name: default
+      spec:
+        calicoNetwork:
+          ipPools:
+          - name: default-ipv4-ippool
+            blockSize: 26
+            cidr: {{ pod_cidr }}
+            encapsulation: VXLANCrossSubnet
+            natOutgoing: Enabled
+            nodeSelector: all()
+      ---
+      apiVersion: operator.tigera.io/v1
+      kind: APIServer
+      metadata:
+        name: default
+      spec: {}
+
+- name: Apply Calico custom resources
+  command: kubectl apply -f /tmp/calico-custom-resources.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: calico_cr_apply
+  changed_when: "'configured' in calico_cr_apply.stdout or 'created' in calico_cr_apply.stdout"
+
+- name: Wait for control-plane node to become Ready
+  command: kubectl get nodes cp1 -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: node_ready
+  retries: 30
+  delay: 10
+  until: node_ready.stdout == "True"
+  changed_when: false
+
+# ── local-path-provisioner (for MongoDB PVC) ───────────────────────────────────
+
+- name: Install Rancher local-path-provisioner
+  command: >
+    kubectl apply -f
+    https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.28/deploy/local-path-storage.yaml
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: lpp_apply
+  changed_when: "'configured' in lpp_apply.stdout or 'created' in lpp_apply.stdout"
+
+- name: Set local-path as default StorageClass
+  command: >
+    kubectl patch storageclass local-path
+    -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: sc_patch
+  changed_when: sc_patch.rc == 0
+
+# ── Generate join command ───────────────────────────────────────────────────────
+
+- name: Generate worker join command
+  command: kubeadm token create --print-join-command
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: join_command_raw
+  changed_when: false
+
+- name: Set join_command fact (available to worker play via hostvars)
+  set_fact:
+    join_command: "{{ join_command_raw.stdout }}"
+
+# ── Fetch kubeconfig to Ansible controller ─────────────────────────────────────
+
+- name: Fetch kubeconfig to Ansible controller
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ playbook_dir }}/../../kubeconfig"
+    flat: true
+
+- name: Patch kubeconfig server address to use control-plane IP
+  delegate_to: localhost
+  become: false
+  replace:
+    path: "{{ playbook_dir }}/../../kubeconfig"
+    regexp: 'server: https://.*:6443'
+    replace: "server: https://{{ control_plane_ip }}:6443"
