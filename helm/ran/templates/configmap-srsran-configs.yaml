@@ -48,6 +48,13 @@ data:
       ngu:
         socket:
           - bind_addr: ${POD_IP}
+    e2:
+      enable_cu_cp_e2: true
+      addr: {{ .Values.e2termAddress }}
+      port: 36421
+      bind_addr: ${POD_IP}
+      e2sm_kpm_enabled: true
+      e2sm_rc_enabled: true
     log:
       filename: /dev/stdout
       all_level: debug
