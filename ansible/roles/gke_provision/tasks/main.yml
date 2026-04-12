@@ -16,18 +16,20 @@
 
 # ----------------------------------------------------------------------------
 # 2. Terraform init — download providers (google, kubernetes, etc.)
+#    Use the raw command so we don't trigger a plan (which would require all
+#    input variables before the apply task has a chance to supply them).
 # ----------------------------------------------------------------------------
 - name: Terraform init
-  cloud.terraform.terraform:
-    project_path: "{{ terraform_dir }}"
-    state: present
-    force_init: true
+  ansible.builtin.command:
+    cmd: terraform init -input=false -no-color
+    chdir: "{{ terraform_dir }}"
   environment:
     # Force Go's DNS resolver to use libc/cgo instead of the pure-Go resolver,
     # which fails on WSL2 when the virtual NAT nameserver (10.255.255.254)
     # is momentarily unreachable.
     GODEBUG: netdns=cgo
   register: tf_init
+  changed_when: "'Terraform has been successfully initialized' in tf_init.stdout"
 
 # ----------------------------------------------------------------------------
 # 3. Terraform apply — create GCP project, VPC, Cloud NAT, GKE cluster
