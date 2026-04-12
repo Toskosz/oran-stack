@@ -149,8 +149,24 @@ spec:
             - sh
             - -c
             - |
-              sed "s|\${POD_IP}|${POD_IP}|g" /mnt/srsran/templates/du.yml.tpl > /mnt/srsran/configs/du.yml
-              echo "Rendered du.yml with POD_IP=${POD_IP}"
+              # Derive a unique gNB-DU-ID from the pod IP so that every new
+              # pod gets a fresh DU ID, eliminating the "Duplicate DU ID"
+              # F1SetupFailure that occurs when the CU still holds a stale
+              # entry for the previous pod.
+              #
+              # Algorithm: treat the last two octets of POD_IP as a 16-bit
+              # number (octet3*256 + octet4). This gives values 0–65535,
+              # well within the srsRAN gnb_du_id range of 0–68719476735.
+              #   e.g. 10.4.1.33  → 1*256+33  = 289
+              #        10.4.0.201 → 0*256+201 = 201
+              OCT3=$(echo "${POD_IP}" | cut -d. -f3)
+              OCT4=$(echo "${POD_IP}" | cut -d. -f4)
+              export GNB_DU_ID=$(( OCT3 * 256 + OCT4 ))
+              export POD_IP
+              # envsubst replaces both ${POD_IP} and ${GNB_DU_ID} in the template.
+              apk add --no-cache gettext > /dev/null 2>&1
+              envsubst < /mnt/srsran/templates/du.yml.tpl > /mnt/srsran/configs/du.yml
+              echo "Rendered du.yml: POD_IP=${POD_IP} GNB_DU_ID=${GNB_DU_ID}"
           env:
             - name: POD_IP
               valueFrom:
@@ -164,15 +180,20 @@ spec:
               mountPath: /mnt/srsran/configs
         - name: wait-for-cu
           image: alpine:3.19
+          env:
+            - name: HOLD_OFF_SEC
+              value: "{{ .Values.duF1SetupHoldOffSec }}"
           command:
             - sh
             - -c
             - |
+              # Step 1 — wait for DNS to resolve the CU headless service.
               until nslookup srs-cu.ran.svc.cluster.local > /dev/null 2>&1; do
                 echo "waiting for srs-cu DNS..."
                 sleep 3
               done
               echo "srs-cu DNS resolved — waiting for F1-U UDP port 2153..."
+              # Step 2 — wait for the CU process to be up.
               # F1AP uses SCTP which alpine nc cannot probe; use the F1-U UDP
               # port as a proxy — the CU process opens both listeners together.
               # nc -zu sends a UDP probe and succeeds unless ICMP unreachable
@@ -181,7 +202,17 @@ spec:
                 echo "waiting for CU F1-U UDP port 2153..."
                 sleep 3
               done
-              echo "CU is ready"
+              echo "CU process is up."
+              # Step 3 — P4 hold-off: srsRAN's F1 setup retry count is hardcoded
+              # to 1. If the DU sends F1SetupRequest while the CU still holds a
+              # stale entry for a previous DU pod, the CU rejects with
+              # "Duplicate DU ID" and the DU gives up permanently. The CU purges
+              # stale entries ~23 s after SCTP COMM_LOST. We wait HOLD_OFF_SEC
+              # (default: 30 s) after the CU is reachable to guarantee the cleanup
+              # window has elapsed before srsRAN makes its single attempt.
+              echo "Holding off ${HOLD_OFF_SEC}s for CU stale-state cleanup (P4)..."
+              sleep "${HOLD_OFF_SEC}"
+              echo "Hold-off complete — starting DU."
       containers:
         - name: srs-du
           image: {{ .Values.images.srsran.repository }}:{{ .Values.images.srsran.tag }}
