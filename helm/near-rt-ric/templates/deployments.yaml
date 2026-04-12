@@ -313,10 +313,20 @@ spec:
 ---
 # --- RTMGR (Routing Manager) -------------------------------------------------
 # hostAliases replaces the extra_hosts hack from docker-compose.ric.yml.
-# rtmgr builds the submgr URL as
+# rtmgr hardcodes the submgr URL as
 #   "service-ricplt-submgr-http.ricplt:<port>"
 # which doesn't resolve in Kubernetes. hostAliases injects that name into
-# the pod's /etc/hosts, mapping it to the ric-submgr ClusterIP.
+# the pod's /etc/hosts pointing at the ric-submgr ClusterIP.
+#
+# lookup() resolves the ClusterIP at Helm render time. On first install the
+# Service doesn't exist yet, so lookup returns ""; the initContainer then
+# writes the resolved IP into /shared/submgr-ip, which is used by a
+# post-start lifecycle hook — but a simpler approach is to template the IP
+# directly via lookup with a fallback to the in-cluster DNS resolution done
+# by the wait-for-submgr initContainer writing to /etc/hosts via nsenter.
+# Instead: use the DNS name that WILL exist once the chart installs, resolved
+# at pod start by the initContainer, written into a shared volume, and
+# injected via a custom entrypoint that patches /etc/hosts before exec'ing rtmgr.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -335,19 +345,24 @@ spec:
       labels:
         app: ric-rtmgr
     spec:
-      # Kubernetes equivalent of Docker Compose extra_hosts.
-      # See docs/LEARNINGS.md — rtmgr hardcodes this K8s-style DNS name.
-      hostAliases:
-        - ip: "$(RIC_SUBMGR_IP)"
-          hostnames:
-            - "service-ricplt-submgr-http.ricplt"
       initContainers:
         - name: wait-for-e2mgr
           image: alpine:3.19
           command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+        # Resolve the ric-submgr ClusterIP and write it to a shared volume.
+        # The main container's command patches /etc/hosts before starting rtmgr,
+        # injecting the alias that rtmgr hardcodes internally.
         - name: resolve-submgr-ip
           image: alpine:3.19
-          command: ["sh", "-c", "getent hosts ric-submgr | awk '{print $1}' > /shared/submgr-ip"]
+          command:
+            - sh
+            - -c
+            - |
+              until getent hosts ric-submgr > /tmp/out; do
+                echo "waiting for ric-submgr DNS..."; sleep 2;
+              done
+              awk '{print $1}' /tmp/out > /shared/submgr-ip
+              echo "Resolved ric-submgr to: $(cat /shared/submgr-ip)"
           volumeMounts:
             - name: shared
               mountPath: /shared
@@ -355,6 +370,15 @@ spec:
         - name: rtmgr
           image: {{ .Values.images.rtmgr.repository }}:{{ .Values.images.rtmgr.tag }}
           imagePullPolicy: {{ .Values.images.rtmgr.pullPolicy }}
+          # Patch /etc/hosts with the submgr alias before exec'ing the real binary.
+          # This is the Kubernetes equivalent of Docker Compose extra_hosts.
+          command:
+            - sh
+            - -c
+            - |
+              SUBMGR_IP=$(cat /shared/submgr-ip)
+              echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
+              exec /run_rtmgr.sh
           env:
             - name: RMR_SEED_RT
               value: /uta_rtg_ric.rt
@@ -366,12 +390,6 @@ spec:
               value: ric-dbaas
             - name: DBAAS_SERVICE_PORT
               value: "6379"
-            # Inject submgr's ClusterIP so the hostAliases initContainer
-            # substitution works. See TODO.md for a cleaner long-term fix.
-            - name: RIC_SUBMGR_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP  # placeholder — overridden by initContainer
           ports:
             - containerPort: 3800
               name: http
@@ -530,6 +548,9 @@ spec:
 # External SCTP service for E2 interface — DU connects here.
 # Named 'e2term' (without 'ric-' prefix) to match .Values.e2termAddress
 # in the ran chart: "e2term.near-rt-ric.svc.cluster.local"
+# NOTE: GCP external load balancers do not support SCTP forwarding rules.
+# NodePort is used instead; an external DU must target a node IP:nodePort.
+# For in-cluster DU pods, the ClusterIP DNS name works directly.
 apiVersion: v1
 kind: Service
 metadata:
@@ -537,11 +558,8 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: ric-e2term
-  annotations:
-    cloud.google.com/load-balancer-type: "External"
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
+  type: NodePort
   selector:
     app: ric-e2term
   ports:
