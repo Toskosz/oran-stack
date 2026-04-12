@@ -81,12 +81,16 @@
     msg: "5g-core release status: {{ helm_core.status }}"
 
 # ----------------------------------------------------------------------------
-# 4. Wait for MongoDB StatefulSet to be ready (other NFs depend on it)
+# 4. Wait for MongoDB pod to be ready (other NFs depend on it)
+#    StatefulSets do not surface a "Ready" condition at the resource level;
+#    wait on the pod instead, which has a real Ready condition from its
+#    readiness probe.
 # ----------------------------------------------------------------------------
-- name: Wait for MongoDB StatefulSet to be ready
+- name: Wait for MongoDB pod to be ready
   kubernetes.core.k8s_info:
-    kind: StatefulSet
-    name: mongodb
+    kind: Pod
+    label_selectors:
+      - "app=mongodb"
     namespace: "{{ namespaces.core }}"
     wait: true
     wait_condition:
@@ -118,24 +122,40 @@
     label: "{{ item.metadata.name }}"
 
 # ----------------------------------------------------------------------------
-# 6. Print the external IP of the AMF SCTP LoadBalancer
+# 6. Print the NodePort and a node IP for AMF NGAP SCTP
 #    (needed for srsRAN CU configuration)
+#    NOTE: amf-ngap is now a NodePort service (nodePort 38412) because GCP
+#    external load balancers do not support SCTP forwarding rules.
+#    The CU must be configured with: <any-node-external-ip>:38412
 # ----------------------------------------------------------------------------
-- name: Get AMF NGAP LoadBalancer Service
+- name: Get AMF NGAP NodePort Service
   kubernetes.core.k8s_info:
     kind: Service
     name: amf-ngap
     namespace: "{{ namespaces.core }}"
   register: amf_svc
-  retries: 20
-  delay: 15
-  until: >-
-    amf_svc.resources | length > 0 and
-    amf_svc.resources[0].status.loadBalancer.ingress | default([]) | length > 0
 
-- name: Show AMF external IP
+- name: Get GKE node external IPs
+  kubernetes.core.k8s_info:
+    kind: Node
+  register: cluster_nodes
+
+- name: Show AMF NGAP NodePort endpoint
   ansible.builtin.debug:
     msg: >-
-      AMF NGAP LoadBalancer IP:
-      {{ amf_svc.resources[0].status.loadBalancer.ingress[0].ip }}
-  when: amf_svc.resources | length > 0
+      AMF NGAP SCTP endpoint (NodePort):
+      {{ (cluster_nodes.resources[0].status.addresses
+         | selectattr('type', 'equalto', 'ExternalIP')
+         | map(attribute='address')
+         | list
+         | first | default(
+           cluster_nodes.resources[0].status.addresses
+           | selectattr('type', 'equalto', 'InternalIP')
+           | map(attribute='address')
+           | list
+           | first | default('UNKNOWN')
+         )) }}:{{
+      amf_svc.resources[0].spec.ports
+         | selectattr('name', 'equalto', 'ngap')
+         | map(attribute='nodePort') | first }}
+  when: amf_svc.resources | length > 0 and cluster_nodes.resources | length > 0

@@ -91,27 +91,41 @@
     label: "{{ item.metadata.name }}"
 
 # ----------------------------------------------------------------------------
-# 5. Print e2term SCTP LoadBalancer external IP
-#    The DU needs this to send E2 setup requests.  The helm/ran/values.yaml
-#    e2termAddress default uses DNS (e2term.near-rt-ric.svc.cluster.local)
-#    which works for pods inside the cluster; the external IP is only needed
-#    if you run a physical/external DU outside GKE.
+# 5. Print e2term SCTP NodePort endpoint
+#    NOTE: e2term is now a NodePort service (GCP external LBs reject SCTP).
+#    For in-cluster DU pods, e2term.near-rt-ric.svc.cluster.local:36421 works
+#    directly via ClusterIP. The NodePort is only needed for an external DU
+#    running outside GKE.
 # ----------------------------------------------------------------------------
-- name: Get e2term SCTP LoadBalancer Service
+- name: Get e2term SCTP NodePort Service
   kubernetes.core.k8s_info:
     kind: Service
     name: e2term
     namespace: "{{ namespaces.ric }}"
   register: e2term_svc
-  retries: 20
-  delay: 15
-  until: >-
-    e2term_svc.resources | length > 0 and
-    e2term_svc.resources[0].status.loadBalancer.ingress | default([]) | length > 0
 
-- name: Show e2term external IP
+- name: Get GKE node external IPs
+  kubernetes.core.k8s_info:
+    kind: Node
+  register: cluster_nodes
+
+- name: Show e2term SCTP NodePort endpoint
   ansible.builtin.debug:
     msg: >-
-      e2term SCTP LoadBalancer IP:
-      {{ e2term_svc.resources[0].status.loadBalancer.ingress[0].ip }}
-  when: e2term_svc.resources | length > 0
+      e2term SCTP endpoint (NodePort, external DU only):
+      {{ (cluster_nodes.resources[0].status.addresses
+         | selectattr('type', 'equalto', 'ExternalIP')
+         | map(attribute='address')
+         | list
+         | first | default(
+           cluster_nodes.resources[0].status.addresses
+           | selectattr('type', 'equalto', 'InternalIP')
+           | map(attribute='address')
+           | list
+           | first | default('UNKNOWN')
+         )) }}:{{
+      e2term_svc.resources[0].spec.ports
+         | selectattr('name', 'equalto', 'e2-sctp')
+         | map(attribute='nodePort') | first }}
+      (in-cluster: e2term.near-rt-ric.svc.cluster.local:36421)
+  when: e2term_svc.resources | length > 0 and cluster_nodes.resources | length > 0

@@ -11,6 +11,7 @@
 # Pre-requisites (see TODO.md):
 #   - terraform >= 1.6 installed on the Ansible controller
 #   - gcloud CLI installed and authenticated (gcloud auth login)
+#   - gke-gcloud-auth-plugin installed: sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
 #   - Billing account ID known
 # ============================================================================
 ---

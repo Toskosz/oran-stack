@@ -22,6 +22,11 @@
     project_path: "{{ terraform_dir }}"
     state: present
     force_init: true
+  environment:
+    # Force Go's DNS resolver to use libc/cgo instead of the pure-Go resolver,
+    # which fails on WSL2 when the virtual NAT nameserver (10.255.255.254)
+    # is momentarily unreachable.
+    GODEBUG: netdns=cgo
   register: tf_init
 
 # ----------------------------------------------------------------------------
@@ -39,6 +44,8 @@
       gcp_region:          "{{ gcp_region }}"
       gcp_zone:            "{{ gcp_zone }}"
       cluster_name:        "{{ cluster_name }}"
+  environment:
+    GODEBUG: netdns=cgo
   register: tf_apply
 
 - name: Show Terraform outputs
@@ -51,7 +58,7 @@
 - name: Set GKE cluster facts from Terraform outputs
   ansible.builtin.set_fact:
     gke_cluster_name:    "{{ tf_apply.outputs.cluster_name.value }}"
-    gke_cluster_zone:    "{{ tf_apply.outputs.cluster_zone.value }}"
+    gke_cluster_zone:    "{{ tf_apply.outputs.cluster_location.value }}"
     gke_project_id:      "{{ tf_apply.outputs.project_id.value }}"
     gke_cluster_endpoint: "{{ tf_apply.outputs.cluster_endpoint.value }}"
 
@@ -61,6 +68,14 @@
 #    container.clusters.getCredentials permission (roles/container.developer).
 #    See TODO.md for the manual gcloud auth step.
 # ----------------------------------------------------------------------------
+- name: Check gke-gcloud-auth-plugin is installed
+  ansible.builtin.command: which gke-gcloud-auth-plugin
+  register: auth_plugin_check
+  changed_when: false
+  failed_when: auth_plugin_check.rc != 0
+  # If this task fails, install the plugin manually:
+  #   sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
+
 - name: Configure kubectl credentials for GKE cluster
   ansible.builtin.command: >
     gcloud container clusters get-credentials
