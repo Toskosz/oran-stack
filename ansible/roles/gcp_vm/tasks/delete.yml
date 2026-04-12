@@ -1,0 +1,57 @@
+---
+# gcp_vm/tasks/delete.yml
+# Deletes the GCP VM (and its boot disk) created by create.yml.
+# All tasks delegate_to / run on localhost (the Ansible controller).
+
+# ── Resolve active project ────────────────────────────────────────────────────
+- name: Get active GCP project
+  ansible.builtin.command: gcloud config get-value project
+  delegate_to: localhost
+  changed_when: false
+  register: _gcp_project_raw
+
+- name: Fail if no active project is set
+  ansible.builtin.fail:
+    msg: >
+      No active GCP project found.
+      Run: gcloud config set project YOUR_PROJECT_ID
+  when: _gcp_project_raw.stdout | trim == ""
+
+- name: Set gcp_project fact
+  ansible.builtin.set_fact:
+    gcp_project: "{{ _gcp_project_raw.stdout | trim }}"
+
+# ── Check if VM exists ────────────────────────────────────────────────────────
+- name: Check whether VM exists
+  ansible.builtin.command: >
+    gcloud compute instances describe {{ gcp_vm_name }}
+    --zone={{ gcp_vm_zone }}
+    --project={{ gcp_project }}
+    --format=value(name)
+  delegate_to: localhost
+  register: _vm_exists
+  failed_when: false
+  changed_when: false
+
+- name: Abort if VM does not exist
+  ansible.builtin.debug:
+    msg: "VM '{{ gcp_vm_name }}' not found in {{ gcp_vm_zone }} — nothing to delete."
+  when: _vm_exists.rc != 0
+
+# ── Delete VM ─────────────────────────────────────────────────────────────────
+- name: Delete VM (boot disk included)
+  ansible.builtin.command: >
+    gcloud compute instances delete {{ gcp_vm_name }}
+    --zone={{ gcp_vm_zone }}
+    --project={{ gcp_project }}
+    --delete-disks=boot
+    --quiet
+  delegate_to: localhost
+  when: _vm_exists.rc == 0
+  register: _vm_delete
+
+# ── Confirm deletion ──────────────────────────────────────────────────────────
+- name: Confirm deletion
+  ansible.builtin.debug:
+    msg: "VM '{{ gcp_vm_name }}' (zone: {{ gcp_vm_zone }}) has been deleted."
+  when: _vm_exists.rc == 0

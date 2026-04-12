@@ -1,0 +1,140 @@
+---
+# gcp_vm/tasks/create.yml
+# Creates a GCP VM with nested virtualisation enabled and waits for the
+# bootstrap script to finish.  All tasks delegate_to / run on localhost
+# (the Ansible controller) via gcloud CLI.
+
+# ── Resolve active project ────────────────────────────────────────────────────
+- name: Get active GCP project
+  ansible.builtin.command: gcloud config get-value project
+  delegate_to: localhost
+  changed_when: false
+  register: _gcp_project_raw
+
+- name: Fail if no active project is set
+  ansible.builtin.fail:
+    msg: >
+      No active GCP project found.
+      Run: gcloud config set project YOUR_PROJECT_ID
+  when: _gcp_project_raw.stdout | trim == ""
+
+- name: Set gcp_project fact
+  ansible.builtin.set_fact:
+    gcp_project: "{{ _gcp_project_raw.stdout | trim }}"
+
+- name: Show resolved project
+  ansible.builtin.debug:
+    msg: "Using GCP project: {{ gcp_project }}"
+
+# ── Enable Compute Engine API ─────────────────────────────────────────────────
+- name: Enable Compute Engine API
+  ansible.builtin.command: >
+    gcloud services enable compute.googleapis.com
+    --project={{ gcp_project }}
+  delegate_to: localhost
+  changed_when: false   # enabling an already-enabled API is a no-op
+
+# ── Check if VM already exists ────────────────────────────────────────────────
+- name: Check whether VM already exists
+  ansible.builtin.command: >
+    gcloud compute instances describe {{ gcp_vm_name }}
+    --zone={{ gcp_vm_zone }}
+    --project={{ gcp_project }}
+    --format=value(name)
+  delegate_to: localhost
+  register: _vm_exists
+  failed_when: false
+  changed_when: false
+
+- name: Skip creation if VM already exists
+  ansible.builtin.debug:
+    msg: "VM '{{ gcp_vm_name }}' already exists in {{ gcp_vm_zone }} — skipping create."
+  when: _vm_exists.rc == 0
+
+# ── Create VM ─────────────────────────────────────────────────────────────────
+- name: Create GCP VM with nested virtualisation
+  ansible.builtin.command: >
+    gcloud compute instances create {{ gcp_vm_name }}
+    --project={{ gcp_project }}
+    --zone={{ gcp_vm_zone }}
+    --machine-type={{ gcp_vm_machine_type }}
+    --image-family={{ gcp_vm_image_family }}
+    --image-project={{ gcp_vm_image_project }}
+    --boot-disk-size={{ gcp_vm_disk_size_gb }}GB
+    --boot-disk-type={{ gcp_vm_disk_type }}
+    --boot-disk-device-name={{ gcp_vm_name }}
+    --tags={{ gcp_vm_tags }}
+    --enable-nested-virtualization
+    --metadata-from-file=startup-script={{ gcp_vm_bootstrap_script }}
+    {% if gcp_vm_network != '' %}--network={{ gcp_vm_network }}{% endif %}
+    {% if gcp_vm_subnetwork != '' %}--subnet={{ gcp_vm_subnetwork }}{% endif %}
+  delegate_to: localhost
+  when: _vm_exists.rc != 0
+  register: _vm_create
+
+# ── Retrieve external IP ──────────────────────────────────────────────────────
+- name: Get VM external IP
+  ansible.builtin.command: >
+    gcloud compute instances describe {{ gcp_vm_name }}
+    --zone={{ gcp_vm_zone }}
+    --project={{ gcp_project }}
+    --format=value(networkInterfaces[0].accessConfigs[0].natIP)
+  delegate_to: localhost
+  changed_when: false
+  register: _vm_ip
+
+- name: Set vm_external_ip fact
+  ansible.builtin.set_fact:
+    vm_external_ip: "{{ _vm_ip.stdout | trim }}"
+
+- name: Show external IP
+  ansible.builtin.debug:
+    msg: "VM external IP: {{ vm_external_ip }}"
+
+# ── Wait for SSH ──────────────────────────────────────────────────────────────
+- name: Wait for SSH to become available (port 22)
+  ansible.builtin.wait_for:
+    host: "{{ vm_external_ip }}"
+    port: 22
+    delay: 15
+    timeout: 300
+    state: started
+  delegate_to: localhost
+
+# ── Wait for bootstrap sentinel ───────────────────────────────────────────────
+# The startup script writes /var/lib/oran-bootstrap-done when it finishes.
+# Poll every 30 s for up to 15 min (VirtualBox install can be slow).
+- name: Wait for bootstrap script to complete (polling /var/lib/oran-bootstrap-done)
+  ansible.builtin.command: >
+    gcloud compute ssh {{ gcp_vm_name }}
+    --zone={{ gcp_vm_zone }}
+    --project={{ gcp_project }}
+    --command="test -f /var/lib/oran-bootstrap-done && echo done"
+    --ssh-flag="-o StrictHostKeyChecking=no"
+    --ssh-flag="-o ConnectTimeout=10"
+  delegate_to: localhost
+  register: _bootstrap_check
+  until: _bootstrap_check.stdout | trim == "done"
+  retries: 30
+  delay: 30
+  changed_when: false
+
+# ── Print next steps ──────────────────────────────────────────────────────────
+- name: Print connection instructions
+  ansible.builtin.debug:
+    msg: |
+      ============================================================
+      VM '{{ gcp_vm_name }}' is ready.
+
+      SSH into the VM:
+        gcloud compute ssh {{ gcp_vm_name }} --zone={{ gcp_vm_zone }}
+
+      Then run the full stack:
+        cd ~/oran-stack
+        CP_CPUS=4 CP_MEMORY=8192 W_CPUS=4 W_MEMORY=16384 vagrant up
+        ansible-playbook ansible/playbooks/provision.yml
+        ansible-playbook ansible/playbooks/deploy.yml --ask-vault-pass
+
+      Bootstrap log (if needed):
+        sudo cat /var/log/oran-bootstrap.log
+      ============================================================

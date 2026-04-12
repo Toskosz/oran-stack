@@ -1,0 +1,30 @@
+# =============================================================================
+# Playbook: gcp-vm-delete.yml
+# Purpose:  Delete the GCP VM created by gcp-vm-create.yml.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+#
+#   # Override VM name/zone if you used non-default values at create time:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete.yml \
+#     -e gcp_vm_name=oran-dev-2 \
+#     -e gcp_vm_zone=europe-west1-b
+#
+# WARNING: This permanently deletes the VM and its boot disk.
+#          Any data on the VM (including the kubeadm cluster state,
+#          built Docker images, and vagrant VMs) will be lost.
+#
+# Pre-requisites:
+#   - gcloud CLI authenticated with permission to delete instances
+#   - Active project set matching the one used at create time
+# =============================================================================
+---
+- name: Delete GCP development VM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: gcp_vm
+      vars:
+        gcp_vm_action: delete

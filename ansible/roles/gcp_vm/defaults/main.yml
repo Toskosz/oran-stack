@@ -1,0 +1,27 @@
+---
+# gcp_vm defaults — all overridable via -e on the command line
+# or by editing ansible/inventories/group_vars/all/vars.yml
+
+# VM identity
+gcp_vm_name:         "oran-dev"
+gcp_vm_zone:         "us-central1-a"
+gcp_vm_machine_type: "e2-standard-8"
+
+# Boot disk
+gcp_vm_image_family:  "ubuntu-2204-lts"
+gcp_vm_image_project: "ubuntu-os-cloud"
+gcp_vm_disk_size_gb:  "100"
+gcp_vm_disk_type:     "pd-ssd"
+
+# Network — leave empty to use the project default VPC
+gcp_vm_network:    ""
+gcp_vm_subnetwork: ""
+
+# Firewall tags applied to the instance
+gcp_vm_tags: "oran-dev,http-server,https-server"
+
+# Path to the bootstrap script (relative to repo root)
+gcp_vm_bootstrap_script: "scripts/gcp-vm-bootstrap.sh"
+
+# Local path where the repo lives (used to build the git clone URL hint)
+gcp_vm_repo_url: "https://github.com/x0tok/oran-stack.git"
