@@ -28,8 +28,60 @@
     --pod-network-cidr={{ pod_cidr }}
     --service-cidr={{ service_cidr }}
     --node-name={{ inventory_hostname }}
+    --apiserver-cert-extra-sans={{ ansible_host }}
   when: not kubeadm_admin_conf.stat.exists
   register: kubeadm_init_result
+
+# When the cluster was already initialised (kubeadm init skipped), ensure the
+# API server cert includes the external IP as a SAN so kubectl from outside GCP
+# works without TLS errors.  kubeadm stores the cert-extra-sans in the
+# kubeadm-config ConfigMap; we patch it then regenerate only the apiserver cert.
+- name: Check if external IP is already a SAN in the API server cert
+  command: >
+    openssl x509 -noout -text
+    -in /etc/kubernetes/pki/apiserver.crt
+  register: _cert_text
+  changed_when: false
+  when: kubeadm_admin_conf.stat.exists
+
+- name: Regenerate API server cert to include external IP as SAN
+  block:
+    - name: Remove existing API server cert and key
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/pki/apiserver.crt
+        - /etc/kubernetes/pki/apiserver.key
+
+    - name: Regenerate API server cert with extra SANs
+      command: >
+        kubeadm init phase certs apiserver
+        --apiserver-advertise-address={{ control_plane_ip }}
+        --service-cidr={{ service_cidr }}
+        --apiserver-cert-extra-sans={{ ansible_host }}
+
+    - name: Restart kube-apiserver to pick up new cert
+      command: >
+        crictl rm -f
+        $(crictl ps --name kube-apiserver -q 2>/dev/null || echo "")
+      register: _apiserver_rm
+      changed_when: _apiserver_rm.rc == 0
+      failed_when: false
+
+    - name: Wait for API server to come back
+      command: >
+        kubectl get --raw /healthz
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: _apiserver_health
+      retries: 20
+      delay: 5
+      until: _apiserver_health.rc == 0
+      changed_when: false
+  when:
+    - kubeadm_admin_conf.stat.exists
+    - ansible_host not in (_cert_text.stdout | default(''))
 
 - name: Create .kube directory for remote user
   file:
@@ -161,10 +213,10 @@
     dest: "{{ playbook_dir }}/../../kubeconfig"
     flat: true
 
-- name: Patch kubeconfig server address to use control-plane IP
+- name: Patch kubeconfig server address to use control-plane external IP
   delegate_to: localhost
   become: false
   replace:
     path: "{{ playbook_dir }}/../../kubeconfig"
     regexp: 'server: https://.*:6443'
-    replace: "server: https://{{ control_plane_ip }}:6443"
+    replace: "server: https://{{ ansible_host }}:6443"

@@ -75,6 +75,20 @@
     auth_kind: application
     state: present
 
+- name: Create API server firewall rule (TCP 6443 from anywhere, for kubectl access)
+  google.cloud.gcp_compute_firewall:
+    name: oran-apiserver
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    allowed:
+      - ip_protocol: tcp
+        ports: ["6443"]
+    source_ranges: ["0.0.0.0/0"]
+    target_tags: "{{ gcp_tags }}"
+    auth_kind: application
+    state: present
+
 # ── Create cp1 (control-plane) ────────────────────────────────────────────────
 - name: Create cp1 control-plane VM
   google.cloud.gcp_compute_instance:

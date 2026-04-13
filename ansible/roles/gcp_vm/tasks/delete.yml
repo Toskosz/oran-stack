@@ -48,6 +48,15 @@
     auth_kind: application
     state: absent
 
+- name: Delete API server firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-apiserver
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
+
 - name: Delete SSH firewall rule
   google.cloud.gcp_compute_firewall:
     name: oran-ssh
