@@ -139,6 +139,11 @@
         name: default
       spec:
         calicoNetwork:
+          # Pin IP autodetection to ens4 (the GCP primary NIC).
+          # Without this, Calico may pick up auxiliary interfaces such as the
+          # Open5GS ogstun (10.45.0.0/16) and fail to establish BGP peering.
+          nodeAddressAutodetectionV4:
+            interface: ens4
           ipPools:
           - name: default-ipv4-ippool
             blockSize: 26
