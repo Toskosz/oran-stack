@@ -25,7 +25,7 @@ service_cidr: "10.96.0.0/12"
 control_plane_ip: "192.168.56.10"
 
 # Calico CNI version.
-calico_version: "3.28"
+calico_version: "3.28.4"
 
 # StorageClass for MongoDB PVCs (provisioned by local-path-provisioner).
 storage_provisioner: "local-path"
