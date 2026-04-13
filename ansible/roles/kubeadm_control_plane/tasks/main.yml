@@ -69,8 +69,8 @@
     dest: /tmp/tigera-operator.yaml
     mode: '0644'
 
-- name: Apply Tigera operator
-  command: kubectl apply -f /tmp/tigera-operator.yaml
+- name: Apply Tigera operator (server-side apply to avoid annotation size limit on large CRDs)
+  command: kubectl apply --server-side -f /tmp/tigera-operator.yaml
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   register: tigera_apply
