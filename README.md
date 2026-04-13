@@ -156,17 +156,27 @@ vagrant destroy -f
 
 ---
 
-## Running on a GCP VM
+## Running on GCP
 
-If your local machine does not have enough RAM (the cluster needs ~10 GB free for the VMs), you can provision a GCP VM that has nested virtualisation enabled, then run the full Vagrant + kubeadm workflow inside it.
+If your local machine does not have enough RAM, you can provision two GCP VMs directly as the kubeadm cluster nodes (cp1 + w1). No nested virtualisation. The same Ansible kubeadm roles that run against Vagrant VMs run against these GCP VMs — you just pass a different inventory file.
 
 ### Prerequisites
 
-- `gcloud` CLI installed and authenticated: `gcloud auth login`
-- Active project set: `gcloud config set project YOUR_PROJECT_ID`
-- The Compute Engine API will be enabled automatically by the playbook.
+1. `gcloud` CLI installed and ADC configured:
+   ```bash
+   gcloud auth application-default login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+2. SSH key pair dedicated to the cluster VMs (generate once):
+   ```bash
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/oran_gcp
+   ```
+3. `google.cloud` Ansible collection installed (included in `requirements.yml`):
+   ```bash
+   ansible-galaxy collection install -r ansible/requirements.yml
+   ```
 
-### Provision the VM
+### 1. Provision the VMs
 
 ```bash
 ansible-playbook ansible/playbooks/gcp-vm-create.yml
@@ -174,53 +184,62 @@ ansible-playbook ansible/playbooks/gcp-vm-create.yml
 
 This will:
 1. Resolve your active GCP project
-2. Enable the Compute Engine API if needed
-3. Create an `e2-standard-8` Ubuntu 22.04 VM with nested virtualisation and a 100 GB pd-ssd disk
-4. Run a startup script that installs VirtualBox, Vagrant, Ansible, Docker, Helm, and kubectl, then clones this repo
-5. Wait for SSH to become available
-6. Wait for the bootstrap script to finish (~5–8 min)
-7. Print the SSH command and next steps
+2. Enable the Compute Engine API
+3. Create two firewall rules (`oran-ssh`, `oran-internal`)
+4. Create **cp1** (`e2-standard-2`, 2 vCPU / 8 GB) and **w1** (`e2-standard-4`, 4 vCPU / 16 GB)
+5. Wait for SSH on both VMs
+6. Write `ansible/inventories/gcp.ini` with the VMs' IPs
+7. Print the next steps
 
 Override defaults if needed:
 
 ```bash
 ansible-playbook ansible/playbooks/gcp-vm-create.yml \
-  -e gcp_vm_name=oran-dev-2 \
-  -e gcp_vm_zone=europe-west1-b \
-  -e gcp_vm_machine_type=n2-standard-8
+  -e gcp_zone=europe-west1-b \
+  -e gcp_cp_machine_type=e2-standard-4 \
+  -e gcp_w_machine_type=e2-standard-8
 ```
 
-### Run the stack on the VM
+### 2. Bootstrap the Kubernetes cluster
 
 ```bash
-gcloud compute ssh oran-dev --zone=us-central1-a
-cd ~/oran-stack
-
-# Larger sizing — the VM has 32 GB RAM
-CP_CPUS=4 CP_MEMORY=8192 W_CPUS=4 W_MEMORY=16384 vagrant up
-ansible-playbook ansible/playbooks/provision.yml
-ansible-playbook ansible/playbooks/deploy.yml --ask-vault-pass
+ansible-playbook ansible/playbooks/provision.yml \
+  -i ansible/inventories/gcp.ini
 ```
 
-### Delete the VM
+### 3. Deploy the O-RAN stack
 
 ```bash
+ansible-playbook ansible/playbooks/deploy.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
+```
+
+### Teardown
+
+```bash
+# Remove Helm releases + reset kubeadm (keep VMs)
+ansible-playbook ansible/playbooks/teardown.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
+
+# Delete VMs, firewall rules, and gcp.ini
 ansible-playbook ansible/playbooks/gcp-vm-delete.yml
 ```
 
-Permanently deletes the VM and its boot disk. Pass `-e gcp_vm_name=...` and `-e gcp_vm_zone=...` if you used non-default values.
-
-### GCP VM configuration reference
+### GCP configuration reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `gcp_vm_name` | `oran-dev` | Instance name |
-| `gcp_vm_zone` | `us-central1-a` | GCP zone |
-| `gcp_vm_machine_type` | `e2-standard-8` | Machine type (8 vCPU / 32 GB) |
-| `gcp_vm_disk_size_gb` | `100` | Boot disk size (GB) |
-| `gcp_vm_disk_type` | `pd-ssd` | Boot disk type |
-| `gcp_vm_image_family` | `ubuntu-2204-lts` | OS image family |
-| `gcp_vm_tags` | `oran-dev,http-server,https-server` | Network tags |
+| `gcp_project` | `""` | GCP project (resolved from gcloud config if empty) |
+| `gcp_zone` | `us-central1-a` | Zone for both VMs |
+| `gcp_cp_name` | `oran-cp1` | Control-plane VM name |
+| `gcp_w_name` | `oran-w1` | Worker VM name |
+| `gcp_cp_machine_type` | `e2-standard-2` | cp1 machine type (2 vCPU / 8 GB) |
+| `gcp_w_machine_type` | `e2-standard-4` | w1 machine type (4 vCPU / 16 GB) |
+| `gcp_disk_size_gb` | `50` | Boot disk size (GB) |
+| `gcp_disk_type` | `pd-ssd` | Boot disk type |
+| `gcp_ssh_user` | `oran` | SSH user created on VMs |
+| `gcp_ssh_pub_key_file` | `~/.ssh/oran_gcp.pub` | Public key injected into VMs |
+| `gcp_ssh_priv_key_file` | `~/.ssh/oran_gcp` | Private key used by Ansible |
 
 Defaults are in `ansible/roles/gcp_vm/defaults/main.yml`.
 
@@ -263,7 +282,7 @@ Defaults are in `ansible/roles/gcp_vm/defaults/main.yml`.
 
 ```
 oran-stack/
-├── Vagrantfile                    # 2-node VM definition
+├── Vagrantfile                    # 2-node VM definition (local dev path)
 ├── entrypoint.sh                  # NF container entrypoint (envsubst + launch)
 ├── init-mongodb.js                # MongoDB replica-set init
 ├── init-webui-data.js             # MongoDB subscriber seed data
@@ -277,7 +296,8 @@ oran-stack/
 │   ├── ansible.cfg
 │   ├── requirements.yml
 │   ├── inventories/
-│   │   ├── vagrant.ini            # Vagrant VM inventory
+│   │   ├── vagrant.ini            # Vagrant VM inventory (local path)
+│   │   ├── gcp.ini                # GCP VM inventory (generated by gcp-vm-create.yml)
 │   │   └── group_vars/all/
 │   │       ├── vars.yml           # All non-secret variables
 │   │       └── vault.yml          # Encrypted secrets (dockerhub_password)
@@ -286,14 +306,14 @@ oran-stack/
 │   │   ├── build_images.yml       # Docker build + push
 │   │   ├── deploy.yml             # Helm deploy (core -> ric -> ran)
 │   │   ├── teardown.yml           # Helm uninstall + kubeadm reset
-│   │   ├── gcp-vm-create.yml      # Provision GCP development VM
-│   │   └── gcp-vm-delete.yml      # Delete GCP development VM
+│   │   ├── gcp-vm-create.yml      # Provision GCP cluster VMs
+│   │   └── gcp-vm-delete.yml      # Delete GCP cluster VMs
 │   └── roles/
 │       ├── kubeadm_prereqs/       # OS prep (swap, modules, containerd, kubeadm)
 │       ├── kubeadm_control_plane/ # kubeadm init, Calico, local-path-provisioner
 │       ├── kubeadm_worker/        # kubeadm join
 │       ├── kubeadm_teardown/      # kubeadm reset + CNI/iptables cleanup
-│       ├── gcp_vm/                # GCP VM create / delete
+│       ├── gcp_vm/                # GCP VM create / delete (google.cloud collection)
 │       ├── container_images/      # Docker build + push
 │       ├── deploy_5g_core/        # Helm deploy for 5g-core
 │       ├── deploy_ric/            # Helm deploy for near-rt-ric

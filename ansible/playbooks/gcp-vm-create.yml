@@ -1,43 +1,36 @@
 # =============================================================================
 # Playbook: gcp-vm-create.yml
-# Purpose:  Provision a GCP VM suitable for running the full O-RAN Vagrant
-#           cluster (nested virtualisation enabled).
+# Purpose:  Provision two GCP VMs (cp1 + w1) as direct kubeadm cluster nodes.
+#           No nested virtualisation. No bootstrap script.
+#           The same kubeadm Ansible roles that run against Vagrant VMs run
+#           against these GCP VMs.
+#
+# Pre-requisites:
+#   1. gcloud CLI installed and ADC configured:
+#        gcloud auth application-default login
+#   2. Active project set:
+#        gcloud config set project YOUR_PROJECT_ID
+#   3. SSH key pair for the cluster VMs:
+#        ssh-keygen -t rsa -b 4096 -f ~/.ssh/oran_gcp
+#   4. google.cloud Ansible collection installed:
+#        ansible-galaxy collection install -r ansible/requirements.yml
 #
 # Usage:
 #   ansible-playbook ansible/playbooks/gcp-vm-create.yml
 #
 #   # Override defaults:
 #   ansible-playbook ansible/playbooks/gcp-vm-create.yml \
-#     -e gcp_vm_name=oran-dev-2 \
-#     -e gcp_vm_zone=europe-west1-b \
-#     -e gcp_vm_machine_type=n2-standard-8
-#
-# Pre-requisites:
-#   - gcloud CLI installed and authenticated:  gcloud auth login
-#   - Active project set:                      gcloud config set project YOUR_PROJECT_ID
-#   - Compute Engine API enabled (the role enables it automatically)
-#
-# What this playbook does:
-#   1. Resolves active GCP project from gcloud config
-#   2. Enables the Compute Engine API if not already active
-#   3. Creates an e2-standard-8 Ubuntu 22.04 VM with:
-#        - Nested virtualisation (--enable-nested-virtualization)
-#        - 100 GB pd-ssd boot disk
-#        - Startup script that installs VirtualBox, Vagrant, Ansible,
-#          Docker, Helm, kubectl and clones this repo
-#   4. Waits for SSH to be available
-#   5. Waits for the bootstrap script to finish (~5-8 min)
-#   6. Prints the SSH command and next steps
+#     -e gcp_zone=europe-west1-b \
+#     -e gcp_cp_machine_type=e2-standard-4
 #
 # After this playbook:
-#   gcloud compute ssh <vm-name> --zone=us-central1-a
-#   cd ~/oran-stack
-#   vagrant up
-#   ansible-playbook ansible/playbooks/provision.yml
-#   ansible-playbook ansible/playbooks/deploy.yml
+#   ansible-playbook ansible/playbooks/provision.yml \
+#     -i ansible/inventories/gcp.ini
+#   ansible-playbook ansible/playbooks/deploy.yml \
+#     -i ansible/inventories/gcp.ini --ask-vault-pass
 # =============================================================================
 ---
-- name: Provision GCP development VM for O-RAN stack
+- name: Provision GCP cluster VMs for O-RAN stack
   hosts: localhost
   connection: local
   gather_facts: false

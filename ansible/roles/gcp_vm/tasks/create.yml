@@ -1,160 +1,222 @@
 ---
 # gcp_vm/tasks/create.yml
-# Creates a GCP VM with nested virtualisation enabled and waits for the
-# bootstrap script to finish.  All tasks delegate_to / run on localhost
-# (the Ansible controller) via gcloud CLI.
+# Provisions two GCP VMs (cp1 + w1) that will be used directly as kubeadm
+# cluster nodes — no nested virtualisation, no bootstrap script.
+# Uses the google.cloud collection with Application Default Credentials.
+#
+# After this runs, provision the cluster with:
+#   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
+#   ansible-playbook ansible/playbooks/deploy.yml    -i ansible/inventories/gcp.ini
 
-# ── Resolve active project ────────────────────────────────────────────────────
-- name: Get active GCP project
+# ── Resolve GCP project ───────────────────────────────────────────────────────
+- name: Resolve active GCP project from gcloud config
   ansible.builtin.command: gcloud config get-value project
-  delegate_to: localhost
   changed_when: false
   register: _gcp_project_raw
+  when: gcp_project == ""
 
 - name: Fail if no active project is set
   ansible.builtin.fail:
     msg: >
       No active GCP project found.
       Run: gcloud config set project YOUR_PROJECT_ID
-  when: _gcp_project_raw.stdout | trim == ""
+  when: gcp_project == "" and _gcp_project_raw.stdout | trim == ""
 
 - name: Set gcp_project fact
   ansible.builtin.set_fact:
-    gcp_project: "{{ _gcp_project_raw.stdout | trim }}"
+    _project: "{{ gcp_project if gcp_project != '' else _gcp_project_raw.stdout | trim }}"
 
 - name: Show resolved project
   ansible.builtin.debug:
-    msg: "Using GCP project: {{ gcp_project }}"
+    msg: "Using GCP project: {{ _project }}"
 
 # ── Enable Compute Engine API ─────────────────────────────────────────────────
 - name: Enable Compute Engine API
   ansible.builtin.command: >
-    gcloud services enable compute.googleapis.com
-    --project={{ gcp_project }}
-  delegate_to: localhost
-  changed_when: false   # enabling an already-enabled API is a no-op
-
-# ── Check if VM already exists ────────────────────────────────────────────────
-- name: Check whether VM already exists
-  ansible.builtin.command: >
-    gcloud compute instances describe {{ gcp_vm_name }}
-    --zone={{ gcp_vm_zone }}
-    --project={{ gcp_project }}
-    --format=value(name)
-  delegate_to: localhost
-  register: _vm_exists
-  failed_when: false
+    gcloud services enable compute.googleapis.com --project={{ _project }}
   changed_when: false
 
-- name: Skip creation if VM already exists
-  ansible.builtin.debug:
-    msg: "VM '{{ gcp_vm_name }}' already exists in {{ gcp_vm_zone }} — skipping create."
-  when: _vm_exists.rc == 0
+# ── Read SSH public key ───────────────────────────────────────────────────────
+- name: Read SSH public key
+  ansible.builtin.slurp:
+    src: "{{ gcp_ssh_pub_key_file | expanduser }}"
+  register: _ssh_pub_key_raw
 
-# ── Resolve bootstrap script to an absolute path ─────────────────────────────
-# gcloud resolves --metadata-from-file paths relative to the shell CWD, which
-# may not be the repo root.  playbook_dir points at ansible/playbooks/, so we
-# go two levels up to reach the repo root.
-- name: Resolve bootstrap script absolute path
+- name: Set SSH key metadata value
   ansible.builtin.set_fact:
-    _bootstrap_script_abs: "{{ (playbook_dir + '/../../' + gcp_vm_bootstrap_script) | realpath }}"
+    # GCP instance metadata format: "user:ssh-rsa AAAA..."
+    _ssh_key_meta: "{{ gcp_ssh_user }}:{{ _ssh_pub_key_raw.content | b64decode | trim }}"
 
-- name: Fail if bootstrap script not found
-  ansible.builtin.stat:
-    path: "{{ _bootstrap_script_abs }}"
-  register: _bootstrap_stat
-  delegate_to: localhost
+# ── Firewall rules ────────────────────────────────────────────────────────────
+- name: Create SSH firewall rule (TCP 22 from anywhere)
+  google.cloud.gcp_compute_firewall:
+    name: oran-ssh
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    allowed:
+      - ip_protocol: tcp
+        ports: ["22"]
+    source_ranges: ["0.0.0.0/0"]
+    target_tags: "{{ gcp_tags }}"
+    auth_kind: application
+    state: present
 
-- name: Assert bootstrap script exists
-  ansible.builtin.fail:
-    msg: "Bootstrap script not found at {{ _bootstrap_script_abs }}"
-  when: not _bootstrap_stat.stat.exists
+- name: Create internal firewall rule (all traffic between cluster nodes)
+  google.cloud.gcp_compute_firewall:
+    name: oran-internal
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    allowed:
+      - ip_protocol: all
+    source_tags: "{{ gcp_tags }}"
+    target_tags: "{{ gcp_tags }}"
+    auth_kind: application
+    state: present
 
-# ── Create VM ─────────────────────────────────────────────────────────────────
-- name: Create GCP VM with nested virtualisation
-  ansible.builtin.command: >
-    gcloud compute instances create {{ gcp_vm_name }}
-    --project={{ gcp_project }}
-    --zone={{ gcp_vm_zone }}
-    --machine-type={{ gcp_vm_machine_type }}
-    --image-family={{ gcp_vm_image_family }}
-    --image-project={{ gcp_vm_image_project }}
-    --boot-disk-size={{ gcp_vm_disk_size_gb }}GB
-    --boot-disk-type={{ gcp_vm_disk_type }}
-    --boot-disk-device-name={{ gcp_vm_name }}
-    --tags={{ gcp_vm_tags }}
-    --enable-nested-virtualization
-    --metadata-from-file=startup-script={{ _bootstrap_script_abs }}
-    {% if gcp_vm_network != '' %}--network={{ gcp_vm_network }}{% endif %}
-    {% if gcp_vm_subnetwork != '' %}--subnet={{ gcp_vm_subnetwork }}{% endif %}
-  delegate_to: localhost
-  when: _vm_exists.rc != 0
-  register: _vm_create
+# ── Create cp1 (control-plane) ────────────────────────────────────────────────
+- name: Create cp1 control-plane VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_cp_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    machine_type: "{{ gcp_cp_machine_type }}"
+    tags:
+      items: "{{ gcp_tags }}"
+    disks:
+      - auto_delete: true
+        boot: true
+        initialize_params:
+          disk_size_gb: "{{ gcp_disk_size_gb }}"
+          disk_type: "zones/{{ gcp_zone }}/diskTypes/{{ gcp_disk_type }}"
+          source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
+    network_interfaces:
+      - network:
+          selfLink: "global/networks/{{ gcp_network }}"
+        access_configs:
+          - name: External NAT
+            type: ONE_TO_ONE_NAT
+    metadata:
+      ssh-keys: "{{ _ssh_key_meta }}"
+    auth_kind: application
+    state: present
+  register: _cp1
 
-# ── Retrieve external IP ──────────────────────────────────────────────────────
-- name: Get VM external IP
-  ansible.builtin.command: >
-    gcloud compute instances describe {{ gcp_vm_name }}
-    --zone={{ gcp_vm_zone }}
-    --project={{ gcp_project }}
-    --format=value(networkInterfaces[0].accessConfigs[0].natIP)
-  delegate_to: localhost
-  changed_when: false
-  register: _vm_ip
+# ── Create w1 (worker) ────────────────────────────────────────────────────────
+- name: Create w1 worker VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_w_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    machine_type: "{{ gcp_w_machine_type }}"
+    tags:
+      items: "{{ gcp_tags }}"
+    disks:
+      - auto_delete: true
+        boot: true
+        initialize_params:
+          disk_size_gb: "{{ gcp_disk_size_gb }}"
+          disk_type: "zones/{{ gcp_zone }}/diskTypes/{{ gcp_disk_type }}"
+          source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
+    network_interfaces:
+      - network:
+          selfLink: "global/networks/{{ gcp_network }}"
+        access_configs:
+          - name: External NAT
+            type: ONE_TO_ONE_NAT
+    metadata:
+      ssh-keys: "{{ _ssh_key_meta }}"
+    auth_kind: application
+    state: present
+  register: _w1
 
-- name: Set vm_external_ip fact
+# ── Extract IPs ───────────────────────────────────────────────────────────────
+- name: Set IP facts
   ansible.builtin.set_fact:
-    vm_external_ip: "{{ _vm_ip.stdout | trim }}"
+    _cp1_external_ip: "{{ _cp1.networkInterfaces[0].accessConfigs[0].natIP }}"
+    _cp1_internal_ip: "{{ _cp1.networkInterfaces[0].networkIP }}"
+    _w1_external_ip:  "{{ _w1.networkInterfaces[0].accessConfigs[0].natIP }}"
+    _w1_internal_ip:  "{{ _w1.networkInterfaces[0].networkIP }}"
 
-- name: Show external IP
+- name: Show VM IPs
   ansible.builtin.debug:
-    msg: "VM external IP: {{ vm_external_ip }}"
+    msg:
+      - "cp1  external={{ _cp1_external_ip }}  internal={{ _cp1_internal_ip }}"
+      - "w1   external={{ _w1_external_ip }}   internal={{ _w1_internal_ip }}"
 
 # ── Wait for SSH ──────────────────────────────────────────────────────────────
-- name: Wait for SSH to become available (port 22)
+- name: Wait for SSH on cp1 (port 22)
   ansible.builtin.wait_for:
-    host: "{{ vm_external_ip }}"
+    host: "{{ _cp1_external_ip }}"
     port: 22
-    delay: 15
-    timeout: 300
+    delay: 10
+    timeout: 180
     state: started
-  delegate_to: localhost
 
-# ── Wait for bootstrap sentinel ───────────────────────────────────────────────
-# The startup script writes /var/lib/oran-bootstrap-done when it finishes.
-# VirtualBox + Extension Pack install can take 15-20 min on a cold VM.
-# Poll every 30 s for up to 40 min (80 retries).
-- name: Wait for bootstrap script to complete (polling /var/lib/oran-bootstrap-done)
-  ansible.builtin.command: >
-    gcloud compute ssh {{ gcp_vm_name }}
-    --zone={{ gcp_vm_zone }}
-    --project={{ gcp_project }}
-    --command="test -f /var/lib/oran-bootstrap-done && echo done"
-    --ssh-flag="-o StrictHostKeyChecking=no"
-    --ssh-flag="-o ConnectTimeout=10"
-  delegate_to: localhost
-  register: _bootstrap_check
-  until: _bootstrap_check.stdout | trim == "done"
-  retries: 80
-  delay: 30
-  changed_when: false
+- name: Wait for SSH on w1 (port 22)
+  ansible.builtin.wait_for:
+    host: "{{ _w1_external_ip }}"
+    port: 22
+    delay: 10
+    timeout: 180
+    state: started
+
+# ── Generate gcp.ini inventory ────────────────────────────────────────────────
+# Mirrors the group structure of vagrant.ini so provision.yml / deploy.yml /
+# teardown.yml work without changes — just pass -i inventories/gcp.ini.
+# control_plane_ip is the INTERNAL IP so kubeadm binds to the right interface.
+- name: Write gcp.ini dynamic inventory
+  ansible.builtin.copy:
+    dest: "{{ playbook_dir }}/../../ansible/inventories/gcp.ini"
+    mode: "0644"
+    content: |
+      # =========================================================================
+      # Ansible Inventory — O-RAN Stack (GCP kubeadm cluster)
+      # Auto-generated by gcp-vm-create.yml — do not edit by hand.
+      # Delete with: ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+      # =========================================================================
+
+      [control_plane]
+      cp1 ansible_host={{ _cp1_external_ip }} control_plane_ip={{ _cp1_internal_ip }}
+
+      [workers]
+      w1 ansible_host={{ _w1_external_ip }}
+
+      [k8s_cluster:children]
+      control_plane
+      workers
+
+      [k8s_cluster:vars]
+      ansible_user={{ gcp_ssh_user }}
+      ansible_ssh_private_key_file={{ gcp_ssh_priv_key_file }}
+      ansible_ssh_common_args=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+
+      [local]
+      localhost ansible_connection=local
 
 # ── Print next steps ──────────────────────────────────────────────────────────
-- name: Print connection instructions
+- name: Print next steps
   ansible.builtin.debug:
     msg: |
-      ============================================================
-      VM '{{ gcp_vm_name }}' is ready.
+      ================================================================
+      GCP cluster VMs are ready.
 
-      SSH into the VM:
-        gcloud compute ssh {{ gcp_vm_name }} --zone={{ gcp_vm_zone }}
+        cp1  {{ _cp1_external_ip }}  ({{ gcp_cp_machine_type }})
+        w1   {{ _w1_external_ip }}   ({{ gcp_w_machine_type }})
 
-      Then run the full stack:
-        cd ~/oran-stack
-        CP_CPUS=4 CP_MEMORY=8192 W_CPUS=4 W_MEMORY=16384 vagrant up
-        ansible-playbook ansible/playbooks/provision.yml
-        ansible-playbook ansible/playbooks/deploy.yml --ask-vault-pass
+      Bootstrap the Kubernetes cluster:
+        ansible-playbook ansible/playbooks/provision.yml \
+          -i ansible/inventories/gcp.ini
 
-      Bootstrap log (if needed):
-        sudo cat /var/log/oran-bootstrap.log
-      ============================================================
+      Deploy the O-RAN stack:
+        ansible-playbook ansible/playbooks/deploy.yml \
+          -i ansible/inventories/gcp.ini --ask-vault-pass
+
+      Tear down (Helm + kubeadm reset, keep VMs):
+        ansible-playbook ansible/playbooks/teardown.yml \
+          -i ansible/inventories/gcp.ini --ask-vault-pass
+
+      Delete VMs entirely:
+        ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+      ================================================================

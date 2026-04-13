@@ -22,21 +22,21 @@
   when: not kubeadm_admin_conf.stat.exists
   register: kubeadm_init_result
 
-- name: Create .kube directory for vagrant user
+- name: Create .kube directory for remote user
   file:
-    path: /home/vagrant/.kube
+    path: "/home/{{ ansible_user }}/.kube"
     state: directory
-    owner: vagrant
-    group: vagrant
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: '0755'
 
-- name: Copy admin.conf to vagrant user kubeconfig
+- name: Copy admin.conf to remote user kubeconfig
   copy:
     src: /etc/kubernetes/admin.conf
-    dest: /home/vagrant/.kube/config
+    dest: "/home/{{ ansible_user }}/.kube/config"
     remote_src: true
-    owner: vagrant
-    group: vagrant
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: '0600'
 
 - name: Copy admin.conf to root kubeconfig

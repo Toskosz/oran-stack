@@ -1,57 +1,70 @@
 ---
 # gcp_vm/tasks/delete.yml
-# Deletes the GCP VM (and its boot disk) created by create.yml.
-# All tasks delegate_to / run on localhost (the Ansible controller).
+# Deletes both cluster VMs and the associated firewall rules.
+# Also removes the generated gcp.ini inventory file.
 
-# ── Resolve active project ────────────────────────────────────────────────────
-- name: Get active GCP project
+# ── Resolve GCP project ───────────────────────────────────────────────────────
+- name: Resolve active GCP project from gcloud config
   ansible.builtin.command: gcloud config get-value project
-  delegate_to: localhost
   changed_when: false
   register: _gcp_project_raw
+  when: gcp_project == ""
 
 - name: Fail if no active project is set
   ansible.builtin.fail:
     msg: >
       No active GCP project found.
       Run: gcloud config set project YOUR_PROJECT_ID
-  when: _gcp_project_raw.stdout | trim == ""
+  when: gcp_project == "" and _gcp_project_raw.stdout | trim == ""
 
 - name: Set gcp_project fact
   ansible.builtin.set_fact:
-    gcp_project: "{{ _gcp_project_raw.stdout | trim }}"
+    _project: "{{ gcp_project if gcp_project != '' else _gcp_project_raw.stdout | trim }}"
 
-# ── Check if VM exists ────────────────────────────────────────────────────────
-- name: Check whether VM exists
-  ansible.builtin.command: >
-    gcloud compute instances describe {{ gcp_vm_name }}
-    --zone={{ gcp_vm_zone }}
-    --project={{ gcp_project }}
-    --format=value(name)
-  delegate_to: localhost
-  register: _vm_exists
-  failed_when: false
-  changed_when: false
+# ── Delete VMs ────────────────────────────────────────────────────────────────
+- name: Delete w1 worker VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_w_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    auth_kind: application
+    state: absent
 
-- name: Abort if VM does not exist
-  ansible.builtin.debug:
-    msg: "VM '{{ gcp_vm_name }}' not found in {{ gcp_vm_zone }} — nothing to delete."
-  when: _vm_exists.rc != 0
+- name: Delete cp1 control-plane VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_cp_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    auth_kind: application
+    state: absent
 
-# ── Delete VM ─────────────────────────────────────────────────────────────────
-- name: Delete VM (boot disk included)
-  ansible.builtin.command: >
-    gcloud compute instances delete {{ gcp_vm_name }}
-    --zone={{ gcp_vm_zone }}
-    --project={{ gcp_project }}
-    --delete-disks=boot
-    --quiet
-  delegate_to: localhost
-  when: _vm_exists.rc == 0
-  register: _vm_delete
+# ── Delete firewall rules ─────────────────────────────────────────────────────
+- name: Delete internal firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-internal
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
 
-# ── Confirm deletion ──────────────────────────────────────────────────────────
+- name: Delete SSH firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-ssh
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
+
+# ── Remove generated inventory ────────────────────────────────────────────────
+- name: Remove gcp.ini inventory file
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../ansible/inventories/gcp.ini"
+    state: absent
+
 - name: Confirm deletion
   ansible.builtin.debug:
-    msg: "VM '{{ gcp_vm_name }}' (zone: {{ gcp_vm_zone }}) has been deleted."
-  when: _vm_exists.rc == 0
+    msg: >-
+      VMs '{{ gcp_cp_name }}' and '{{ gcp_w_name }}' deleted from
+      zone {{ gcp_zone }}, project {{ _project }}.

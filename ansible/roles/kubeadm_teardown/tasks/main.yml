@@ -29,9 +29,9 @@
     ip6tables -F && ip6tables -t nat -F && ip6tables -t mangle -F && ip6tables -X
   ignore_errors: true
 
-- name: Remove .kube directory for vagrant user
+- name: Remove .kube directory for remote user
   file:
-    path: /home/vagrant/.kube
+    path: "/home/{{ ansible_user }}/.kube"
     state: absent
   ignore_errors: true
 
