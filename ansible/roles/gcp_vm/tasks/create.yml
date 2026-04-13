@@ -51,6 +51,25 @@
     msg: "VM '{{ gcp_vm_name }}' already exists in {{ gcp_vm_zone }} — skipping create."
   when: _vm_exists.rc == 0
 
+# ── Resolve bootstrap script to an absolute path ─────────────────────────────
+# gcloud resolves --metadata-from-file paths relative to the shell CWD, which
+# may not be the repo root.  playbook_dir points at ansible/playbooks/, so we
+# go two levels up to reach the repo root.
+- name: Resolve bootstrap script absolute path
+  ansible.builtin.set_fact:
+    _bootstrap_script_abs: "{{ (playbook_dir + '/../../' + gcp_vm_bootstrap_script) | realpath }}"
+
+- name: Fail if bootstrap script not found
+  ansible.builtin.stat:
+    path: "{{ _bootstrap_script_abs }}"
+  register: _bootstrap_stat
+  delegate_to: localhost
+
+- name: Assert bootstrap script exists
+  ansible.builtin.fail:
+    msg: "Bootstrap script not found at {{ _bootstrap_script_abs }}"
+  when: not _bootstrap_stat.stat.exists
+
 # ── Create VM ─────────────────────────────────────────────────────────────────
 - name: Create GCP VM with nested virtualisation
   ansible.builtin.command: >
@@ -65,7 +84,7 @@
     --boot-disk-device-name={{ gcp_vm_name }}
     --tags={{ gcp_vm_tags }}
     --enable-nested-virtualization
-    --metadata-from-file=startup-script={{ gcp_vm_bootstrap_script }}
+    --metadata-from-file=startup-script={{ _bootstrap_script_abs }}
     {% if gcp_vm_network != '' %}--network={{ gcp_vm_network }}{% endif %}
     {% if gcp_vm_subnetwork != '' %}--subnet={{ gcp_vm_subnetwork }}{% endif %}
   delegate_to: localhost
