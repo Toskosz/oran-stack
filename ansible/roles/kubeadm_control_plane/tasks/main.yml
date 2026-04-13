@@ -48,6 +48,12 @@
     group: "{{ ansible_user }}"
     mode: '0600'
 
+- name: Create .kube directory for root
+  file:
+    path: /root/.kube
+    state: directory
+    mode: '0700'
+
 - name: Copy admin.conf to root kubeconfig
   copy:
     src: /etc/kubernetes/admin.conf
