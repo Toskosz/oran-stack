@@ -122,7 +122,8 @@
 
 # ── Wait for bootstrap sentinel ───────────────────────────────────────────────
 # The startup script writes /var/lib/oran-bootstrap-done when it finishes.
-# Poll every 30 s for up to 15 min (VirtualBox install can be slow).
+# VirtualBox + Extension Pack install can take 15-20 min on a cold VM.
+# Poll every 30 s for up to 40 min (80 retries).
 - name: Wait for bootstrap script to complete (polling /var/lib/oran-bootstrap-done)
   ansible.builtin.command: >
     gcloud compute ssh {{ gcp_vm_name }}
@@ -134,7 +135,7 @@
   delegate_to: localhost
   register: _bootstrap_check
   until: _bootstrap_check.stdout | trim == "done"
-  retries: 30
+  retries: 80
   delay: 30
   changed_when: false
 
