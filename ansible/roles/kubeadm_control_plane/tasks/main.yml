@@ -12,13 +12,22 @@
     path: /etc/kubernetes/admin.conf
   register: kubeadm_admin_conf
 
+# Ensure the inventory hostname resolves locally so kubeadm preflight passes.
+# On GCP the real hostname differs from the inventory alias (e.g. oran-cp1 vs cp1).
+- name: Ensure node name resolves in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    regexp: "^127\\.0\\.1\\.1 {{ inventory_hostname }}$"
+    state: present
+
 - name: Run kubeadm init
   command: >
     kubeadm init
     --apiserver-advertise-address={{ control_plane_ip }}
     --pod-network-cidr={{ pod_cidr }}
     --service-cidr={{ service_cidr }}
-    --node-name=cp1
+    --node-name={{ inventory_hostname }}
   when: not kubeadm_admin_conf.stat.exists
   register: kubeadm_init_result
 
@@ -94,7 +103,9 @@
   changed_when: "'configured' in calico_cr_apply.stdout or 'created' in calico_cr_apply.stdout"
 
 - name: Wait for control-plane node to become Ready
-  command: kubectl get nodes cp1 -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  command: >
+    kubectl get nodes {{ inventory_hostname }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   register: node_ready

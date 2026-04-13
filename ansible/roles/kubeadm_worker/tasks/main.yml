@@ -8,8 +8,17 @@
     path: /etc/kubernetes/kubelet.conf
   register: kubelet_conf
 
+# Ensure the inventory hostname resolves locally (needed on GCP where the
+# real hostname differs from the inventory alias).
+- name: Ensure node name resolves in /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "127.0.1.1 {{ inventory_hostname }}"
+    regexp: "^127\\.0\\.1\\.1 {{ inventory_hostname }}$"
+    state: present
+
 - name: Join cluster
-  command: "{{ hostvars[groups['control_plane'][0]]['join_command'] }}"
+  command: "{{ hostvars[groups['control_plane'][0]]['join_command'] }} --node-name={{ inventory_hostname }}"
   when: not kubelet_conf.stat.exists
 
 - name: Wait for worker node to become Ready

@@ -88,10 +88,9 @@
     state: present
     update_cache: true
 
-- name: Generate default containerd config
+- name: Generate default containerd config (always, to ensure CRI plugin is present)
   shell: containerd config default > /etc/containerd/config.toml
-  args:
-    creates: /etc/containerd/config.toml
+  changed_when: true
 
 - name: Enable SystemdCgroup in containerd config
   replace:
@@ -105,6 +104,14 @@
     state: restarted
     enabled: true
     daemon_reload: true
+
+- name: Verify containerd CRI socket is responding
+  command: crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock info
+  changed_when: false
+  retries: 5
+  delay: 5
+  register: _cri_check
+  until: _cri_check.rc == 0
 
 # ── kubeadm / kubelet / kubectl ────────────────────────────────────────────────
 
