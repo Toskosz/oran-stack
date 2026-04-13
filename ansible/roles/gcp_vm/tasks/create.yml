@@ -89,7 +89,7 @@
         boot: true
         initialize_params:
           disk_size_gb: "{{ gcp_disk_size_gb }}"
-          disk_type: "zones/{{ gcp_zone }}/diskTypes/{{ gcp_disk_type }}"
+          disk_type: "{{ gcp_disk_type }}"
           source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
     network_interfaces:
       - network:
@@ -117,7 +117,7 @@
         boot: true
         initialize_params:
           disk_size_gb: "{{ gcp_disk_size_gb }}"
-          disk_type: "zones/{{ gcp_zone }}/diskTypes/{{ gcp_disk_type }}"
+          disk_type: "{{ gcp_disk_type }}"
           source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
     network_interfaces:
       - network:
