@@ -401,6 +401,11 @@ spec:
               value: /uta_rtg_ric.rt
             - name: RMR_RTG_SVC
               value: ric-rtmgr:4561
+            # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
+            # e2term/e2mgr then try to resolve the pod name to ACK route
+            # updates, which fails. Force the stable service name instead.
+            - name: RMR_SRC_ID
+              value: ric-rtmgr
             - name: CFGFILE
               value: /cfg/rtmgr-config.yaml
             - name: RTFILE
