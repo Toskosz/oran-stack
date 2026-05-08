@@ -4,11 +4,9 @@
 # Startup ordering: CU → DU → UE (mirrors depends_on in docker-compose.cudu.yml)
 # Implemented with initContainers that wait for the upstream pod's service.
 #
-# Multi-homing approximation:
-#   The original CU had two IPs (core + ran networks). Here a single pod
-#   binds to 0.0.0.0 and all interfaces (N2, F1-C, F1-U, NG-U) use the
-#   pod IP via their respective Services. The GKE node routes packets
-#   correctly through kube-proxy since all services are ClusterIPs.
+# SCTP traffic (N2, F1-C, E2AP) uses dedicated OVS secondary interfaces
+# (via Multus) with static IPs, eliminating the conntrack/VXLAN flapping
+# that occurred when SCTP traversed the Flannel overlay network.
 # ============================================================================
 
 # --- CU (Central Unit) -------------------------------------------------------
@@ -29,6 +27,26 @@ spec:
     metadata:
       labels:
         app: srs-cu
+      annotations:
+        # Multus secondary networks: N2 (CU↔AMF), F1-C (CU↔DU), E2 (CU↔RIC)
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "{{ .Values.secondaryNetworks.n2.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.n2.cuIP }}/24"]
+            },
+            {
+              "name": "{{ .Values.secondaryNetworks.f1c.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.f1c.cuIP }}/24"]
+            },
+            {
+              "name": "{{ .Values.secondaryNetworks.e2.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.e2.cuIP }}/24"]
+            }
+          ]
     spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecretName }}
@@ -39,13 +57,27 @@ spec:
             - sh
             - -c
             - |
-              sed "s|\${POD_IP}|${POD_IP}|g" /mnt/srsran/templates/cu.yml.tpl > /mnt/srsran/configs/cu.yml
-              echo "Rendered cu.yml with POD_IP=${POD_IP}"
+              # Static secondary IPs are injected as env vars by the Downward API
+              # equivalent: we pass them directly from Helm values via env vars.
+              # envsubst replaces ${N2_IP}, ${F1C_IP}, ${E2_IP} in the template.
+              apk add --no-cache gettext > /dev/null 2>&1
+              envsubst < /mnt/srsran/templates/cu.yml.tpl > /mnt/srsran/configs/cu.yml
+              echo "Rendered cu.yml: N2_IP=${N2_IP} F1C_IP=${F1C_IP} E2_IP=${E2_IP}"
           env:
             - name: POD_IP
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: N2_IP
+              value: "{{ .Values.secondaryNetworks.n2.cuIP }}"
+            - name: F1C_IP
+              value: "{{ .Values.secondaryNetworks.f1c.cuIP }}"
+            - name: E2_IP
+              value: "{{ .Values.secondaryNetworks.e2.cuIP }}"
+            - name: AMF_IP
+              value: "{{ .Values.secondaryNetworks.n2.amfIP }}"
+            - name: E2TERM_IP
+              value: "{{ .Values.secondaryNetworks.e2.e2termIP }}"
           volumeMounts:
             - name: srsran-templates
               mountPath: /mnt/srsran/templates
@@ -82,6 +114,18 @@ spec:
               mountPath: /mnt/srsran/logs
           stdin: true
           tty: true
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 $(pgrep srscu) 2>/dev/null"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 $(pgrep srscu) 2>/dev/null"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
           resources:
             requests:
               cpu: 500m
@@ -95,11 +139,8 @@ spec:
         - name: srsran-logs
           emptyDir: {}
 ---
-# Headless Service for CU — clusterIP: None bypasses kube-proxy DNAT entirely.
-# DNS resolves srs-cu directly to the CU pod IP so SCTP packets are never
-# NAT'd. kube-proxy DNAT causes conntrack to synthesise a spurious SCTP
-# SHUTDOWN after F1SetupResponse, leaving the CU in SHUTDOWN_ACK_SENT while
-# the DU stays ESTABLISHED (half-open ghost connection).
+# ClusterIP Service for CU — only used for F1-U (UDP) user-plane traffic.
+# F1-C (SCTP) uses the static secondary IP directly, bypassing kube-proxy.
 apiVersion: v1
 kind: Service
 metadata:
@@ -108,14 +149,9 @@ metadata:
   labels:
     app: srs-cu
 spec:
-  clusterIP: None
   selector:
     app: srs-cu
   ports:
-    - name: f1ap
-      port: 38472
-      targetPort: 38472
-      protocol: SCTP
     - name: f1u
       port: 2153
       targetPort: 2153
@@ -139,6 +175,21 @@ spec:
     metadata:
       labels:
         app: srs-du
+      annotations:
+        # Multus secondary networks: F1-C (DU↔CU), E2 (DU↔RIC)
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "{{ .Values.secondaryNetworks.f1c.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.f1c.duIP }}/24"]
+            },
+            {
+              "name": "{{ .Values.secondaryNetworks.e2.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.e2.duIP }}/24"]
+            }
+          ]
     spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecretName }}
@@ -157,21 +208,27 @@ spec:
               # Algorithm: treat the last two octets of POD_IP as a 16-bit
               # number (octet3*256 + octet4). This gives values 0–65535,
               # well within the srsRAN gnb_du_id range of 0–68719476735.
-              #   e.g. 10.4.1.33  → 1*256+33  = 289
-              #        10.4.0.201 → 0*256+201 = 201
               OCT3=$(echo "${POD_IP}" | cut -d. -f3)
               OCT4=$(echo "${POD_IP}" | cut -d. -f4)
               export GNB_DU_ID=$(( OCT3 * 256 + OCT4 ))
-              export POD_IP
-              # envsubst replaces both ${POD_IP} and ${GNB_DU_ID} in the template.
+              # envsubst replaces ${POD_IP}, ${GNB_DU_ID}, ${F1C_IP}, ${CU_F1C_IP},
+              # ${E2_IP}, ${E2TERM_IP} in the template.
               apk add --no-cache gettext > /dev/null 2>&1
               envsubst < /mnt/srsran/templates/du.yml.tpl > /mnt/srsran/configs/du.yml
-              echo "Rendered du.yml: POD_IP=${POD_IP} GNB_DU_ID=${GNB_DU_ID}"
+              echo "Rendered du.yml: POD_IP=${POD_IP} GNB_DU_ID=${GNB_DU_ID} F1C_IP=${F1C_IP}"
           env:
             - name: POD_IP
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: F1C_IP
+              value: "{{ .Values.secondaryNetworks.f1c.duIP }}"
+            - name: CU_F1C_IP
+              value: "{{ .Values.secondaryNetworks.f1c.cuIP }}"
+            - name: E2_IP
+              value: "{{ .Values.secondaryNetworks.e2.duIP }}"
+            - name: E2TERM_IP
+              value: "{{ .Values.secondaryNetworks.e2.e2termIP }}"
           volumeMounts:
             - name: srsran-templates
               mountPath: /mnt/srsran/templates
@@ -183,27 +240,24 @@ spec:
           env:
             - name: HOLD_OFF_SEC
               value: "{{ .Values.duF1SetupHoldOffSec }}"
+            - name: CU_F1C_IP
+              value: "{{ .Values.secondaryNetworks.f1c.cuIP }}"
           command:
             - sh
             - -c
             - |
-              # Step 1 — wait for DNS to resolve the CU headless service.
-              until nslookup srs-cu.ran.svc.cluster.local > /dev/null 2>&1; do
-                echo "waiting for srs-cu DNS..."
-                sleep 3
-              done
-              echo "srs-cu DNS resolved — waiting for F1-U UDP port 2153..."
-              # Step 2 — wait for the CU process to be up.
+              # Step 1 — wait for the CU F1-U UDP port on the static F1-C IP.
               # F1AP uses SCTP which alpine nc cannot probe; use the F1-U UDP
               # port as a proxy — the CU process opens both listeners together.
               # nc -zu sends a UDP probe and succeeds unless ICMP unreachable
               # is received (i.e., the port is closed).
-              until nc -zuw1 srs-cu.ran.svc.cluster.local 2153 2>/dev/null; do
-                echo "waiting for CU F1-U UDP port 2153..."
+              echo "Waiting for CU F1-U UDP port at ${CU_F1C_IP}:2153..."
+              until nc -zuw1 "${CU_F1C_IP}" 2153 2>/dev/null; do
+                echo "waiting for CU F1-U UDP port 2153 at ${CU_F1C_IP}..."
                 sleep 3
               done
               echo "CU process is up."
-              # Step 3 — P4 hold-off: srsRAN's F1 setup retry count is hardcoded
+              # Step 2 — P4 hold-off: srsRAN's F1 setup retry count is hardcoded
               # to 1. If the DU sends F1SetupRequest while the CU still holds a
               # stale entry for a previous DU pod, the CU rejects with
               # "Duplicate DU ID" and the DU gives up permanently. The CU purges
@@ -243,6 +297,18 @@ spec:
               mountPath: /mnt/srsran/logs
           stdin: true
           tty: true
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.zmq.duTxPort }}
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.zmq.duTxPort }}
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
           resources:
             requests:
               cpu: 500m

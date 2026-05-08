@@ -1,23 +1,14 @@
 # ============================================================================
 # ConfigMap: srsRAN CU, DU, and UE configuration files
 # ============================================================================
-# The original files (srsran/configs/cu.yml, du.yml, ue.conf) used hardcoded
-# IPs from the Docker Compose networks. In Kubernetes, those IPs are replaced
-# with Kubernetes DNS names:
+# SCTP traffic (N2, F1-C, E2AP) uses dedicated secondary OVS interfaces
+# with static IPs assigned via Multus NetworkAttachmentDefinitions.
+# Templates use static env vars (N2_IP, F1C_IP, etc.) injected by the
+# render-config initContainer in deployments.yaml — no more ${POD_IP}
+# substitution for SCTP bind addresses.
 #
-#   172.20.0.5  (AMF)    → amf-ngap.5g-core.svc.cluster.local
-#   172.22.0.210 (e2term) → e2term.near-rt-ric.svc.cluster.local
-#   172.21.0.51 (DU ZMQ) → srs-du  (ClusterIP Service in same namespace)
-#   172.21.0.34 (UE ZMQ) → srsue   (ClusterIP Service in same namespace)
-#
-# CU/DU bind addresses:
-#   srsRAN requires specific bind addresses (not 0.0.0.0) on F1AP/F1-U so that
-#   the correct IP is advertised in the TNL address IEs of F1SetupResponse and
-#   F1SetupRequest. With 0.0.0.0 the CU closes the SCTP association after
-#   F1SetupResponse because it cannot resolve a valid peer TNL address for F1-U.
-#
-#   Fix: cu.yml.tpl and du.yml.tpl use ${POD_IP} which is substituted at pod
-#   startup via an initContainer using envsubst + the Kubernetes Downward API.
+# F1-U (GTP-U user plane) still binds to ${POD_IP} (primary Flannel IP)
+# because F1-U is UDP and does not suffer from the SCTP conntrack issue.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -29,8 +20,8 @@ data:
   cu.yml.tpl: |
     cu_cp:
       amf:
-        addr: {{ .Values.amfAddress }}
-        bind_addr: ${POD_IP}
+        addr: ${AMF_IP}
+        bind_addr: ${N2_IP}
         supported_tracking_areas:
           - tac: {{ .Values.plmn.tac }}
             plmn_list:
@@ -38,7 +29,7 @@ data:
                 tai_slice_support_list:
                   - sst: 1
       f1ap:
-        bind_addr: ${POD_IP}
+        bind_addr: ${F1C_IP}
     cu_up:
       f1u:
         bind_port: {{ .Values.f1uPort }}
@@ -50,9 +41,9 @@ data:
           - bind_addr: ${POD_IP}
     e2:
       enable_cu_cp_e2: true
-      addr: {{ .Values.e2termAddress }}
+      addr: ${E2TERM_IP}
       port: 36421
-      bind_addr: ${POD_IP}
+      bind_addr: ${E2_IP}
       e2sm_kpm_enabled: true
       e2sm_rc_enabled: true
     log:
@@ -64,8 +55,8 @@ data:
 
   du.yml.tpl: |
     f1ap:
-      cu_cp_addr: srs-cu
-      bind_addr: ${POD_IP}
+      cu_cp_addr: ${CU_F1C_IP}
+      bind_addr: ${F1C_IP}
     f1u:
       bind_port: {{ .Values.f1uPort }}
       peer_port: {{ .Values.f1uPort }}
@@ -73,9 +64,9 @@ data:
         - bind_addr: ${POD_IP}
     e2:
       enable_du_e2: true
-      addr: {{ .Values.e2termAddress }}
+      addr: ${E2TERM_IP}
       port: 36421
-      bind_addr: ${POD_IP}
+      bind_addr: ${E2_IP}
       e2sm_kpm_enabled: true
       e2sm_rc_enabled: true
     ru_sdr:
@@ -92,6 +83,7 @@ data:
       plmn: "{{ .Values.plmn.mcc }}{{ .Values.plmn.mnc }}"
       tac: {{ .Values.plmn.tac }}
       pci: {{ .Values.radio.pci }}
+      gnb_du_id: ${GNB_DU_ID}
       pdcch:
         dedicated:
           ss2_type: common

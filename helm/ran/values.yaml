@@ -17,12 +17,26 @@ images:
     pullPolicy: IfNotPresent
 
 # ----------------------------------------------------------------------------
-# Cross-namespace addresses
-# DNS format: <service>.<namespace>.svc.cluster.local
-# These replace the hardcoded IPs in the original srsran/configs/*.yml files.
+# Secondary networks (Multus/OVS) — static IPs on dedicated OVS bridges.
+# SCTP traffic uses these secondary interfaces so it stays on a flat L2 domain
+# and is not subject to Flannel overlay encapsulation.
+# NAD names must match the NetworkAttachmentDefinitions created in the ran
+# namespace by provision.yml.
 # ----------------------------------------------------------------------------
-amfAddress: "amf-ngap-headless.5g-core.svc.cluster.local"
-e2termAddress: "e2term.near-rt-ric.svc.cluster.local"
+secondaryNetworks:
+  n2:
+    nadName: "n2br-net"
+    amfIP: "10.200.1.2"
+    cuIP: "10.200.1.3"
+  f1c:
+    nadName: "f1cbr-net"
+    cuIP: "10.200.2.2"
+    duIP: "10.200.2.3"
+  e2:
+    nadName: "e2br-net"
+    cuIP: "10.200.3.2"
+    duIP: "10.200.3.3"
+    e2termIP: "10.200.3.4"
 
 # ----------------------------------------------------------------------------
 # Radio / Cell configuration (mirrors .env / du.yml values)
