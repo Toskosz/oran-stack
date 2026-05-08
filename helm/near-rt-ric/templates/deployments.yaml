@@ -489,14 +489,35 @@ spec:
     metadata:
       labels:
         app: ric-e2term
+      annotations:
+        # Multus secondary network: E2 interface on dedicated OVS bridge.
+        # Static IP eliminates SCTP conntrack/VXLAN flapping over Flannel.
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "{{ .Values.secondaryNetworks.e2.nadName }}",
+              "namespace": "{{ .Values.namespace }}",
+              "ips": ["{{ .Values.secondaryNetworks.e2.e2termIP }}/24"]
+            }
+          ]
     spec:
+      serviceAccountName: ric-e2term
       initContainers:
         - name: wait-for-e2mgr
           image: alpine:3.19
           command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
         # render-config: copy the read-only ConfigMap into an emptyDir so that
-        # startup.sh's `sed -i` calls can write local-ip and external-fqdn.
-        # ConfigMap subPath mounts are read-only and cannot be modified in place.
+        #
+        # We also perform the substitutions here directly — this is more robust
+        # than relying on startup.sh's sed alone, and makes the rendered config
+        # visible in the initContainer logs for easier debugging (P5).
+        #
+        # Substitutions:
+        #   local-ip=127.0.0.1        → pod IP (from Downward API)
+        #   external-fqdn=e2t.com     → ric-e2term (stable K8s service name)
+        #   pod_name=E2TERM_POD_NAME  → left as-is (it is an env var pointer, not
+        #                               a literal value; e2term reads the env var
+        #                               named by this field at runtime)
         - name: render-config
           image: busybox:1.36
           command:
@@ -505,6 +526,18 @@ spec:
             - |
               cp /config-ro/config.conf /config-rw/config.conf
               cp /config-ro/dockerRouter.txt /config-rw/dockerRouter.txt
+              # local-ip is already set correctly by Helm in the ConfigMap.
+              # Set external-fqdn to the stable K8s service name so e2mgr can
+              # resolve it. The default 'e2t.com' is not resolvable in-cluster.
+              sed -i "s|external-fqdn=.*|external-fqdn=ric-e2term|" /config-rw/config.conf
+              # pod_name is an ENV VAR POINTER, not a literal value.
+              # The e2term binary reads config.conf, takes the value of pod_name=,
+              # and uses it as an env var name to look up the actual pod name.
+              # So we must keep pod_name=E2TERM_POD_NAME (the default) and set
+              # E2TERM_POD_NAME to the real pod name via the Downward API.
+              # Do NOT substitute pod_name here.
+              echo "Rendered e2term config.conf:"
+              cat /config-rw/config.conf
           volumeMounts:
             - name: e2term-config-ro
               mountPath: /config-ro
@@ -533,21 +566,19 @@ spec:
             - name: RMR_SRC_ID
               value: ric-e2term
             - name: E2TERM_POD_NAME
-              value: ric-e2term
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: POD_NAME
-              value: ric-e2term
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: LD_LIBRARY_PATH
               value: /usr/local/lib
             - name: DBAAS_SERVICE_HOST
               value: ric-dbaas
             - name: DBAAS_SERVICE_PORT
               value: "6379"
-            # Downward API: inject the pod's own IP as the bind address.
-            # Replaces the hardcoded 172.22.0.210 from docker-compose.ric.yml.
-            - name: RIC_E2TERM_SERVICE_HOST
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
           ports:
             - containerPort: 38000
               name: rmr
@@ -567,6 +598,11 @@ spec:
             # Use the writable copy produced by the render-config initContainer.
             - name: e2term-config-rw
               mountPath: /opt/e2/config
+            # e2term writes all E2AP processing logs to /log/e2term.log.
+            # Without this volume, those logs are silently lost (the directory
+            # does not exist in the image) and E2 failures are invisible.
+            - name: e2term-log
+              mountPath: /log
           resources:
             requests:
               cpu: 150m
@@ -576,6 +612,10 @@ spec:
           configMap:
             name: e2term-config
         - name: e2term-config-rw
+          emptyDir: {}
+        # Writable log directory for e2term's E2AP processing logs.
+        # Access via: kubectl exec -n near-rt-ric deploy/ric-e2term -- cat /log/e2term.log
+        - name: e2term-log
           emptyDir: {}
 ---
 # Internal RMR service for e2term — used by other RIC components.

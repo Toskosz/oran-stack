@@ -7,6 +7,15 @@ namespace: near-rt-ric
 imagePullSecretName: dockerhub-secret
 
 # ----------------------------------------------------------------------------
+# Secondary network (Multus/OVS) — static IP on the e2br OVS bridge.
+# Used for SCTP E2AP traffic between e2term and the CU/DU.
+# ----------------------------------------------------------------------------
+secondaryNetworks:
+  e2:
+    nadName: "e2br-net"
+    e2termIP: "10.200.3.4"
+
+# ----------------------------------------------------------------------------
 # RIC Component Images (pre-built from O-RAN SC Nexus3 registry)
 # These are public images; no authentication required to pull them.
 # ----------------------------------------------------------------------------

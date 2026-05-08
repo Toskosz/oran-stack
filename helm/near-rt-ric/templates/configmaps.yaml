@@ -73,19 +73,19 @@ metadata:
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
-  # config.conf: local-ip and external-fqdn use the Downward API pod IP.
-  # They are set via environment variable E2TERM_POD_IP in the Deployment
-  # and rendered here as a template — see deployment-e2term.yaml.
+  # config.conf: local-ip is substituted at runtime by the render-config
+  # initContainer in the Deployment, which replaces it with the static
+  # secondary E2 interface IP (from secondaryNetworks.e2.e2termIP).
   config.conf: |
     nano=38000
     volume=log
-    local-ip=127.0.0.1
+    local-ip={{ .Values.secondaryNetworks.e2.e2termIP }}
     prometheusMode=pull
     prometheusPushTimeOut=10
     prometheusPushAddr=127.0.0.1:7676
     prometheusPort=8088
     trace=stop
-    external-fqdn=e2t.com
+    external-fqdn=ric-e2term
     pod_name=E2TERM_POD_NAME
     sctp-port=36421
 
