@@ -84,6 +84,10 @@
         mcc: "{{ plmn.mcc }}"
         mnc: "{{ plmn.mnc }}"
         tac: "{{ plmn.tac }}"
+      secondaryNetworks:
+        n2:
+          nadName:  "{{ secondary_networks.n2.nad_name }}"
+          amfIP:    "{{ secondary_networks.n2.amf_ip }}"
   register: helm_core
 
 - name: Show 5g-core Helm release status

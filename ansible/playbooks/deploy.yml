@@ -1,7 +1,7 @@
 # ============================================================================
 # Playbook: deploy.yml
-# Purpose:  Deploy all three Helm charts to the kubeadm cluster in dependency
-#           order: 5g-core → near-rt-ric → ran.
+# Purpose:  Deploy all Helm charts to the kubeadm cluster in dependency
+#           order: 5g-core → near-rt-ric → ran → monitoring.
 #
 # Usage:
 #   ansible-playbook ansible/playbooks/deploy.yml \
@@ -15,6 +15,7 @@
 #   1. 5g-core     — MongoDB and NFs must be up before RIC or RAN connect
 #   2. near-rt-ric — e2term must be running before the DU sends E2 Setup
 #   3. ran         — CU/DU/UE start last; they connect to an already-live core
+#   4. monitoring  — deployed last so all ServiceMonitor targets are already up
 # ============================================================================
 ---
 - name: Deploy 5G core (Open5GS NFs + MongoDB)
@@ -40,3 +41,11 @@
 
   roles:
     - role: deploy_ran
+
+- name: Deploy Monitoring (Prometheus + Grafana)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: deploy_monitoring

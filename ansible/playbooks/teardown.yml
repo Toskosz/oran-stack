@@ -4,7 +4,7 @@
 #           kubeadm cluster state on all nodes.
 #
 # Usage:
-#   ansible-playbook ansible/playbooks/teardown.yml --ask-vault-pass
+#   ansible-playbook ./playbooks/teardown.yml --ask-vault-pass
 #   vagrant destroy -f          # to also destroy the VMs
 #
 # WARNING: This is DESTRUCTIVE. It will:

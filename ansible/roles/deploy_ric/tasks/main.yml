@@ -60,6 +60,8 @@
 # ----------------------------------------------------------------------------
 # 3. Helm upgrade --install near-rt-ric
 #    RIC images are public (O-RAN SC Nexus3); no image overrides needed.
+#    Pass secondary network IPs from group_vars so e2term binds to the
+#    correct OVS interface static IP.
 # ----------------------------------------------------------------------------
 - name: Deploy near-rt-ric Helm chart
   kubernetes.core.helm:
@@ -70,6 +72,11 @@
     create_namespace: false
     wait:             true
     wait_timeout:     "{{ helm_timeout }}"
+    values:
+      secondaryNetworks:
+        e2:
+          nadName:   "{{ secondary_networks.e2.nad_name }}"
+          e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
   register: helm_ric
 
 - name: Show near-rt-ric Helm release status

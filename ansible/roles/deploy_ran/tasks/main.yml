@@ -58,10 +58,9 @@
 
 # ----------------------------------------------------------------------------
 # 3. Helm upgrade --install ran
-#    amfAddress and e2termAddress use cross-namespace DNS names from
-#    helm/ran/values.yaml (amf-ngap-headless.5g-core.svc.cluster.local,
-#    e2term.near-rt-ric.svc.cluster.local) — these work identically on
-#    kubeadm with CoreDNS.
+#    SCTP interfaces (N2, F1-C, E2AP) use static secondary OVS IPs defined
+#    in secondaryNetworks in values.yaml. Override here only if the operator
+#    has customised the IP ranges in group_vars/all/vars.yml.
 # ----------------------------------------------------------------------------
 - name: Deploy ran Helm chart
   kubernetes.core.helm:
@@ -84,6 +83,20 @@
         mcc: "{{ plmn.mcc }}"
         mnc: "{{ plmn.mnc }}"
         tac: "{{ plmn.tac }}"
+      secondaryNetworks:
+        n2:
+          nadName:  "{{ secondary_networks.n2.nad_name }}"
+          amfIP:    "{{ secondary_networks.n2.amf_ip }}"
+          cuIP:     "{{ secondary_networks.n2.cu_ip }}"
+        f1c:
+          nadName:  "{{ secondary_networks.f1c.nad_name }}"
+          cuIP:     "{{ secondary_networks.f1c.cu_ip }}"
+          duIP:     "{{ secondary_networks.f1c.du_ip }}"
+        e2:
+          nadName:   "{{ secondary_networks.e2.nad_name }}"
+          cuIP:      "{{ secondary_networks.e2.cu_ip }}"
+          duIP:      "{{ secondary_networks.e2.du_ip }}"
+          e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
   register: helm_ran
 
 - name: Show ran Helm release status
