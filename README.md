@@ -1,39 +1,45 @@
 # O-RAN Stack
 
-A local O-RAN 5G Standalone network deployed on a kubeadm Kubernetes cluster provisioned with Vagrant and Ansible.
+A Kubernetes-native O-RAN 5G Standalone network running on a kubeadm cluster provisioned with Ansible.
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  Kubernetes cluster (kubeadm + Calico)               │
-│                                                      │
-│  namespace: 5g-core          namespace: near-rt-ric  │
-│  ┌──────────────────────┐    ┌─────────────────────┐ │
-│  │ Open5GS              │    │ O-RAN SC Near-RT RIC │ │
-│  │  NRF  SCP  SEPP      │    │  e2term  e2mgr       │ │
-│  │  AMF  SMF  UPF       │◄──►│  rtmgr   submgr      │ │
-│  │  AUSF UDM  PCF       │    │  appmgr  a1mediator  │ │
-│  │  NSSF BSF  UDR       │    │  dbaas (Redis)       │ │
-│  │  MongoDB  WebUI      │    └─────────────────────┘ │
-│  └──────────────────────┘             ▲              │
-│             ▲ N2/NGAP (SCTP)          │ E2 (SCTP)    │
-│             │                         │              │
-│  namespace: ran                        │              │
-│  ┌──────────────────────────────────┐  │              │
-│  │ srsRAN Project                   │──┘              │
-│  │  CU ──F1AP──► DU ──ZMQ──► UE    │                 │
-│  └──────────────────────────────────┘                 │
-└──────────────────────────────────────────────────────┘
-
-VM layout (Vagrant, VirtualBox):
-  cp1  192.168.56.10  — control-plane (2 vCPU / 4 GB default)
-  w1   192.168.56.11  — worker        (4 vCPU / 6 GB default)
+┌──────────────────────────────────────────────────────────────────────┐
+│  Kubernetes cluster (kubeadm + Flannel + Multus + OVS-CNI)          │
+│                                                                      │
+│  namespace: 5g-core          namespace: near-rt-ric                  │
+│  ┌──────────────────────┐    ┌─────────────────────┐                 │
+│  │ Open5GS              │    │ O-RAN SC Near-RT RIC │                │
+│  │  NRF  SCP  SEPP      │    │  e2term  e2mgr       │                │
+│  │  AMF  SMF  UPF       │◄──►│  rtmgr   submgr      │                │
+│  │  AUSF UDM  PCF       │    │  appmgr  a1mediator  │                │
+│  │  NSSF BSF  UDR       │    │  dbaas (Redis)       │                │
+│  │  MongoDB  WebUI      │    └─────────────────────┘                 │
+│  └──────────────────────┘             ▲                              │
+│          ▲ N2/NGAP (SCTP)             │ E2AP (SCTP)                  │
+│          │  n2br (10.200.1.0/24)      │  e2br (10.200.3.0/24)        │
+│  namespace: ran                        │                              │
+│  ┌─────────────────────────────────────┘──────────────────────────┐  │
+│  │ srsRAN                                                         │  │
+│  │  CU ──F1AP (f1cbr 10.200.2.0/24)──► DU ──ZMQ──► UE           │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+SCTP traffic (N2/NGAP, F1-C, E2AP) is carried on dedicated OVS secondary interfaces attached via Multus, not over the Flannel overlay. This eliminates the conntrack/VXLAN flapping that caused N2 and E2 association instability.
+
+**OVS bridges and static IPs:**
+
+| Bridge | Network | AMF | CU | DU | e2term |
+|--------|---------|-----|----|----|--------|
+| n2br | 10.200.1.0/24 | .2 | .3 | — | — |
+| f1cbr | 10.200.2.0/24 | — | .2 | .3 | — |
+| e2br | 10.200.3.0/24 | — | .2 | .3 | .4 |
 
 **PLMN:** MCC=001 MNC=01  
 **Test subscriber:** IMSI 001010000000001  
-**WebUI:** `http://192.168.56.10:<nodePort>` — admin / 1423
+**WebUI:** `http://<node-ip>:<nodePort>` — admin / 1423
 
 ---
 
@@ -41,8 +47,6 @@ VM layout (Vagrant, VirtualBox):
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| VirtualBox | ≥ 7.0 | VM hypervisor |
-| Vagrant | ≥ 2.3 | VM lifecycle |
 | Ansible | ≥ 2.15 | Cluster provisioning and deployment |
 | Docker | ≥ 24 | Building images |
 | Helm | ≥ 3.12 | Used via Ansible `kubernetes.core` collection |
@@ -80,66 +84,73 @@ chmod 600 ~/.oran_vault_pass
 
 ## Quick start
 
-### 1. Start VMs
+### Option A: GCP VMs (recommended)
+
+#### 1. Provision the VMs
 
 ```bash
-vagrant up
+ansible-playbook ansible/playbooks/gcp-vm-create.yml
 ```
 
-Default sizing is 2 vCPU/4 GB (cp1) + 4 vCPU/6 GB (w1) — fits on a 16 GB host.  
-For a cloud VM with more RAM, override via environment variables:
+This creates two GCP VMs (`oran-cp1`, `oran-w1`) and writes `ansible/inventories/gcp.ini`.
+
+#### 2. Bootstrap the cluster
 
 ```bash
-CP_CPUS=4 CP_MEMORY=8192 W_CPUS=4 W_MEMORY=16384 vagrant up
+ansible-playbook ansible/playbooks/provision.yml \
+  -i ansible/inventories/gcp.ini
 ```
 
-### 2. Provision the Kubernetes cluster
+Installs containerd, kubeadm, Flannel CNI, Multus, OVS-CNI (via CNAO), OVS VXLAN tunnels between nodes, and local-path-provisioner. Writes `./kubeconfig`.
 
-```bash
-ansible-playbook ansible/playbooks/provision.yml
-```
-
-Installs containerd, kubeadm, Calico CNI, and the local-path-provisioner on both nodes, then writes `./kubeconfig` to the repo root.
-
-Verify:
-
-```bash
-export KUBECONFIG=$(pwd)/kubeconfig
-kubectl get nodes
-# NAME   STATUS   ROLES           AGE   VERSION
-# cp1    Ready    control-plane   ...   v1.30.x
-# w1     Ready    <none>          ...   v1.30.x
-```
-
-### 3. Build and push Docker images
-
-Only needed if images are not already on Docker Hub, or after source changes:
+#### 3. Build and push Docker images
 
 ```bash
 ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
 ```
 
-Builds four images (`oran-5gcore`, `oran-webui`, `oran-srsran`, `oran-srsue`) and pushes them to `x0tok/` on Docker Hub.
-
-### 4. Deploy the stack
+#### 4. Deploy the stack
 
 ```bash
-ansible-playbook ansible/playbooks/deploy.yml --ask-vault-pass
+ansible-playbook ansible/playbooks/deploy.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
 ```
 
-Deploys in order: **5g-core → near-rt-ric → ran**.  
-Each layer waits to be healthy before the next is started.  
-At the end the AMF NGAP NodePort, e2term SCTP NodePort, and WebUI NodePort are printed.
+### Option B: Bring Your Own machines
 
-### 5. Verify
+Copy and edit the inventory template:
 
 ```bash
+cp ansible/inventories/hosts.ini.example ansible/inventories/hosts.ini
+# edit hosts.ini with your machine IPs and SSH user
+```
+
+Then run:
+
+```bash
+ansible-playbook ansible/playbooks/provision.yml \
+  -i ansible/inventories/hosts.ini
+
+ansible-playbook ansible/playbooks/deploy.yml \
+  -i ansible/inventories/hosts.ini --ask-vault-pass
+```
+
+---
+
+## Verify
+
+```bash
+export KUBECONFIG=$(pwd)/kubeconfig
+
 # All pods running
 kubectl get pods -A
 
 # UE attached to the 5G core
 kubectl logs -n ran deployment/srsue -f
 # Look for: RRC Connected  ->  PDU Session Established
+
+# OVS bridges on each node
+ssh <node> sudo ovs-vsctl show
 ```
 
 ---
@@ -148,84 +159,16 @@ kubectl logs -n ran deployment/srsue -f
 
 ```bash
 # Remove all Helm releases and reset the kubeadm cluster
-ansible-playbook ansible/playbooks/teardown.yml --ask-vault-pass
+ansible-playbook ansible/playbooks/teardown.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
 
-# Destroy VMs
-vagrant destroy -f
+# Delete GCP VMs
+ansible-playbook ansible/playbooks/gcp-vm-delete.yml
 ```
 
 ---
 
-## Running on GCP
-
-If your local machine does not have enough RAM, you can provision two GCP VMs directly as the kubeadm cluster nodes (cp1 + w1). No nested virtualisation. The same Ansible kubeadm roles that run against Vagrant VMs run against these GCP VMs — you just pass a different inventory file.
-
-### Prerequisites
-
-1. `gcloud` CLI installed and ADC configured:
-   ```bash
-   gcloud auth application-default login
-   gcloud config set project YOUR_PROJECT_ID
-   ```
-2. SSH key pair dedicated to the cluster VMs (generate once):
-   ```bash
-   ssh-keygen -t rsa -b 4096 -f ~/.ssh/oran_gcp
-   ```
-3. `google.cloud` Ansible collection installed (included in `requirements.yml`):
-   ```bash
-   ansible-galaxy collection install -r ansible/requirements.yml
-   ```
-
-### 1. Provision the VMs
-
-```bash
-ansible-playbook ansible/playbooks/gcp-vm-create.yml
-```
-
-This will:
-1. Resolve your active GCP project
-2. Enable the Compute Engine API
-3. Create two firewall rules (`oran-ssh`, `oran-internal`)
-4. Create **cp1** (`e2-standard-2`, 2 vCPU / 8 GB) and **w1** (`e2-standard-4`, 4 vCPU / 16 GB)
-5. Wait for SSH on both VMs
-6. Write `ansible/inventories/gcp.ini` with the VMs' IPs
-7. Print the next steps
-
-Override defaults if needed:
-
-```bash
-ansible-playbook ansible/playbooks/gcp-vm-create.yml \
-  -e gcp_zone=europe-west1-b \
-  -e gcp_cp_machine_type=e2-standard-4 \
-  -e gcp_w_machine_type=e2-standard-8
-```
-
-### 2. Bootstrap the Kubernetes cluster
-
-```bash
-ansible-playbook ansible/playbooks/provision.yml \
-  -i ansible/inventories/gcp.ini
-```
-
-### 3. Deploy the O-RAN stack
-
-```bash
-ansible-playbook ansible/playbooks/deploy.yml \
-  -i ansible/inventories/gcp.ini --ask-vault-pass
-```
-
-### Teardown
-
-```bash
-# Remove Helm releases + reset kubeadm (keep VMs)
-ansible-playbook ansible/playbooks/teardown.yml \
-  -i ansible/inventories/gcp.ini --ask-vault-pass
-
-# Delete VMs, firewall rules, and gcp.ini
-ansible-playbook ansible/playbooks/gcp-vm-delete.yml
-```
-
-### GCP configuration reference
+## GCP configuration reference
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -233,39 +176,34 @@ ansible-playbook ansible/playbooks/gcp-vm-delete.yml
 | `gcp_zone` | `us-central1-a` | Zone for both VMs |
 | `gcp_cp_name` | `oran-cp1` | Control-plane VM name |
 | `gcp_w_name` | `oran-w1` | Worker VM name |
-| `gcp_cp_machine_type` | `e2-standard-2` | cp1 machine type (2 vCPU / 8 GB) |
-| `gcp_w_machine_type` | `e2-standard-4` | w1 machine type (4 vCPU / 16 GB) |
+| `gcp_cp_machine_type` | `e2-standard-2` | cp1 (2 vCPU / 8 GB) |
+| `gcp_w_machine_type` | `e2-standard-4` | w1 (4 vCPU / 16 GB) |
 | `gcp_disk_size_gb` | `50` | Boot disk size (GB) |
 | `gcp_disk_type` | `pd-ssd` | Boot disk type |
-| `gcp_ssh_user` | `oran` | SSH user created on VMs |
+| `gcp_ssh_user` | `oran` | SSH user |
 | `gcp_ssh_pub_key_file` | `~/.ssh/oran_gcp.pub` | Public key injected into VMs |
 | `gcp_ssh_priv_key_file` | `~/.ssh/oran_gcp` | Private key used by Ansible |
-
-Defaults are in `ansible/roles/gcp_vm/defaults/main.yml`.
 
 ---
 
 ## Configuration reference
 
-### VM sizing — `Vagrantfile`
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CP_CPUS` | 2 | Control-plane vCPUs |
-| `CP_MEMORY` | 4096 | Control-plane RAM (MB) |
-| `W_CPUS` | 4 | Worker vCPUs |
-| `W_MEMORY` | 6144 | Worker RAM (MB) |
-
-### Cluster settings — `ansible/inventories/group_vars/all/vars.yml`
+### Cluster / networking — `ansible/inventories/group_vars/all/vars.yml`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `kubernetes_version` | `1.30` | K8s apt channel |
-| `pod_cidr` | `10.244.0.0/16` | Calico pod network |
+| `pod_cidr` | `10.244.0.0/16` | Flannel pod network |
 | `service_cidr` | `10.96.0.0/12` | K8s service network |
-| `control_plane_ip` | `192.168.56.10` | Advertise address for kubeadm init |
-| `calico_version` | `3.28` | Tigera operator version |
-| `dockerhub_username` | `x0tok` | Docker Hub org for image pulls |
+| `flannel_manifest_url` | flannel v0.25.4 | Flannel DaemonSet manifest |
+| `cnao_version` | `0.101.0-rc-0` | Cluster Network Addons Operator |
+| `secondary_networks.n2.amf_ip` | `10.200.1.2` | AMF static IP on n2br |
+| `secondary_networks.n2.cu_ip` | `10.200.1.3` | CU static IP on n2br |
+| `secondary_networks.f1c.cu_ip` | `10.200.2.2` | CU static IP on f1cbr |
+| `secondary_networks.f1c.du_ip` | `10.200.2.3` | DU static IP on f1cbr |
+| `secondary_networks.e2.cu_ip` | `10.200.3.2` | CU static IP on e2br |
+| `secondary_networks.e2.du_ip` | `10.200.3.3` | DU static IP on e2br |
+| `secondary_networks.e2.e2term_ip` | `10.200.3.4` | e2term static IP on e2br |
 
 ### 5G settings
 
@@ -282,7 +220,6 @@ Defaults are in `ansible/roles/gcp_vm/defaults/main.yml`.
 
 ```
 oran-stack/
-├── Vagrantfile                    # 2-node VM definition (local dev path)
 ├── entrypoint.sh                  # NF container entrypoint (envsubst + launch)
 ├── init-mongodb.js                # MongoDB replica-set init
 ├── init-webui-data.js             # MongoDB subscriber seed data
@@ -296,7 +233,7 @@ oran-stack/
 │   ├── ansible.cfg
 │   ├── requirements.yml
 │   ├── inventories/
-│   │   ├── vagrant.ini            # Vagrant VM inventory (local path)
+│   │   ├── hosts.ini.example      # BYO machine inventory template
 │   │   ├── gcp.ini                # GCP VM inventory (generated by gcp-vm-create.yml)
 │   │   └── group_vars/all/
 │   │       ├── vars.yml           # All non-secret variables
@@ -309,10 +246,11 @@ oran-stack/
 │   │   ├── gcp-vm-create.yml      # Provision GCP cluster VMs
 │   │   └── gcp-vm-delete.yml      # Delete GCP cluster VMs
 │   └── roles/
-│       ├── kubeadm_prereqs/       # OS prep (swap, modules, containerd, kubeadm)
-│       ├── kubeadm_control_plane/ # kubeadm init, Calico, local-path-provisioner
+│       ├── kubeadm_prereqs/       # OS prep (swap, modules, OVS, containerd, kubeadm)
+│       ├── kubeadm_control_plane/ # kubeadm init, Flannel, Multus, CNAO, NADs
 │       ├── kubeadm_worker/        # kubeadm join
-│       ├── kubeadm_teardown/      # kubeadm reset + CNI/iptables cleanup
+│       ├── kubeadm_teardown/      # kubeadm reset + OVS/iptables cleanup
+│       ├── ovs_vxlan/             # OVS bridge + VXLAN tunnel setup between nodes
 │       ├── gcp_vm/                # GCP VM create / delete (google.cloud collection)
 │       ├── container_images/      # Docker build + push
 │       ├── deploy_5g_core/        # Helm deploy for 5g-core
@@ -329,13 +267,16 @@ oran-stack/
 ## Troubleshooting
 
 **Nodes not Ready after provision**  
-Check Calico pods: `kubectl get pods -n calico-system`. If the Tigera operator is stuck, re-run `provision.yml` — all tasks are idempotent.
+Check Flannel pods: `kubectl get pods -n kube-flannel`. Re-run `provision.yml` — all tasks are idempotent.
 
 **Images fail to pull**  
 Verify the imagePullSecret: `kubectl get secret dockerhub-secret -n 5g-core`. Re-run `deploy.yml` to recreate it.
 
 **UPF pod CrashLoops**  
-UPF uses `hostNetwork: true` and creates TUN interfaces. Confirm `net.ipv4.ip_forward=1` is set on the worker: `ssh vagrant@192.168.56.11 sysctl net.ipv4.ip_forward`. The `kubeadm_prereqs` role sets this.
+UPF uses `hostNetwork: true` and creates TUN interfaces. Confirm `net.ipv4.ip_forward=1` is set on the worker: `ssh <node> sysctl net.ipv4.ip_forward`. The `kubeadm_prereqs` role sets this.
+
+**SCTP associations not establishing**  
+Confirm secondary interfaces are attached: `kubectl exec -n ran deploy/srs-cu -- ip addr`. You should see interfaces with IPs from the 10.200.x.0/24 ranges. Check OVS bridge and VXLAN tunnels: `sudo ovs-vsctl show` on each node.
 
 **E2 interface not connecting**  
 Check `kubectl logs -n ran deployment/srs-du` for the E2 Setup Request and `kubectl logs -n near-rt-ric deployment/ric-e2term` for the response. The DU intentionally waits 30 seconds after F1 Setup before sending E2 Setup.
