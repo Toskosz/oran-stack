@@ -1,0 +1,129 @@
+# ============================================================================
+# Role: deploy_monitoring
+# Purpose: Deploy the monitoring Helm chart (Prometheus + Grafana) to the
+#          kubeadm cluster.
+#
+#   1. Add prometheus-community Helm repo
+#   2. Update Helm repos
+#   3. Create monitoring namespace
+#   4. helm dependency update (fetches kube-prometheus-stack sub-chart)
+#   5. helm upgrade --install monitoring
+#   6. Wait for Prometheus and Grafana Deployments to be Available
+#   7. Print Grafana access instructions
+#
+# Deployed AFTER ran so that all ServiceMonitor targets are already up.
+# ============================================================================
+---
+
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+# ----------------------------------------------------------------------------
+# 1. Add prometheus-community Helm repo
+# ----------------------------------------------------------------------------
+- name: Add prometheus-community Helm repository
+  kubernetes.core.helm_repository:
+    name: prometheus-community
+    repo_url: https://prometheus-community.github.io/helm-charts
+    state: present
+
+# ----------------------------------------------------------------------------
+# 2. Update Helm repos to get latest chart index
+# ----------------------------------------------------------------------------
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  changed_when: false
+
+# ----------------------------------------------------------------------------
+# 3. Create monitoring namespace
+# ----------------------------------------------------------------------------
+- name: Create monitoring namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespaces.monitoring }}"
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/warn:    baseline
+          pod-security.kubernetes.io/audit:   baseline
+
+# ----------------------------------------------------------------------------
+# 4. Run helm dependency update to fetch kube-prometheus-stack sub-chart
+# ----------------------------------------------------------------------------
+- name: Fetch kube-prometheus-stack sub-chart dependency
+  ansible.builtin.command:
+    cmd: helm dependency update "{{ playbook_dir }}/../../{{ helm_charts.monitoring }}"
+  changed_when: true
+
+# ----------------------------------------------------------------------------
+# 5. Helm upgrade --install monitoring
+# ----------------------------------------------------------------------------
+- name: Deploy monitoring Helm chart
+  kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
+    name:             "{{ helm_releases.monitoring }}"
+    chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.monitoring }}"
+    release_namespace: "{{ namespaces.monitoring }}"
+    create_namespace: false
+    wait:             true
+    wait_timeout:     "{{ helm_timeout }}"
+    values:
+      namespace: "{{ namespaces.monitoring }}"
+  register: helm_monitoring
+
+- name: Show monitoring Helm release status
+  ansible.builtin.debug:
+    msg: "monitoring release status: {{ helm_monitoring.status }}"
+
+# ----------------------------------------------------------------------------
+# 6. Wait for Prometheus and Grafana to be Available
+# ----------------------------------------------------------------------------
+- name: Wait for Grafana Deployment to be Available
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
+    kind: Deployment
+    label_selectors:
+      - "app.kubernetes.io/name=grafana"
+    namespace: "{{ namespaces.monitoring }}"
+    wait: true
+    wait_condition:
+      type:   Available
+      status: "True"
+    wait_timeout: 300
+
+- name: Wait for Prometheus StatefulSet to be ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
+    kind: StatefulSet
+    label_selectors:
+      - "app.kubernetes.io/name=prometheus"
+    namespace: "{{ namespaces.monitoring }}"
+    wait: true
+    wait_condition:
+      type:   Ready
+      status: "True"
+    wait_timeout: 300
+
+# ----------------------------------------------------------------------------
+# 7. Print access instructions
+# ----------------------------------------------------------------------------
+- name: Show Grafana access instructions
+  ansible.builtin.debug:
+    msg: |
+      Grafana is deployed in the '{{ namespaces.monitoring }}' namespace.
+
+      Access via port-forward:
+        kubectl port-forward -n {{ namespaces.monitoring }} \
+          svc/monitoring-grafana 3000:80
+
+      Then open: http://localhost:3000
+      Credentials: admin / oran-lab
+
+      The 'O-RAN Stack Overview' dashboard is pre-loaded.
+      Prometheus scrapes AMF, SMF, UPF, PCF (port 9090) and
+      e2term, submgr (port 8088) every 15 seconds.

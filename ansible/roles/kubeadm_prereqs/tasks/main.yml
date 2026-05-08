@@ -23,6 +23,7 @@
       overlay
       br_netfilter
       sctp
+      openvswitch
     mode: '0644'
 
 - name: Load kernel modules now
@@ -33,6 +34,7 @@
     - overlay
     - br_netfilter
     - sctp
+    - openvswitch
 
 # ── sysctl ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +50,20 @@
 - name: Apply sysctl parameters
   command: sysctl --system
   changed_when: false
+
+# ── Open vSwitch ────────────────────────────────────────────────────────────────
+
+- name: Install Open vSwitch
+  apt:
+    name: openvswitch-switch
+    state: present
+    update_cache: true
+
+- name: Ensure Open vSwitch is running
+  systemd:
+    name: openvswitch-switch
+    state: started
+    enabled: true
 
 # ── containerd ─────────────────────────────────────────────────────────────────
 
@@ -105,14 +121,6 @@
     enabled: true
     daemon_reload: true
 
-- name: Verify containerd CRI socket is responding
-  command: crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock info
-  changed_when: false
-  retries: 5
-  delay: 5
-  register: _cri_check
-  until: _cri_check.rc == 0
-
 # ── kubeadm / kubelet / kubectl ────────────────────────────────────────────────
 
 - name: Add Kubernetes apt GPG key
@@ -152,3 +160,11 @@
     name: kubelet
     state: started
     enabled: true
+
+- name: Verify containerd CRI socket is responding
+  command: crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock info
+  changed_when: false
+  retries: 5
+  delay: 5
+  register: _cri_check
+  until: _cri_check.rc == 0

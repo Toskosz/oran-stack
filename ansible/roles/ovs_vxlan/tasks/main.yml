@@ -1,0 +1,20 @@
+---
+# ovs_vxlan/tasks/main.yml
+# Creates VXLAN tunnels on every OVS bridge between all cluster nodes.
+# Runs on all k8s_cluster hosts. Each host punches a tunnel to every other host.
+# Uses --may-exist so the task is idempotent.
+#
+# The tunnel endpoint IP:
+#   - control_plane nodes: control_plane_ip  (set in inventory)
+#   - worker nodes:        ansible_host
+
+- name: Gather tunnel endpoint IPs from all nodes
+  set_fact:
+    _my_tunnel_ip: "{{ control_plane_ip | default(ansible_host) }}"
+
+- name: Create VXLAN ports on each OVS bridge to every other node
+  include_tasks: create_vxlan.yml
+  loop: "{{ ovs_bridges }}"
+  loop_control:
+    loop_var: _bridge
+    label: "{{ _bridge.name }}"

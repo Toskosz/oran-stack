@@ -19,6 +19,11 @@
     state: absent
   ignore_errors: true
 
+- name: Remove OVS bridges
+  command: "ovs-vsctl --if-exists del-br {{ item.name }}"
+  loop: "{{ ovs_bridges | default([]) }}"
+  ignore_errors: true
+
 - name: Flush iptables (filter, nat, mangle, raw)
   shell: |
     iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
