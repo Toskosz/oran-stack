@@ -31,3 +31,6 @@ ansible/inventories/group_vars/all/vault.yml
 # Downloaded binaries
 kubectl
 kubectl.sha256
+
+# Kubernetes credentials
+kubeconfig
