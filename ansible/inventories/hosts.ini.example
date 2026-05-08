@@ -1,0 +1,31 @@
+# ============================================================================
+# BYO (Bring Your Own) Inventory
+# ============================================================================
+# Copy this file to hosts.ini and fill in your node details:
+#   cp hosts.ini.example hosts.ini
+#   edit hosts.ini
+#
+# Then run playbooks with:
+#   ansible-playbook playbooks/provision.yml   -i inventories/hosts.ini
+#   ansible-playbook playbooks/build_images.yml -i inventories/hosts.ini --ask-vault-pass
+#   ansible-playbook playbooks/deploy.yml       -i inventories/hosts.ini --ask-vault-pass
+# ============================================================================
+
+[control_plane]
+# <hostname>  ansible_host=<external_ip>  control_plane_ip=<internal_ip>  ansible_user=<ssh_user>
+cp1  ansible_host=10.0.0.10  control_plane_ip=10.0.0.10  ansible_user=ubuntu
+
+[workers]
+# <hostname>  ansible_host=<external_ip>  ansible_user=<ssh_user>
+w1   ansible_host=10.0.0.11  ansible_user=ubuntu
+
+[k8s_cluster:children]
+control_plane
+workers
+
+[k8s_cluster:vars]
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=auto_legacy_silent
+
+[local]
+localhost ansible_connection=local

@@ -1,0 +1,312 @@
+# ============================================================================
+# Grafana Dashboard — O-RAN Stack Overview
+# ============================================================================
+# This ConfigMap is picked up by Grafana's sidecar (label: grafana_dashboard=1).
+# It provides a single dashboard covering:
+#   - Kubernetes pod health across all O-RAN namespaces
+#   - Open5GS NF availability (AMF, SMF, UPF, PCF)
+#   - Near-RT RIC E2 interface status (e2term, e2mgr)
+#   - Node CPU and memory usage
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oran-overview-dashboard
+  namespace: {{ .Values.namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: oran-stack
+data:
+  oran-overview.json: |
+    {
+      "title": "O-RAN Stack Overview",
+      "uid": "oran-overview",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "15s",
+      "time": { "from": "now-30m", "to": "now" },
+      "tags": ["oran", "5g", "ric"],
+      "panels": [
+
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "O-RAN Pod Health",
+          "description": "Count of Running pods across 5g-core, near-rt-ric, and ran namespaces",
+          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red",   "value": null },
+                  { "color": "yellow","value": 10 },
+                  { "color": "green", "value": 14 }
+                ]
+              },
+              "mappings": []
+            }
+          },
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{phase=\"Running\", namespace=~\"5g-core|near-rt-ric|ran\"})",
+              "legendFormat": "Running Pods",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "AMF Up",
+          "description": "1 = AMF container is running and serving SBI",
+          "gridPos": { "x": 6, "y": 0, "w": 3, "h": 4 },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background",
+            "graphMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red",   "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+              ]
+            }
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{deployment=\"amf\", namespace=\"5g-core\"}",
+              "legendFormat": "AMF",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "e2term Up",
+          "description": "1 = e2term is running and its /metrics endpoint is reachable",
+          "gridPos": { "x": 9, "y": 0, "w": 3, "h": 4 },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background",
+            "graphMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red",   "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+              ]
+            }
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{deployment=\"ric-e2term\", namespace=\"near-rt-ric\"}",
+              "legendFormat": "e2term",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "srs-cu Up",
+          "description": "1 = CU is running",
+          "gridPos": { "x": 12, "y": 0, "w": 3, "h": 4 },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background",
+            "graphMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red",   "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+              ]
+            }
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{deployment=\"srs-cu\", namespace=\"ran\"}",
+              "legendFormat": "CU",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "srsUE Up",
+          "description": "1 = UE simulator is running",
+          "gridPos": { "x": 15, "y": 0, "w": 3, "h": 4 },
+          "options": {
+            "reduceOptions": { "calcs": ["lastNotNull"] },
+            "colorMode": "background",
+            "graphMode": "none"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red",   "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              },
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+              ]
+            }
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{deployment=\"srsue\", namespace=\"ran\"}",
+              "legendFormat": "UE",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Pod Restarts — O-RAN Namespaces",
+          "description": "Container restart count per pod. Restarts indicate crashes or SCTP failures.",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "options": { "tooltip": { "mode": "multi" } },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 2 },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow","value": 1 },
+                  { "color": "red",   "value": 5 }
+                ]
+              }
+            }
+          },
+          "targets": [
+            {
+              "expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"5g-core|near-rt-ric|ran\"}[5m])",
+              "legendFormat": "{{ "{{" }}namespace{{ "}}" }}/{{ "{{" }}pod{{ "}}" }}/{{ "{{" }}container{{ "}}" }}",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Node CPU Usage",
+          "description": "Per-node CPU utilisation. High CPU on the node hosting srs-cu/amf can cause SCTP RTO.",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "options": { "tooltip": { "mode": "multi" } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "custom": { "lineWidth": 2 },
+              "max": 1
+            }
+          },
+          "targets": [
+            {
+              "expr": "1 - avg by(node)(rate(node_cpu_seconds_total{mode=\"idle\"}[2m]))",
+              "legendFormat": "{{ "{{" }}node{{ "}}" }}",
+              "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 20,
+          "type": "table",
+          "title": "O-RAN Deployment Status",
+          "description": "Ready vs desired replicas for all O-RAN deployments",
+          "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+          "options": { "sortBy": [{ "displayName": "Namespace", "desc": false }] },
+          "fieldConfig": {
+            "defaults": { "custom": { "align": "left" } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Ready" },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "red",   "value": null },
+                        { "color": "green", "value": 1 }
+                      ]
+                    }
+                  },
+                  { "id": "custom.displayMode", "value": "color-background" }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas_ready{namespace=~\"5g-core|near-rt-ric|ran\"}",
+              "legendFormat": "",
+              "refId": "A",
+              "instant": true,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            { "id": "organize", "options": {
+              "renameByName": {
+                "namespace": "Namespace",
+                "deployment": "Deployment",
+                "Value": "Ready"
+              },
+              "excludeByName": {
+                "Time": true, "__name__": true, "job": true, "instance": true
+              }
+            }}
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        }
+      ]
+    }
