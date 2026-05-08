@@ -1260,3 +1260,224 @@ The GKE control plane (master) survived but the data plane is gone.
 | `helm/ran/values.yaml` | `amfAddress`: `amf-ngap` → `amf-ngap-headless` |
 | `helm/ran/templates/configmap-srsran-configs.yaml` | UE: `filename` → `/dev/stdout`; removed `netns = ue1` from `[gw]` |
 
+---
+
+## Part 7: kubeadm GCP Deployment — First Clean Full-Stack Run
+
+Session date: 2026-04-14
+Cluster: two-node kubeadm on GCP (`oran-cp1` e2-standard-2 `34.173.61.132`, `oran-w1` e2-standard-4 `34.46.210.174`).
+Pipeline: `gcp-vm-create.yml` → `provision.yml` → `deploy.yml` (Ansible), then Helm charts for 5g-core, near-rt-ric, ran, monitoring.
+Outcome: **50/50 pods Running** — first successful full-stack deployment on a fresh kubeadm cluster.
+
+---
+
+## 36. `crictl` not found during `provision.yml`
+
+**File:** `ansible/roles/kubeadm_prereqs/tasks/main.yml`
+
+**Symptom:**
+```
+TASK [kubeadm_prereqs : Verify containerd CRI socket is responding]
+fatal: [oran-cp1]: FAILED! => {"msg": "No such file or directory: b'crictl'"}
+```
+
+**Root cause:** The `Verify containerd CRI socket is responding` task (originally line 108) ran
+**before** the `Install kubeadm, kubelet, kubectl` apt task (line 132). `crictl` is shipped as
+part of the Kubernetes apt package group (`cri-tools`), not with containerd. At the point of the
+check, the package had not yet been installed.
+
+**Fix:** Moved the `Verify containerd CRI socket is responding` task to the very end of the role,
+after `Enable and start kubelet`.
+
+**Lesson:** Tool-presence checks must come after the task that installs the tool.
+Even if containerd itself is already running, `crictl` (which talks to it) lives in a separate
+package. Ordering matters inside a role just as much as between roles.
+
+---
+
+## 37. e2term `CrashLoopBackOff`: `illegal pod_name or environment variable not exists`
+
+**File:** `helm/near-rt-ric/templates/deployments.yaml`
+
+**Symptom:**
+```
+[ERROR] e2term: illegal pod_name or environment variable not exists : ric-e2term
+```
+After an attempted fix (substituting `metadata.name`):
+```
+[ERROR] e2term: illegal pod_name or environment variable not exists : ric-e2term-6d8f4b9c7-xkqzp
+```
+Pod was in `CrashLoopBackOff` on every start.
+
+**Root cause (two-step):**
+
+1. The `render-config` initContainer was substituting `pod_name=E2TERM_POD_NAME` with
+   `pod_name=ric-e2term` (the hardcoded Service name). The field `pod_name=` in `config.conf` is
+   **not a literal pod name** — it is the name of an environment variable that the e2term binary
+   dereferences at runtime via `getenv(config["pod_name"])`. So the binary was calling
+   `getenv("ric-e2term")`, which does not exist.
+
+2. After changing the substitution to use `metadata.name` (giving `pod_name=ric-e2term-<hash>`),
+   the binary correctly called `getenv("ric-e2term-<hash>")` — but that env var also does not
+   exist. The actual env var the binary expects is `E2TERM_POD_NAME`.
+
+**Fix:**
+- **Do not substitute `pod_name` at all** in the `render-config` initContainer. Leave it as
+  `pod_name=E2TERM_POD_NAME` (the default from the image's bundled `config.conf`).
+- In the main container's `env:` block, expose `E2TERM_POD_NAME` via Downward API
+  (`fieldRef: fieldPath: metadata.name`).
+- Remove the `POD_NAME` Downward API env from the initContainer (it was only needed to drive the
+  now-removed substitution).
+
+**Lesson:** The default `config.conf` in the e2term image contains `pod_name=E2TERM_POD_NAME`.
+This is a **pointer pattern**: the value is the *name of an env var*, not the pod name itself.
+Never substitute it away — just ensure the referenced env var is set in the main container.
+
+---
+
+## 38. e2term still crashes after §37 fix: RBAC 403 from Kubernetes API
+
+**File:** `helm/near-rt-ric/templates/rbac.yaml` *(new file)*, `helm/near-rt-ric/templates/deployments.yaml`
+
+**Symptom:** After the `pod_name` pointer fix (§37), e2term still crashed immediately with the
+same `illegal pod_name` error even though `E2TERM_POD_NAME` was correctly set to the real pod name.
+
+**Root cause:** The e2term binary **validates its own pod name by querying the Kubernetes API**:
+```
+GET /api/v1/namespaces/<ns>/pods/<pod_name>
+```
+The `default` ServiceAccount in the `near-rt-ric` namespace has no RBAC permissions. The API
+server returned HTTP 403, which e2term surfaces as `illegal pod_name`.
+
+**Fix:**
+Created `helm/near-rt-ric/templates/rbac.yaml` containing:
+- A `ServiceAccount` named `ric-e2term` in the `near-rt-ric` namespace.
+- A `Role` granting `get` and `list` on `pods`.
+- A `RoleBinding` linking the Role to the ServiceAccount.
+
+Added `serviceAccountName: ric-e2term` to the e2term Deployment pod spec.
+
+**Verification:**
+```bash
+kubectl auth can-i get pods \
+  --as=system:serviceaccount:near-rt-ric:ric-e2term \
+  -n near-rt-ric
+# → yes
+```
+
+**Lesson:** e2term silently conflates an RBAC denial with a bad pod name. If it keeps crashing
+after the env var fix, check whether the service account can `get pods` in its own namespace.
+
+---
+
+## 39. `srs-cu` always `0/1 Ready`: TCP probe against UDP-only port
+
+**File:** `helm/ran/templates/deployments.yaml`
+
+**Symptom:** `srs-cu` pod was `Running` but perpetually `Ready: 0/1`. Its headless service had
+no ready endpoints, so DNS returned no A records. The DU's `wait-for-cu` initContainer looped
+forever:
+```
+nslookup: can't resolve 'srs-cu.ran.svc.cluster.local'
+```
+CU logs showed a fully operational stack (NGSetup, F1Setup, and E2 all complete).
+
+**Root cause:** The readiness (and liveness) probe was:
+```yaml
+tcpSocket:
+  port: 2153
+```
+Port 2153 is the **F1-U GTP-U port**, which is UDP. A TCP connection to a UDP-only port always
+fails with `connection refused`. Kubelet's `tcpSocket` probe uses TCP, so it can never pass.
+The CU was healthy; only the probe was wrong.
+
+**Fix:** Replaced both readiness and liveness probes with an exec probe:
+```yaml
+exec:
+  command: ["sh", "-c", "kill -0 $(pgrep srscu) 2>/dev/null"]
+```
+This tests whether the `srscu` process is alive, which is the correct readiness signal for a
+binary that uses SCTP and UDP transport ports that kubelet cannot natively probe.
+
+**Lesson:** Never use `tcpSocket` probes for UDP ports. SCTP ports (e.g., 38472 F1-C) are
+similarly unprobable by kubelet. Use a process-existence exec probe as a safe fallback for
+non-TCP services.
+
+---
+
+## 40. Prometheus pod `Pending`: insufficient CPU on fully-packed worker
+
+**File:** `helm/monitoring/values.yaml`
+
+**Symptom:**
+```
+0/2 nodes are available: 1 node(s) had untolerated taint (control-plane),
+1 node(s) were unschedulable due to insufficient cpu.
+```
+Worker node `oran-w1` (e2-standard-4, 4 vCPU) showed 3851m/4000m CPU allocated.
+Prometheus StatefulSet requested 200m — 51m more than available.
+
+**Root cause:** All 5g-core NFs (13 pods), all near-rt-ric pods (7), all ran pods (3), plus
+monitoring Grafana/operator/kube-state-metrics were co-located on the single worker, leaving
+~149m free. The default Prometheus CPU request of 200m could not be satisfied.
+
+**Fix:** Reduced Prometheus CPU request in `helm/monitoring/values.yaml`:
+```yaml
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      resources:
+        requests:
+          cpu: 50m   # was 200m
+```
+
+**Helm stuck-release side effect:** The Helm release was left in `pending-upgrade` /
+`pending-rollback` state due to an API server timeout. Recovery:
+1. Identify stuck secrets:
+   ```bash
+   kubectl get secrets -n monitoring | grep sh.helm.release
+   ```
+2. Delete the secrets with `pending-upgrade` or `pending-rollback` status to unblock Helm.
+
+**Lesson:** On a resource-constrained single-worker cluster, default upstream chart resource
+requests (especially Prometheus at 200m+) will cause scheduling failures. Audit `requests.cpu`
+for all monitoring components before the first deploy. A `pending-upgrade` Helm state that
+survives a rerun must be cleared by deleting its release secrets.
+
+---
+
+## 41. Final state (end of Part 7 session — 2026-04-14)
+
+| Component | Status | Notes |
+|---|---|---|
+| 5g-core | All 13 pods Running | All NFs healthy |
+| near-rt-ric | All 7 pods Running | e2mgr, e2term, a1mediator, rtmgr, dbaas, xapp-mgr |
+| srs-cu | Running, Ready 1/1 | NGSetup ✅, F1Setup ✅ |
+| srs-du | Running, Ready 1/1 | F1Setup ✅, E2 connected ✅, cell active ✅ |
+| srsue | Running | ZMQ link ESTAB, `NAS5G: Switching on` (cell search in progress) |
+| monitoring | All pods Running | Prometheus 50m CPU request; Grafana, kube-state-metrics ✅ |
+| N2 (NG Setup) | Complete | NGSetupRequest → NGSetupResponse; AMF stable for hours ✅ |
+| F1 (F1 Setup) | Complete | F1SetupRequest → F1SetupResponse; cell scheduler activated ✅ |
+| E2 | gNB registered | `gnb_001_001_00019b` confirmed via `GET /v1/nodeb/states` ✅ |
+| ZMQ | ESTAB | `10.244.190.105:2000 ↔ 10.244.190.103` ✅ |
+
+**Open items:**
+- **P2 (E2 Setup timeout):** CU logs show `E2 Setup procedure aborted` at ~T+10 min. The E2
+  Setup Request reached e2mgr before the CU-side timeout; the response path back timed out.
+  gNB remains registered. Root cause not yet fully diagnosed.
+- **P3 (UE attach):** UE is scanning for the cell (`NAS5G: Switching on`). Full attach
+  (Registration Accept + GTP-U tunnel) not yet confirmed.
+
+---
+
+## 42. Files Modified (Part 7)
+
+| File | Change |
+|---|---|
+| `ansible/roles/kubeadm_prereqs/tasks/main.yml` | Moved `Verify containerd CRI socket is responding` task to after `Enable and start kubelet` |
+| `helm/near-rt-ric/templates/deployments.yaml` | Removed `pod_name` substitution from `render-config` initContainer; added `serviceAccountName: ric-e2term`; cleaned up `POD_NAME` env from initContainer |
+| `helm/near-rt-ric/templates/rbac.yaml` | **New file**: `ServiceAccount`, `Role` (get/list pods), and `RoleBinding` for e2term |
+| `helm/ran/templates/deployments.yaml` | `srs-cu` readiness/liveness probes: `tcpSocket:2153` → `exec: kill -0 $(pgrep srscu)` |
+| `helm/monitoring/values.yaml` | Prometheus CPU request: `200m` → `50m` |
+| `docs/STATUS.md` | Updated with 2026-04-14 session summary |
+

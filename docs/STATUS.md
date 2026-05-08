@@ -1,12 +1,52 @@
 # O-RAN Lab Stack — Status
 
-_Last updated: 2026-04-12_
+_Last updated: 2026-04-14_
+
+---
+
+## 0. Recent Changes
+
+### 2026-04-14 — GCP Deployment + Bug Fixes
+
+**Deployment:**
+- Two GCP VMs created: `oran-cp1` (e2-standard-2, cp1 `34.173.61.132`) and `oran-w1` (e2-standard-4, `34.46.210.174`) via `gcp-vm-create.yml`
+- kubeadm cluster bootstrapped via `provision.yml` (Calico 3.28.4, local-path-provisioner)
+- Full O-RAN stack deployed: 5g-core (13 NFs + MongoDB), near-rt-ric (7 components), ran (CU + DU + UE), monitoring (Prometheus + Grafana)
+- **All 50 pods Running** — first clean full-stack deployment
+
+**Bugs fixed during this session:**
+
+| Bug | Fix | File(s) |
+|-----|-----|---------|
+| `crictl` not found during provision | Moved `Verify containerd CRI socket` task to after kubeadm/kubectl install | `ansible/roles/kubeadm_prereqs/tasks/main.yml` |
+| e2term crash: `illegal pod_name` | `pod_name=` in `config.conf` is an **env var pointer**, not a literal — kept as `E2TERM_POD_NAME`; set `E2TERM_POD_NAME` via Downward API `metadata.name` | `helm/near-rt-ric/templates/deployments.yaml` |
+| e2term crash: RBAC denied K8s pod lookup | Added `ServiceAccount ric-e2term` + `Role`/`RoleBinding` granting `get/list pods` in near-rt-ric namespace | `helm/near-rt-ric/templates/rbac.yaml`, `deployments.yaml` |
+| srs-cu readiness probe always failing | F1-U is UDP — TCP probe on port 2153 always fails; replaced with `exec: kill -0 $(pgrep srscu)` process check | `helm/ran/templates/deployments.yaml` |
+| Prometheus pod Pending: insufficient CPU | Reduced Prometheus CPU request from 200m to 50m | `helm/monitoring/values.yaml` |
+
+**Verified results:**
+- P1 (co-location): `srs-cu` and `amf` both on `w1` ✓
+- P2 (E2): gNB `gnb_001_001_00019b` registered in e2mgr (`GET /v1/nodeb/states`) ✓
+- F1 setup: DU F1SetupRequest → CU F1SetupResponse completed ✓
+- N2: NGSetupRequest → NGSetupResponse completed, AMF connection stable ✓
+- ZMQ: UE ↔ DU TCP link established (`10.244.190.105:2000 ↔ 10.244.190.103`) ✓
+- UE: Cell search in progress (NAS `Switching on`) — P3 investigation ongoing
+
+### 2026-04-13 — Pre-Deployment Improvements
+
+| Change | File(s) | Expected Impact |
+|--------|---------|-----------------|
+| **P1 fix (1a)**: `podAffinity` on srs-cu to prefer the same node as AMF | `helm/ran/templates/deployments.yaml`, `helm/ran/values.yaml` | Eliminates cross-node SCTP path; P1 observed only cross-node |
+| **P1 fix (1b)**: SCTP sysctl tuning in `sctp-init` DaemonSet | `helm/5g-core/templates/daemonset-sctp-init.yaml` | Reduces RTO, max_retrans — tightens SCTP association failure detection and retry behaviour |
+| **P5 fix**: e2term `render-config` now substitutes `local-ip`, `external-fqdn`, `pod_name` directly; `/log` emptyDir volume added | `helm/near-rt-ric/templates/deployments.yaml` | E2AP processing logs now visible at `/log/e2term.log`; config correctly reflects pod IP |
+| **Probes**: Liveness + readiness probes for AMF, srs-cu, srs-du | `helm/5g-core/templates/deployment-amf.yaml`, `helm/ran/templates/deployments.yaml` | `helm --wait` and `kubectl rollout status` now reflect actual readiness |
+| **Observability**: Prometheus + Grafana stack (`helm/monitoring`) with ServiceMonitors for all existing `/metrics` endpoints | `helm/monitoring/`, `ansible/roles/deploy_monitoring/`, `ansible/playbooks/deploy.yml` | Operational visibility into NF health, pod restarts, and E2 status |
 
 ---
 
 ## 1. Current Problems
 
-### P1 — AMF Flapping (N2 / NGAP) — **UNRESOLVED**
+### P1 — AMF Flapping (N2 / NGAP) — **MITIGATION APPLIED, NEEDS RETEST**
 
 The srsRAN CU-CP connects to Open5GS AMF, completes NGSetupRequest/Response successfully,
 then loses the connection ~200–600 ms later. The cycle repeats every ~1–2 seconds indefinitely.
