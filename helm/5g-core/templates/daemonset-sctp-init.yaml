@@ -63,6 +63,7 @@ spec:
             - sh
             - "-c"
             - |
+              # ── Step 1: ensure SCTP is available ───────────────────────────
               if modprobe sctp 2>/dev/null; then
                 echo "sctp module loaded"
               elif [ -d /proc/net/sctp ]; then
@@ -71,6 +72,25 @@ spec:
                 echo "ERROR: SCTP not available" >&2
                 exit 1
               fi
+
+              # ── Step 2: SCTP sysctl tuning ─────────────────────────────────
+              # SCTP traffic uses dedicated OVS L2 secondary interfaces (via
+              # Multus), so there is no overlay encapsulation or ARP convergence
+              # delay. We apply modest tuning to speed up dead association
+              # detection without being overly aggressive.
+              #
+              # rto_max (ms): cap the maximum retransmission timeout so that a
+              #   dead peer is detected in ~30 s rather than the default ~60 s.
+              sysctl -w net.sctp.rto_max=10000
+              #
+              # max_retrans_association: reduce from 10 to 5 to clear ghost
+              #   associations faster after a pod restart.
+              sysctl -w net.sctp.max_retrans_association=5
+              #
+              # addip_enable: keep disabled — single secondary IP per interface.
+              sysctl -w net.sctp.addip_enable=0
+              #
+              echo "SCTP sysctl tuning applied"
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9

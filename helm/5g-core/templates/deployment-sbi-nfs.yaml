@@ -129,7 +129,9 @@ metadata:
   labels: { app: pcf }
 spec:
   selector: { app: pcf }
-  ports: [{ name: sbi, port: 7777, targetPort: 7777 }]
+  ports:
+    - { name: sbi, port: 7777, targetPort: 7777 }
+    - { name: metrics, port: 9090, targetPort: 9090 }
 {{- end }}
 ---
 # --- NSSF (Network Slice Selection Function) ---------------------------------

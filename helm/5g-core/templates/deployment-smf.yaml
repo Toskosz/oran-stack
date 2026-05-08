@@ -38,6 +38,8 @@ spec:
             - containerPort: 2123
               name: gtpc
               protocol: UDP
+            - containerPort: 9090
+              name: metrics
           {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
           volumeMounts:
             {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
@@ -66,4 +68,7 @@ spec:
       port: 8805
       targetPort: 8805
       protocol: UDP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
 {{- end }}

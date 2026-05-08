@@ -54,6 +54,8 @@ spec:
             - containerPort: 2152
               name: gtpu
               protocol: UDP
+            - containerPort: 9090
+              name: metrics
           securityContext:
             privileged: true
             capabilities:
@@ -91,4 +93,7 @@ spec:
       port: 2152
       targetPort: 2152
       protocol: UDP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
 {{- end }}

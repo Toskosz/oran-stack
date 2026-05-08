@@ -17,6 +17,17 @@
 namespace: 5g-core
 
 # ----------------------------------------------------------------------------
+# Secondary network (Multus/OVS) — static IPs on dedicated OVS bridges.
+# These are used for SCTP N2/NGAP traffic between AMF and the CU.
+# The NAD name must match the NetworkAttachmentDefinition created in
+# the 5g-core namespace by provision.yml.
+# ----------------------------------------------------------------------------
+secondaryNetworks:
+  n2:
+    nadName: "n2br-net"
+    amfIP: "10.200.1.2"
+
+# ----------------------------------------------------------------------------
 # Image configuration
 # ----------------------------------------------------------------------------
 images:
