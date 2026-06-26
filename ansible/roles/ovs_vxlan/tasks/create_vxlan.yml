@@ -7,7 +7,7 @@
   set_fact:
     _vxlan_key: "{{ (_bridge.name | hash('md5'))[:4] | int(base=16) }}"
 
-- name: "Add VXLAN port on {{ _bridge.name }} toward {{ remote_node }}"
+- name: "Add VXLAN port on {{ _bridge.name }}"
   command: >
     ovs-vsctl --may-exist add-port {{ _bridge.name }} vx-{{ _bridge.name }}-{{ remote_node }}
     -- set interface vx-{{ _bridge.name }}-{{ remote_node }} type=vxlan

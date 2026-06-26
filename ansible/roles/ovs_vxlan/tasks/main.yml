@@ -12,6 +12,13 @@
   set_fact:
     _my_tunnel_ip: "{{ control_plane_ip | default(ansible_host) }}"
 
+- name: Create OVS bridges
+  command: "ovs-vsctl --may-exist add-br {{ item.name }}"
+  loop: "{{ ovs_bridges }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: true
+
 - name: Create VXLAN ports on each OVS bridge to every other node
   include_tasks: create_vxlan.yml
   loop: "{{ ovs_bridges }}"
