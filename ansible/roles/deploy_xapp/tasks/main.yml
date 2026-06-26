@@ -1,0 +1,109 @@
+# ============================================================================
+# Role: deploy_xapp
+# Purpose: Deploy the simple-mon KPM xApp onto the kubeadm cluster.
+#   1. Create ricxapp namespace with privileged pod-security label
+#   2. Create imagePullSecret
+#   3. helm upgrade --install r4-simple-mon
+#   4. Wait for the xApp Deployment to be Available
+# ============================================================================
+---
+
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+# ----------------------------------------------------------------------------
+# 1. Create ricxapp namespace
+# ----------------------------------------------------------------------------
+- name: Create ricxapp namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespaces.xapp }}"
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/warn:    privileged
+          pod-security.kubernetes.io/audit:   privileged
+
+# ----------------------------------------------------------------------------
+# 2. Create Docker Hub imagePullSecret
+# ----------------------------------------------------------------------------
+- name: Create Docker Hub imagePullSecret in ricxapp namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name:      "{{ image_pull_secret_name }}"
+        namespace: "{{ namespaces.xapp }}"
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: >-
+          {{ ({
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "username": dockerhub_username,
+                "password": dockerhub_password,
+                "auth": (dockerhub_username ~ ":" ~ dockerhub_password) | b64encode
+              }
+            }
+          }) | to_json | b64encode }}
+  no_log: true
+
+# ----------------------------------------------------------------------------
+# 3. Helm upgrade --install simple-mon xApp
+# ----------------------------------------------------------------------------
+- name: Deploy simple-mon xApp Helm chart
+  kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
+    name:             "{{ helm_releases.xapp }}"
+    chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.xapp }}"
+    release_namespace: "{{ namespaces.xapp }}"
+    create_namespace: false
+    wait:             true
+    wait_timeout:     "{{ helm_timeout }}"
+    values_files:
+      - "{{ playbook_dir }}/../../{{ helm_charts.xapp }}/values/simple-mon.yaml"
+    values:
+      image:
+        repository: "{{ images.xapps.repository }}"
+        tag:        "{{ images.xapps.tag }}"
+      ric:
+        namespace: "{{ namespaces.ric }}"
+        submgrUri: "http://ric-submgr.{{ namespaces.ric }}:8088/ric/v1"
+        appmgrRegisterUri: "http://ric-appmgr.{{ namespaces.ric }}:8080/ric/v1/register"
+      xapp:
+        e2NodeId: "{{ xapp.e2_node_id }}"
+  register: helm_xapp
+
+- name: Show xApp Helm release status
+  ansible.builtin.debug:
+    msg: "xApp release status: {{ helm_xapp.status }}"
+
+# ----------------------------------------------------------------------------
+# 4. Wait for xApp Deployment to be Available
+# ----------------------------------------------------------------------------
+- name: Wait for xApp Deployment to be Available
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
+    kind: Deployment
+    name:      "{{ helm_releases.xapp }}"
+    namespace: "{{ namespaces.xapp }}"
+    wait: true
+    wait_condition:
+      type:   Available
+      status: "True"
+    wait_timeout: 300
+
+- name: Show xApp pod logs hint
+  ansible.builtin.debug:
+    msg: >-
+      xApp deployed. Verify with:
+      kubectl logs -n {{ namespaces.xapp }} deployment/{{ helm_releases.xapp }} -f
+      kubectl exec -n {{ namespaces.ric }} deploy/ric-rtmgr -- cat /db/rt.json

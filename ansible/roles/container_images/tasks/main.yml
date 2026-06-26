@@ -74,6 +74,32 @@
       nocache: false
   register: build_srsue
 
+- name: Build xApp runner base image
+  community.docker.docker_image:
+    name: "{{ images.xapp_runner.repository }}"
+    tag:  "{{ images.xapp_runner.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.core }}"
+      dockerfile: "{{ dockerfiles.xapp_runner }}"
+      pull: true
+      nocache: false
+  register: build_xapp_runner
+
+- name: Build xApps image
+  community.docker.docker_image:
+    name: "{{ images.xapps.repository }}"
+    tag:  "{{ images.xapps.tag }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/../../{{ build_contexts.core }}"
+      dockerfile: "{{ dockerfiles.xapps }}"
+      pull: false
+      nocache: false
+      args:
+        XAPP_RUNNER_IMAGE: "{{ images.xapp_runner.repository }}:{{ images.xapp_runner.tag }}"
+  register: build_xapps
+
 # ----------------------------------------------------------------------------
 # 3. Push images to Docker Hub
 # ----------------------------------------------------------------------------
@@ -102,6 +128,20 @@
   community.docker.docker_image:
     name: "{{ images.srsue.repository }}"
     tag:  "{{ images.srsue.tag }}"
+    source: local
+    push: true
+
+- name: Push xApp runner base image
+  community.docker.docker_image:
+    name: "{{ images.xapp_runner.repository }}"
+    tag:  "{{ images.xapp_runner.tag }}"
+    source: local
+    push: true
+
+- name: Push xApps image
+  community.docker.docker_image:
+    name: "{{ images.xapps.repository }}"
+    tag:  "{{ images.xapps.tag }}"
     source: local
     push: true
 

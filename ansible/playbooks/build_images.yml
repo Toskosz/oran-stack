@@ -1,6 +1,6 @@
 # ============================================================================
 # Playbook: build_images.yml
-# Purpose:  Build Docker images for Open5GS NFs, WebUI, and srsRAN from the
+# Purpose:  Build Docker images for Open5GS NFs, WebUI, srsRAN, and xApps from the
 #           local repository and push them to Docker Hub.
 #
 # Usage:

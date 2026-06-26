@@ -18,13 +18,33 @@
 # (e.g. partial deployment) does not abort the teardown.
 # ============================================================================
 ---
-- name: Uninstall Helm releases (RAN → RIC → core)
+- name: Uninstall Helm releases (monitoring → xapp → RAN → RIC → core)
   hosts: localhost
   connection: local
   gather_facts: false
   any_errors_fatal: false
 
   tasks:
+    - name: Uninstall monitoring Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.monitoring }}"
+        release_namespace: "{{ namespaces.monitoring }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    - name: Uninstall xApp Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.xapp }}"
+        release_namespace: "{{ namespaces.xapp }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
     - name: Uninstall ran Helm release
       kubernetes.core.helm:
         name:              "{{ helm_releases.ran }}"
@@ -56,6 +76,32 @@
       ignore_errors: true
 
     # Delete namespaces so PVCs (MongoDB data) are also removed.
+    - name: Delete monitoring namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.monitoring }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete ricxapp namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.xapp }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
     - name: Delete ran namespace
       kubernetes.core.k8s:
         state: absent

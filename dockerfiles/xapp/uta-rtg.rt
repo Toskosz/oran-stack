@@ -1,0 +1,9 @@
+newrt|start
+rte|12010|ric-e2term.near-rt-ric:38000
+rte|12011|ric-submgr.near-rt-ric:4560
+rte|12012|ric-submgr.near-rt-ric:4560
+rte|12020|ric-e2term.near-rt-ric:38000
+rte|12021|ric-submgr.near-rt-ric:4560
+rte|12022|ric-submgr.near-rt-ric:4560
+rte|12040|ric-e2term.near-rt-ric:38000
+newrt|end

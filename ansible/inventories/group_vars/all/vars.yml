@@ -91,12 +91,20 @@ images:
   srsue:
     repository: "{{ dockerhub_username }}/oran-srsue"
     tag: "latest"
+  xapp_runner:
+    repository: "{{ dockerhub_username }}/oran-xapp-runner"
+    tag: "latest"
+  xapps:
+    repository: "{{ dockerhub_username }}/oran-xapps"
+    tag: "latest"
 
 dockerfiles:
   core:   "dockerfiles/Dockerfile.5gscore"
   webui:  "dockerfiles/Dockerfile.webui"
   srsran: "dockerfiles/Dockerfile.srsran"
   srsue:  "dockerfiles/Dockerfile.srsue"
+  xapp_runner: "dockerfiles/xapp/Dockerfile.runner"
+  xapps:  "dockerfiles/xapp/Dockerfile.xapps"
 
 build_contexts:
   core:   "."
@@ -112,12 +120,14 @@ helm_charts:
   ric:        "helm/near-rt-ric"
   ran:        "helm/ran"
   monitoring: "helm/monitoring"
+  xapp:       "helm/xapps/xapp"
 
 helm_releases:
   core:       "5g-core"
   ric:        "near-rt-ric"
   ran:        "ran"
   monitoring: "monitoring"
+  xapp:       "r4-simple-mon"
 
 helm_timeout: "600s"
 
@@ -129,6 +139,7 @@ namespaces:
   ric:        "near-rt-ric"
   ran:        "ran"
   monitoring: "monitoring"
+  xapp:       "ricxapp"
 
 image_pull_secret_name: "dockerhub-secret"
 
@@ -139,3 +150,10 @@ plmn:
   mcc: "001"
   mnc: "01"
   tac: "1"
+
+# ----------------------------------------------------------------------------
+# xApp — simple-mon KPM monitor (E2SM-KPM, ran_func_id=2)
+# e2_node_id must match the gNB registered in e2mgr (GET /v1/nodeb/states).
+# ----------------------------------------------------------------------------
+xapp:
+  e2_node_id: "gnb_001_001_00019b"

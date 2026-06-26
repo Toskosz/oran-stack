@@ -1,0 +1,6 @@
+apiVersion: v2
+name: xapp
+description: Generic O-RAN SC Python xApp chart for oran-stack
+type: application
+version: 0.1.0
+appVersion: "i-release"
