@@ -1,10 +1,22 @@
+#!/usr/bin/env bash
+# Reset orphaned w1 join state and re-run provision with updated worker role.
+set -euo pipefail
+
+REPO_ROOT="$(cd "${1:-$(pwd)}" && pwd)"
+INVENTORY="${INVENTORY:-$REPO_ROOT/ansible/inventories/hosts.ini}"
+
+if [[ ! -f "$INVENTORY" ]]; then
+  echo "Missing inventory: $INVENTORY" >&2
+  exit 1
+fi
+
+WORKER_ROLE="$REPO_ROOT/ansible/roles/kubeadm_worker/tasks/main.yml"
+cat > "$WORKER_ROLE" << 'EOF'
 ---
 # kubeadm_worker/tasks/main.yml
 # Runs on worker nodes. Joins the cluster using the token/hash generated
 # by the control-plane role, then waits for the node to become Ready.
 
-# Ensure the inventory hostname resolves locally (needed on GCP where the
-# real hostname differs from the inventory alias).
 - name: Ensure node name resolves in /etc/hosts
   lineinfile:
     path: /etc/hosts
@@ -61,3 +73,14 @@
   delay: 10
   until: worker_ready.stdout == "True"
   changed_when: false
+EOF
+
+echo "==> Resetting orphaned join state on w1 (if any)"
+ansible -i "$INVENTORY" w1 -b -m command -a "kubeadm reset -f"
+
+echo "==> Re-running provision.yml"
+ansible-playbook "$REPO_ROOT/ansible/playbooks/provision.yml" -i "$INVENTORY"
+
+echo "==> Cluster nodes:"
+export KUBECONFIG="$REPO_ROOT/kubeconfig"
+kubectl get nodes -o wide

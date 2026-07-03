@@ -6,6 +6,23 @@
 
 # ── kubeadm init ───────────────────────────────────────────────────────────────
 
+- name: Set API server addressing facts
+  set_fact:
+    _apiserver_advertise_address: "{{ control_plane_ip | default(ansible_host) }}"
+    _apiserver_cert_sans: "{{ [ansible_host, control_plane_ip | default(ansible_host)] | unique | list }}"
+
+- name: Gather network facts for API server address check
+  setup:
+    gather_subset:
+      - network
+
+- name: Verify API server advertise address is assigned to this host
+  assert:
+    that: _apiserver_advertise_address in ansible_all_ipv4_addresses
+    fail_msg: >-
+      {{ _apiserver_advertise_address }} is not configured on {{ inventory_hostname }}.
+      Fix ansible_host / control_plane_ip in hosts.ini to match `ip -4 addr` output.
+
 - name: Check if cluster is already initialised
   stat:
     path: /etc/kubernetes/admin.conf
@@ -24,7 +41,8 @@
     --pod-network-cidr={{ pod_cidr }}
     --service-cidr={{ service_cidr }}
     --node-name={{ inventory_hostname }}
-    --apiserver-cert-extra-sans={{ ansible_host }}
+    --apiserver-advertise-address={{ _apiserver_advertise_address }}
+    --apiserver-cert-extra-sans={{ _apiserver_cert_sans | join(',') }}
   when: not kubeadm_admin_conf.stat.exists
   register: kubeadm_init_result
 
@@ -50,7 +68,8 @@
       command: >
         kubeadm init phase certs apiserver
         --service-cidr={{ service_cidr }}
-        --apiserver-cert-extra-sans={{ ansible_host }}
+        --apiserver-advertise-address={{ _apiserver_advertise_address }}
+        --apiserver-cert-extra-sans={{ _apiserver_cert_sans | join(',') }}
 
     - name: Restart kube-apiserver to pick up new cert
       command: >
@@ -72,7 +91,15 @@
       changed_when: false
   when:
     - kubeadm_admin_conf.stat.exists
-    - ansible_host not in (_cert_text.stdout | default(''))
+    - >
+        ansible_host not in (_cert_text.stdout | default(''))
+        or _apiserver_advertise_address not in (_cert_text.stdout | default(''))
+
+- name: Point admin.conf at the API server advertise address
+  replace:
+    path: /etc/kubernetes/admin.conf
+    regexp: 'server: https://.*:6443'
+    replace: "server: https://{{ _apiserver_advertise_address }}:6443"
 
 - name: Create .kube directory for remote user
   file:
@@ -106,6 +133,16 @@
 
 # ── Flannel (primary CNI) ──────────────────────────────────────────────────────
 
+- name: Wait for API server to be ready
+  command: kubectl get --raw /healthz
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: _apiserver_ready
+  retries: 30
+  delay: 5
+  until: _apiserver_ready.rc == 0
+  changed_when: false
+
 - name: Apply Flannel CNI manifest
   command: kubectl apply -f {{ flannel_manifest_url }}
   environment:
@@ -113,10 +150,20 @@
   register: flannel_apply
   changed_when: "'configured' in flannel_apply.stdout or 'created' in flannel_apply.stdout"
 
-- name: Wait for Flannel pods to be Ready
+- name: Wait for Flannel DaemonSet to exist
+  command: kubectl -n kube-flannel get daemonset kube-flannel-ds
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: _flannel_ds
+  retries: 24
+  delay: 5
+  until: _flannel_ds.rc == 0
+  changed_when: false
+
+- name: Wait for Flannel rollout to complete
   command: >
-    kubectl wait pods -n kube-flannel -l app=flannel
-    --for condition=Ready --timeout=120s
+    kubectl rollout status daemonset/kube-flannel-ds
+    -n kube-flannel --timeout=180s
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
   changed_when: false
@@ -186,8 +233,27 @@
   register: cnao_operator
   changed_when: "'configured' in cnao_operator.stdout or 'created' in cnao_operator.stdout"
 
-- name: Apply NetworkAddonsConfig to enable OVS
+- name: Allow CNAO operator to schedule on control-plane nodes
   command: >
+    kubectl patch deployment cluster-network-addons-operator
+    -n cluster-network-addons --type=merge
+    -p '{"spec":{"template":{"spec":{"tolerations":[{"key":"node-role.kubernetes.io/control-plane","operator":"Exists","effect":"NoSchedule"}]}}}}'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: _cnao_toleration_patch
+  changed_when: "'patched' in _cnao_toleration_patch.stdout"
+  failed_when: _cnao_toleration_patch.rc != 0 and 'not patched' not in _cnao_toleration_patch.stdout
+
+- name: Wait for cluster-network-addons-operator deployment
+  command: >
+    kubectl rollout status deployment/cluster-network-addons-operator
+    -n cluster-network-addons --timeout=180s
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  changed_when: false
+
+- name: Apply NetworkAddonsConfig to enable OVS
+  shell: |
     kubectl apply -f - <<EOF
     apiVersion: networkaddonsoperator.network.kubevirt.io/v1
     kind: NetworkAddonsConfig
@@ -204,9 +270,13 @@
 - name: Wait for cluster-network-addons-operator to become available
   command: >
     kubectl wait networkaddonsconfig cluster
-    --for condition=Available --timeout=120s
+    --for condition=Available --timeout=300s
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
+  register: _cnao_available
+  retries: 3
+  delay: 30
+  until: _cnao_available.rc == 0
   changed_when: false
 
 # ── NetworkAttachmentDefinitions ───────────────────────────────────────────────
@@ -294,4 +364,4 @@
   replace:
     path: "{{ playbook_dir }}/../../kubeconfig"
     regexp: 'server: https://.*:6443'
-    replace: "server: https://{{ ansible_host }}:6443"
+    replace: "server: https://{{ hostvars[groups['control_plane'][0]]['_apiserver_advertise_address'] | default(hostvars[groups['control_plane'][0]]['ansible_host']) }}:6443"

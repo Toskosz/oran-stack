@@ -118,6 +118,10 @@ ansible-playbook ansible/playbooks/deploy.yml \
 
 ### Option B: Bring Your Own machines
 
+For a two-machine home lab, reserve fixed LAN IPs on your router first so
+`ansible_host` does not change after reboot. See
+[docs/HOME_LAB_DHCP.md](docs/HOME_LAB_DHCP.md) for a step-by-step guide.
+
 Copy and edit the inventory template:
 
 ```bash
