@@ -77,6 +77,11 @@
         e2:
           nadName:   "{{ secondary_networks.e2.nad_name }}"
           e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
+      e2termStartupDelaySec: 30
+      e2mgr:
+        keepAliveResponseTimeoutMs: 120000
+        keepAliveDelayMs: 60000
+        e2tInstanceDeletionTimeoutMs: 86400000
   register: helm_ric
 
 - name: Show near-rt-ric Helm release status

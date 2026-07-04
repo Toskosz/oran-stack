@@ -11,9 +11,9 @@ notificationResponseBuffer: 100
 bigRedButtonTimeoutSec: 5
 maxRnibConnectionAttempts: 3
 rnibRetryIntervalMs: 10
-keepAliveResponseTimeoutMs: 60000
-keepAliveDelayMs: 30000
-e2tInstanceDeletionTimeoutMs: 120000
+keepAliveResponseTimeoutMs: 120000
+keepAliveDelayMs: 60000
+e2tInstanceDeletionTimeoutMs: 86400000
 e2ResetTimeOutSec: 10
 globalRicId:
   ricId: "AACCE"

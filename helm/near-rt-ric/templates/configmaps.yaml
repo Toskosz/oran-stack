@@ -33,9 +33,9 @@ data:
     bigRedButtonTimeoutSec: 5
     maxRnibConnectionAttempts: 3
     rnibRetryIntervalMs: 10
-    keepAliveResponseTimeoutMs: 60000
-    keepAliveDelayMs: 30000
-    e2tInstanceDeletionTimeoutMs: 120000
+    keepAliveResponseTimeoutMs: {{ .Values.e2mgr.keepAliveResponseTimeoutMs | int }}
+    keepAliveDelayMs: {{ .Values.e2mgr.keepAliveDelayMs | int }}
+    e2tInstanceDeletionTimeoutMs: {{ .Values.e2mgr.e2tInstanceDeletionTimeoutMs | int }}
     e2ResetTimeOutSec: 10
     globalRicId:
       ricId: {{ .Values.ric.id | quote }}
@@ -73,13 +73,18 @@ metadata:
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
-  # config.conf: local-ip is substituted at runtime by the render-config
-  # initContainer in the Deployment, which replaces it with the static
-  # secondary E2 interface IP (from secondaryNetworks.e2.e2termIP).
+  # config.conf: local-ip is the address e2term advertises to e2mgr as its
+  # E2T / RMR endpoint. It MUST be the PRIMARY pod IP (Flannel eth0), NOT the
+  # secondary OVS IP — e2mgr lives only on the Flannel network and has no
+  # route to the 10.200.3.0/24 OVS bridge, so an OVS-IP E2T is unreachable and
+  # keepalive fails (E2T deleted → CU E2 Setup aborts). The placeholder below
+  # is replaced with status.podIP by the render-config initContainer.
+  # SCTP E2AP still binds 0.0.0.0:36421, so the DU keeps reaching e2term on the
+  # secondary OVS IP (secondaryNetworks.e2.e2termIP) for E2AP.
   config.conf: |
     nano=38000
     volume=log
-    local-ip={{ .Values.secondaryNetworks.e2.e2termIP }}
+    local-ip=POD_IP_PLACEHOLDER
     prometheusMode=pull
     prometheusPushTimeOut=10
     prometheusPushAddr=127.0.0.1:7676

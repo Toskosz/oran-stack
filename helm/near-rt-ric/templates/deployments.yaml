@@ -506,36 +506,39 @@ spec:
         - name: wait-for-e2mgr
           image: alpine:3.19
           command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
-        # render-config: copy the read-only ConfigMap into an emptyDir so that
-        #
-        # We also perform the substitutions here directly — this is more robust
-        # than relying on startup.sh's sed alone, and makes the rendered config
-        # visible in the initContainer logs for easier debugging (P5).
+        # render-config: copy the read-only ConfigMap into an emptyDir so we can
+        # substitute runtime values. Doing it here (not just in startup.sh's sed)
+        # is robust and makes the rendered config visible in initContainer logs.
         #
         # Substitutions:
-        #   local-ip=127.0.0.1        → pod IP (from Downward API)
-        #   external-fqdn=e2t.com     → ric-e2term (stable K8s service name)
-        #   pod_name=E2TERM_POD_NAME  → left as-is (it is an env var pointer, not
-        #                               a literal value; e2term reads the env var
-        #                               named by this field at runtime)
+        #   local-ip=POD_IP_PLACEHOLDER → primary pod IP (Downward API status.podIP)
+        #       This is the E2T/RMR endpoint e2mgr must reach. It MUST be the
+        #       Flannel eth0 IP, never the OVS secondary IP (e2mgr has no route
+        #       to the OVS bridge). SCTP E2AP still binds 0.0.0.0:36421.
+        #   external-fqdn=e2t.com       → ric-e2term (stable K8s service name)
+        #   pod_name=E2TERM_POD_NAME    → left as-is (env var pointer; e2term reads
+        #                                 the env var named by this field at runtime)
         - name: render-config
           image: busybox:1.36
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           command:
             - sh
             - -c
             - |
               cp /config-ro/config.conf /config-rw/config.conf
               cp /config-ro/dockerRouter.txt /config-rw/dockerRouter.txt
-              # local-ip is already set correctly by Helm in the ConfigMap.
-              # Set external-fqdn to the stable K8s service name so e2mgr can
-              # resolve it. The default 'e2t.com' is not resolvable in-cluster.
+              # E2T/RMR endpoint must be the primary (Flannel) pod IP so e2mgr
+              # can reach it for keepalive and E2SetupResponse routing.
+              sed -i "s|local-ip=.*|local-ip=${POD_IP}|" /config-rw/config.conf
+              # external-fqdn: stable K8s service name (default 'e2t.com' is
+              # not resolvable in-cluster).
               sed -i "s|external-fqdn=.*|external-fqdn=ric-e2term|" /config-rw/config.conf
-              # pod_name is an ENV VAR POINTER, not a literal value.
-              # The e2term binary reads config.conf, takes the value of pod_name=,
-              # and uses it as an env var name to look up the actual pod name.
-              # So we must keep pod_name=E2TERM_POD_NAME (the default) and set
-              # E2TERM_POD_NAME to the real pod name via the Downward API.
-              # Do NOT substitute pod_name here.
+              # pod_name is an ENV VAR POINTER, not a literal — keep as-is and
+              # set E2TERM_POD_NAME via Downward API on the main container.
               echo "Rendered e2term config.conf:"
               cat /config-rw/config.conf
           volumeMounts:
@@ -543,10 +546,10 @@ spec:
               mountPath: /config-ro
             - name: e2term-config-rw
               mountPath: /config-rw
-        # The 5-second sleep ensures e2mgr's RMR outbound connection to
-        # e2term:3801 is established before e2term opens the SCTP port.
-        # Without this, the first E2_TERM_KEEP_ALIVE_RESP fails with
-        # RMR_ERR_NOENDPT and triggers the keep-alive death spiral.
+        # This sleep ({{ .Values.e2termStartupDelaySec }}s) ensures e2mgr's RMR
+        # outbound connection to e2term is established before e2term opens the
+        # SCTP port. Without it, the first E2_TERM_KEEP_ALIVE_RESP can fail with
+        # RMR_ERR_NOENDPT and trigger the keep-alive death spiral.
         # See docs/LEARNINGS.md for the full diagnosis.
         - name: startup-delay
           image: busybox:1.36

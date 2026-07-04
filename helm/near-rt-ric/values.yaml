@@ -65,7 +65,14 @@ dbaas:
 
 # ----------------------------------------------------------------------------
 # e2term startup delay (seconds)
-# ----------------------------------------------------------------------------
-# The 5-second sleep before e2term starts prevents the RMR keep-alive race
+# The sleep before e2term starts prevents the RMR keep-alive race
 # condition described in docs/LEARNINGS.md. Implemented as an initContainer.
-e2termStartupDelaySec: 5
+e2termStartupDelaySec: 30
+
+# e2mgr keep-alive / E2T deletion timers — relaxed for lab stability (see
+# docs/E2_STABILIZATION_PLAN.md). Prevents e2mgr from deleting E2T before
+# the CU completes E2 Setup.
+e2mgr:
+  keepAliveResponseTimeoutMs: 120000
+  keepAliveDelayMs: 60000
+  e2tInstanceDeletionTimeoutMs: 86400000
