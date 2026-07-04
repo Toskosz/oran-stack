@@ -1,0 +1,81 @@
+# ============================================================================
+# MongoDB replica set init + subscriber seed (idempotent)
+# ============================================================================
+# Open5GS requires a PRIMARY replica set before writes succeed. The Helm chart
+# mounts init scripts at /docker-entrypoint-initdb.d/, but they only run when
+# the official MongoDB entrypoint starts with an empty data volume. Existing
+# PVCs and the custom mongod args need this post-deploy step.
+# ============================================================================
+
+- name: Wait for MongoDB to accept connections
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
+      mongosh "mongodb://localhost:27017/?directConnection=true"
+      --quiet --eval "db.adminCommand('ping').ok"
+  register: mongo_ping
+  until: mongo_ping.rc == 0 and mongo_ping.stdout | trim == '1'
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Copy MongoDB init scripts into pod
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} cp
+      {{ role_path }}/files/{{ item }}
+      {{ namespaces.core }}/mongodb-0:/tmp/{{ item }}
+      -c mongodb
+  loop:
+    - mongodb-init-rs.js
+    - mongodb-seed.js
+  changed_when: false
+
+- name: Initialize MongoDB replica set (idempotent)
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
+      mongosh "mongodb://localhost:27017/?directConnection=true"
+      --quiet --file /tmp/mongodb-init-rs.js
+  register: rs_init
+  changed_when: "'initialized' in rs_init.stdout"
+
+- name: Wait for MongoDB replica set PRIMARY
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
+      mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval
+      "try { var s = rs.status(); quit(s.members[0].stateStr === 'PRIMARY' ? 0 : 1) } catch (e) { quit(1) }"
+  register: rs_primary
+  until: rs_primary.rc == 0
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Seed MongoDB admin user and test subscriber (idempotent)
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
+      mongosh "mongodb://localhost:27017/?directConnection=true"
+      --quiet --file /tmp/mongodb-seed.js
+  register: mongo_seed
+  changed_when: >-
+    'Admin user initialized' in mongo_seed.stdout or
+    '5G subscriber seeded' in mongo_seed.stdout or
+    '5G auth seeded' in mongo_seed.stdout
+
+- name: Verify test subscriber exists
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
+      mongosh open5gs --quiet --eval
+      'db.subscribers.countDocuments({imsi:"001010000000001"})'
+  register: subscriber_count
+  changed_when: false
+  failed_when: subscriber_count.stdout | trim != '1'
+
+- name: Show MongoDB init result
+  ansible.builtin.debug:
+    msg: >-
+      MongoDB replica set rs0 is PRIMARY;
+      test subscriber 001010000000001 provisioned (count={{ subscriber_count.stdout | trim }})

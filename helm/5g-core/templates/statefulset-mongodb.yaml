@@ -33,7 +33,10 @@ spec:
       containers:
         - name: mongodb
           image: mongo:7.0
-          command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+          # Use args (not command) so the official entrypoint runs init scripts
+          # in /docker-entrypoint-initdb.d/ on first startup with an empty PVC.
+          # deploy_5g_core also runs rs.initiate + seed idempotently after deploy.
+          args: ["--replSet", "rs0", "--bind_ip_all"]
           ports:
             - containerPort: 27017
           env:

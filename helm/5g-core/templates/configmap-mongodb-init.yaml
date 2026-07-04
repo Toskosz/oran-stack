@@ -4,6 +4,8 @@
 # These scripts are mounted at /docker-entrypoint-initdb.d/ inside the
 # MongoDB StatefulSet pod. MongoDB's official entrypoint runs all *.js files
 # in that directory on first startup (when the data volume is empty).
+# For upgrades or PVCs that already exist, ansible/roles/deploy_5g_core
+# runs mongodb_init.yml (rs.initiate + seed) after Helm deploy.
 #
 # init-rs.js    — initialises the replica set 'rs0' (single member for lab)
 # init-data.js  — seeds the admin user and two test subscribers

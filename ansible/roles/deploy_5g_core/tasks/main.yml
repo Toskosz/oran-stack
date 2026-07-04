@@ -111,6 +111,14 @@
     wait_timeout: 300
 
 # ----------------------------------------------------------------------------
+# 4b. Initialize MongoDB replica set and seed test subscriber
+#     Open5GS NFs require a PRIMARY replica set; init scripts in the Helm
+#     chart only run on a fresh empty volume via the docker entrypoint.
+# ----------------------------------------------------------------------------
+- name: Initialize MongoDB replica set and seed subscriber data
+  ansible.builtin.include_tasks: mongodb_init.yml
+
+# ----------------------------------------------------------------------------
 # 5. Wait for all 5g-core Deployments to be Available
 # ----------------------------------------------------------------------------
 - name: Get all Deployments in 5g-core namespace
