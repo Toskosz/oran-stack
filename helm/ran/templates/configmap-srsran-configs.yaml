@@ -54,6 +54,7 @@ data:
       ngap_level: info
 
   du.yml.tpl: |
+    gnb_du_id: ${GNB_DU_ID}
     f1ap:
       cu_cp_addr: ${CU_F1C_IP}
       bind_addr: ${F1C_IP}
@@ -83,7 +84,6 @@ data:
       plmn: "{{ .Values.plmn.mcc }}{{ .Values.plmn.mnc }}"
       tac: {{ .Values.plmn.tac }}
       pci: {{ .Values.radio.pci }}
-      gnb_du_id: ${GNB_DU_ID}
       pdcch:
         dedicated:
           ss2_type: common
@@ -119,6 +119,7 @@ data:
     [rat.nr]
     bands = {{ .Values.radio.band }}
     nof_carriers = 1
+    dl_arfcn = {{ .Values.radio.dlArfcn }}
 
     [pcap]
     enable = none

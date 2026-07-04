@@ -240,20 +240,20 @@ spec:
           env:
             - name: HOLD_OFF_SEC
               value: "{{ .Values.duF1SetupHoldOffSec }}"
-            - name: CU_F1C_IP
-              value: "{{ .Values.secondaryNetworks.f1c.cuIP }}"
           command:
             - sh
             - -c
             - |
-              # Step 1 — wait for the CU F1-U UDP port on the static F1-C IP.
+              # Step 1 — wait for the CU F1-U UDP port via the ClusterIP service.
+              # F1-U binds to the primary pod IP (Flannel), not the F1-C secondary
+              # IP; probing the static F1-C address would never succeed.
               # F1AP uses SCTP which alpine nc cannot probe; use the F1-U UDP
               # port as a proxy — the CU process opens both listeners together.
               # nc -zu sends a UDP probe and succeeds unless ICMP unreachable
               # is received (i.e., the port is closed).
-              echo "Waiting for CU F1-U UDP port at ${CU_F1C_IP}:2153..."
-              until nc -zuw1 "${CU_F1C_IP}" 2153 2>/dev/null; do
-                echo "waiting for CU F1-U UDP port 2153 at ${CU_F1C_IP}..."
+              echo "Waiting for CU F1-U UDP port at srs-cu:2153..."
+              until nc -zuw1 srs-cu 2153 2>/dev/null; do
+                echo "waiting for CU F1-U UDP port 2153 at srs-cu..."
                 sleep 3
               done
               echo "CU process is up."
@@ -355,6 +355,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.ueDeploymentStrategy }}
   selector:
     matchLabels:
       app: srsue
@@ -376,8 +378,8 @@ spec:
                 echo "waiting for DU ZMQ port..."
                 sleep 3
               done
-              echo "DU ZMQ port open — waiting 10s for cell to activate..."
-              sleep 10
+              echo "DU ZMQ port open — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
+              sleep {{ .Values.ueStartDelaySec }}
       containers:
         - name: srsue
           image: {{ .Values.images.srsue.repository }}:{{ .Values.images.srsue.tag }}

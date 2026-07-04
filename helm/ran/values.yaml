@@ -84,5 +84,13 @@ zmq:
   duTxPort: 2000
   duRxPort: 2001
 
+# How long (seconds) the UE initContainer waits after DU ZMQ port opens
+# before starting srsUE. Must exceed duF1SetupHoldOffSec so the cell is active.
+ueStartDelaySec: 40
+
 # Enable/disable the UE simulator
 deployUE: true
+
+# RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
+# avoids Pending pods when the worker is near its CPU request limit.
+ueDeploymentStrategy: Recreate
