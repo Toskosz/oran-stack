@@ -99,11 +99,31 @@
     wait_condition:
       type:   Available
       status: "True"
-    wait_timeout: 300
+    wait_timeout: 600
 
-- name: Show xApp pod logs hint
-  ansible.builtin.debug:
+- name: Wait for xApp to subscribe without submgr errors
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
+      deployment/{{ helm_releases.xapp }} --tail=100
+  register: _xapp_logs
+  until: >-
+    'Subscribe to E2 node ID' in _xapp_logs.stdout and
+    'ApiException' not in _xapp_logs.stdout and
+    '503' not in _xapp_logs.stdout
+  retries: "{{ verify_stack.xapp_subscription_wait_retries }}"
+  delay: "{{ verify_stack.xapp_subscription_wait_delay }}"
+  changed_when: false
+
+- name: Fail if xApp subscription still failing
+  ansible.builtin.fail:
     msg: >-
-      xApp deployed. Verify with:
-      kubectl logs -n {{ namespaces.xapp }} deployment/{{ helm_releases.xapp }} -f
-      kubectl exec -n {{ namespaces.ric }} deploy/ric-rtmgr -- cat /db/rt.json
+      xApp {{ helm_releases.xapp }} did not subscribe successfully.
+      Check: kubectl logs -n {{ namespaces.xapp }} deployment/{{ helm_releases.xapp }}
+  when: >-
+    'ApiException' in _xapp_logs.stdout or
+    '503' in _xapp_logs.stdout
+
+- name: Show xApp subscription result
+  ansible.builtin.debug:
+    msg: "xApp {{ helm_releases.xapp }} subscribed to gNB {{ xapp.e2_node_id }}"

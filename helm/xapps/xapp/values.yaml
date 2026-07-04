@@ -19,5 +19,7 @@ xapp:
   args: []
   rmrPort: 4560
   httpPort: 8090
+  e2NodeId: ""
+  ranFuncId: ""
 
 resources: {}

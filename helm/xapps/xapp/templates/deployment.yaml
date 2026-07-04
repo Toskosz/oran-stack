@@ -22,6 +22,21 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       hostname: {{ .Release.Name }}
+      initContainers:
+        - name: wait-for-gnb
+          image: curlimages/curl:8.5.0
+          command:
+            - sh
+            - -c
+            - |
+              E2MGR="http://ric-e2mgr.{{ .Values.ric.namespace }}:3800/v1/nodeb/states"
+              GNB="{{ .Values.xapp.e2NodeId }}"
+              echo "Waiting for gNB ${GNB} in e2mgr..."
+              until curl -sf "${E2MGR}" | grep -q "${GNB}"; do
+                echo "gNB not registered yet, retrying in 10s..."
+                sleep 10
+              done
+              echo "gNB ${GNB} registered — starting xApp"
       containers:
         - name: xapp
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
