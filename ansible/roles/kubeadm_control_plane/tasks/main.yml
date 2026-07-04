@@ -289,7 +289,7 @@
   changed_when: false
 
 - name: Create NetworkAttachmentDefinitions
-  shell: >
+  shell: |
     kubectl apply -f - <<EOF
     apiVersion: k8s.cni.cncf.io/v1
     kind: NetworkAttachmentDefinition
@@ -304,8 +304,8 @@
         "ipam": {
           "type": "host-local",
           "subnet": "{{ item.1.subnet }}",
-          "rangeStart": "{{ item.1.subnet | regex_replace(\"0/24$\", \"2\") }}",
-          "rangeEnd": "{{ item.1.subnet | regex_replace(\"0/24$\", \"254\") }}"
+          "rangeStart": "{{ item.1.subnet | regex_replace('0/24$', '2') }}",
+          "rangeEnd": "{{ item.1.subnet | regex_replace('0/24$', '254') }}"
         }
       }'
     EOF
