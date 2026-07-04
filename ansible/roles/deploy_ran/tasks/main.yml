@@ -69,8 +69,7 @@
     chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.ran }}"
     release_namespace: "{{ namespaces.ran }}"
     create_namespace: false
-    wait:             true
-    wait_timeout:     "{{ helm_timeout }}"
+    wait:             false
     values:
       images:
         srsran:
@@ -99,41 +98,31 @@
           e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
   register: helm_ran
 
+- name: Wait for ran Helm release with live status output
+  ansible.builtin.shell: |
+    set +e
+    echo "=== $(date -u +%H:%M:%S) ran namespace ==="
+    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" -o wide
+    echo "--- deployments ---"
+    kubectl --kubeconfig="{{ _kubeconfig }}" get deploy -n "{{ namespaces.ran }}" \
+      -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas,DESIRED:.spec.replicas'
+    echo "--- helm ---"
+    helm --kubeconfig="{{ _kubeconfig }}" status "{{ helm_releases.ran }}" -n "{{ namespaces.ran }}" 2>&1 | head -5
+    echo "--- not ready ---"
+    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" \
+      --field-selector=status.phase!=Running 2>/dev/null
+    kubectl --kubeconfig="{{ _kubeconfig }}" wait --for=condition=available deployment --all \
+      -n "{{ namespaces.ran }}" --timeout=10s >/dev/null 2>&1
+  register: _ran_wait
+  until: _ran_wait.rc == 0
+  retries: "{{ (helm_timeout | regex_replace('s$', '') | int // 10) | int }}"
+  delay: 10
+  changed_when: false
+
+- name: Show final ran pod status
+  ansible.builtin.debug:
+    msg: "{{ _ran_wait.stdout_lines }}"
+
 - name: Show ran Helm release status
   ansible.builtin.debug:
-    msg: "ran release status: {{ helm_ran.status }}"
-
-# ----------------------------------------------------------------------------
-# 4. Wait for all RAN Deployments to be Available
-# ----------------------------------------------------------------------------
-- name: Get all Deployments in ran namespace
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ _kubeconfig }}"
-    kind: Deployment
-    namespace: "{{ namespaces.ran }}"
-  register: ran_deployments
-
-- name: Wait for each RAN Deployment to be Available
-  kubernetes.core.k8s_info:
-    kubeconfig: "{{ _kubeconfig }}"
-    kind: Deployment
-    name:      "{{ item.metadata.name }}"
-    namespace: "{{ namespaces.ran }}"
-    wait: true
-    wait_condition:
-      type:   Available
-      status: "True"
-    wait_timeout: 300
-  loop: "{{ ran_deployments.resources }}"
-  loop_control:
-    label: "{{ item.metadata.name }}"
-
-# ----------------------------------------------------------------------------
-# 5. Reminder: check UE attachment in logs
-# ----------------------------------------------------------------------------
-- name: Remind operator to verify UE attachment
-  ansible.builtin.debug:
-    msg: >-
-      RAN stack deployed. Verify UE attachment with:
-        kubectl --kubeconfig=kubeconfig logs -n ran deployment/srsue -f
-      Look for 'RRC Connected' and 'PDU Session Established' messages.
+    msg: "ran release deployed (revision {{ helm_ran.status.revision | default('unknown') }}); stack_stabilize runs next"

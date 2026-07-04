@@ -1,0 +1,63 @@
+# Wait for the deterministic outcome: UE reaches RRC Connected + PDU Session.
+# Readiness gate, not a restart loop.
+
+- name: Wait for UE attach (RRC Connected + PDU Session Established)
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ran }}
+      deployment/srsue --tail=200
+  register: _ue_logs
+  until: >-
+    'RRC Connected' in _ue_logs.stdout and
+    'PDU Session Established' in _ue_logs.stdout
+  retries: "{{ verify_stack.ue_attach_wait_retries }}"
+  delay: "{{ verify_stack.ue_attach_wait_delay }}"
+  changed_when: false
+  failed_when: false
+
+- name: Set UE attach fact
+  ansible.builtin.set_fact:
+    _ue_attached: >-
+      {{ 'RRC Connected' in _ue_logs.stdout and
+         'PDU Session Established' in _ue_logs.stdout }}
+
+- name: Collect UE diagnostics when attach did not complete
+  when: not (_ue_attached | bool)
+  block:
+    - name: Dump DU log tail
+      ansible.builtin.command:
+        cmd: >
+          kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ran }}
+          deploy/srs-du --tail=30
+      register: _du_log
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with actionable UE diagnostics
+      ansible.builtin.fail:
+        msg: |-
+          UE did NOT complete attach within
+          {{ verify_stack.ue_attach_wait_retries | int * verify_stack.ue_attach_wait_delay | int }}s.
+
+          UE log tail:
+          {{ _ue_logs.stdout | default('') | regex_search('(?s).{0,1200}$') }}
+
+          DU log tail:
+          {{ _du_log.stdout | default('') }}
+
+          If the UE is stuck at 'Switching on' with no PRACH in the DU, verify
+          the UE dl_arfcn matches the DU (helm/ran/values.yaml radio.dlArfcn)
+          and that MongoDB has the subscriber (deploy_5g_core mongodb_init).
+      when: verify_stack.ue_attach_required | bool
+
+    - name: Warn (non-fatal) that UE attach is unconfirmed
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: UE attach unconfirmed. Check
+          'kubectl logs -n {{ namespaces.ran }} deployment/srsue -f'.
+      when: not (verify_stack.ue_attach_required | bool)
+
+- name: Show UE attach result
+  ansible.builtin.debug:
+    msg: "UE OK — RRC Connected and PDU Session Established"
+  when: _ue_attached | bool

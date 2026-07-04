@@ -1,0 +1,18 @@
+# ============================================================================
+# Role: verify_stack
+# Purpose: Deterministic readiness gates after the Helm charts are deployed.
+# No blind restart loops — deployment ordering + initContainers + the e2term
+# local-ip fix make E2/UE come up on first deploy. This role only *verifies*
+# the deterministic outcome and fails loudly with actionable diagnostics if a
+# gate is not met.
+# ============================================================================
+
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+- name: Verify E2 gNB registration in e2mgr
+  ansible.builtin.include_tasks: verify_e2.yml
+
+- name: Verify UE attachment (RRC + PDU session)
+  ansible.builtin.include_tasks: verify_ue.yml

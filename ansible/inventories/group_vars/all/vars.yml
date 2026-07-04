@@ -157,3 +157,19 @@ plmn:
 # ----------------------------------------------------------------------------
 xapp:
   e2_node_id: "gnb_001_001_00019b"
+
+# ----------------------------------------------------------------------------
+# Post-deploy verification — deterministic readiness gates (no restart loops)
+# ----------------------------------------------------------------------------
+verify_stack:
+  # E2 gNB registration gate
+  e2_gnb_wait_retries: 30
+  e2_gnb_wait_delay: 10
+  # UE attach gate
+  ue_attach_wait_retries: 36
+  ue_attach_wait_delay: 10
+  # Fail the deploy if UE attach is not confirmed (set false to only warn)
+  ue_attach_required: true
+  # xApp subscription gate (used by deploy_xapp)
+  xapp_subscription_wait_retries: 18
+  xapp_subscription_wait_delay: 10
