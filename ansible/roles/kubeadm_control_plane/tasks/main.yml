@@ -282,7 +282,7 @@
 # ── NetworkAttachmentDefinitions ───────────────────────────────────────────────
 
 - name: Create namespaces for NADs
-  command: kubectl create namespace {{ item }} --dry-run=client -o yaml | kubectl apply -f -
+  shell: kubectl create namespace {{ item }} --dry-run=client -o yaml | kubectl apply -f -
   loop: "{{ nad_namespaces }}"
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
