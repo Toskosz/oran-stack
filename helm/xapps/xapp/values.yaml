@@ -1,0 +1,25 @@
+# Default values — override per xApp via values/<name>.yaml
+# Install: helm install <release> helm/xapps/xapp -f helm/xapps/xapp/values/<name>.yaml
+
+image:
+  repository: oran-xapps
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: dockerhub-secret
+
+ric:
+  namespace: near-rt-ric
+  submgrUri: "http://ric-submgr.near-rt-ric:8088/ric/v1"
+  appmgrRegisterUri: "http://ric-appmgr.near-rt-ric:8080/ric/v1/register"
+
+xapp:
+  script: ""
+  args: []
+  rmrPort: 4560
+  httpPort: 8090
+  e2NodeId: ""
+  ranFuncId: ""
+
+resources: {}

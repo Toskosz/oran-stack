@@ -1,0 +1,150 @@
+# ============================================================================
+# Playbook: teardown.yml
+# Purpose:  Remove all deployed resources in reverse order, then reset the
+#           kubeadm cluster state on all nodes.
+#
+# Usage:
+#   ansible-playbook ./playbooks/teardown.yml --ask-vault-pass
+#   vagrant destroy -f          # to also destroy the VMs
+#
+# WARNING: This is DESTRUCTIVE. It will:
+#   - Uninstall all three Helm releases (deletes all K8s resources + PVCs)
+#   - Delete the 5g-core, near-rt-ric, and ran namespaces
+#   - Run kubeadm reset --force on all nodes
+#   - Remove CNI state, iptables rules, and kubeconfigs from the nodes
+#   - Remove the local ./kubeconfig file
+#
+# any_errors_fatal: false is used for Helm uninstalls so a missing release
+# (e.g. partial deployment) does not abort the teardown.
+# ============================================================================
+---
+- name: Uninstall Helm releases (monitoring → xapp → RAN → RIC → core)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: false
+
+  tasks:
+    - name: Uninstall monitoring Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.monitoring }}"
+        release_namespace: "{{ namespaces.monitoring }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    - name: Uninstall xApp Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.xapp }}"
+        release_namespace: "{{ namespaces.xapp }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    - name: Uninstall ran Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.ran }}"
+        release_namespace: "{{ namespaces.ran }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    - name: Uninstall near-rt-ric Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.ric }}"
+        release_namespace: "{{ namespaces.ric }}"
+        state: absent
+        wait: true
+        wait_timeout: "120s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    - name: Uninstall 5g-core Helm release
+      kubernetes.core.helm:
+        name:              "{{ helm_releases.core }}"
+        release_namespace: "{{ namespaces.core }}"
+        state: absent
+        wait: true
+        wait_timeout: "180s"
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+      ignore_errors: true
+
+    # Delete namespaces so PVCs (MongoDB data) are also removed.
+    - name: Delete monitoring namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.monitoring }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete ricxapp namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.xapp }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete ran namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.ran }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete near-rt-ric namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.ric }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true
+
+    - name: Delete 5g-core namespace
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespaces.core }}"
+        wait: true
+        wait_timeout: 120
+      ignore_errors: true
+
+- name: Reset kubeadm cluster on all nodes
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: kubeadm_teardown

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        release: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      hostname: {{ .Release.Name }}
+      initContainers:
+        - name: wait-for-gnb
+          image: curlimages/curl:8.5.0
+          command:
+            - sh
+            - -c
+            - |
+              E2MGR="http://ric-e2mgr.{{ .Values.ric.namespace }}:3800/v1/nodeb/states"
+              GNB="{{ .Values.xapp.e2NodeId }}"
+              echo "Waiting for gNB ${GNB} in e2mgr..."
+              until curl -sf "${E2MGR}" | grep -q "${GNB}"; do
+                echo "gNB not registered yet, retrying in 10s..."
+                sleep 10
+              done
+              echo "gNB ${GNB} registered — starting xApp"
+      containers:
+        - name: xapp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./{{ .Values.xapp.script }}"]
+          args:
+            {{- range .Values.xapp.args }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- if .Values.xapp.e2NodeId }}
+            - {{ printf "--e2_node_id=%s" .Values.xapp.e2NodeId | quote }}
+            {{- end }}
+            {{- if .Values.xapp.ranFuncId }}
+            - {{ printf "--ran_func_id=%s" .Values.xapp.ranFuncId | quote }}
+            {{- end }}
+          ports:
+            - name: rmr
+              containerPort: {{ .Values.xapp.rmrPort }}
+              protocol: TCP
+            - name: http
+              containerPort: {{ .Values.xapp.httpPort }}
+              protocol: TCP
+          env:
+            - name: RMR_RTG_SVC
+              value: ""
+            - name: XAPP_NAME
+              value: {{ .Release.Name }}
+            - name: XAPP_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: XAPP_IP
+              value: service-ricxapp-{{ .Release.Name }}-rmr.{{ .Release.Namespace }}
+            - name: SUB_MGR_URI
+              value: {{ .Values.ric.submgrUri | quote }}
+            - name: APP_MGR_REGISTER_URI
+              value: {{ .Values.ric.appmgrRegisterUri | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

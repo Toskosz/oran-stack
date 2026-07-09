@@ -1,0 +1,79 @@
+---
+# gcp_vm/tasks/delete.yml
+# Deletes both cluster VMs and the associated firewall rules.
+# Also removes the generated gcp.ini inventory file.
+
+# ── Resolve GCP project ───────────────────────────────────────────────────────
+- name: Resolve active GCP project from gcloud config
+  ansible.builtin.command: gcloud config get-value project
+  changed_when: false
+  register: _gcp_project_raw
+  when: gcp_project == ""
+
+- name: Fail if no active project is set
+  ansible.builtin.fail:
+    msg: >
+      No active GCP project found.
+      Run: gcloud config set project YOUR_PROJECT_ID
+  when: gcp_project == "" and _gcp_project_raw.stdout | trim == ""
+
+- name: Set gcp_project fact
+  ansible.builtin.set_fact:
+    _project: "{{ gcp_project if gcp_project != '' else _gcp_project_raw.stdout | trim }}"
+
+# ── Delete VMs ────────────────────────────────────────────────────────────────
+- name: Delete w1 worker VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_w_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    auth_kind: application
+    state: absent
+
+- name: Delete cp1 control-plane VM
+  google.cloud.gcp_compute_instance:
+    name: "{{ gcp_cp_name }}"
+    project: "{{ _project }}"
+    zone: "{{ gcp_zone }}"
+    auth_kind: application
+    state: absent
+
+# ── Delete firewall rules ─────────────────────────────────────────────────────
+- name: Delete internal firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-internal
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
+
+- name: Delete API server firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-apiserver
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
+
+- name: Delete SSH firewall rule
+  google.cloud.gcp_compute_firewall:
+    name: oran-ssh
+    project: "{{ _project }}"
+    network:
+      selfLink: "global/networks/{{ gcp_network }}"
+    auth_kind: application
+    state: absent
+
+# ── Remove generated inventory ────────────────────────────────────────────────
+- name: Remove gcp.ini inventory file
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../ansible/inventories/gcp.ini"
+    state: absent
+
+- name: Confirm deletion
+  ansible.builtin.debug:
+    msg: >-
+      VMs '{{ gcp_cp_name }}' and '{{ gcp_w_name }}' deleted from
+      zone {{ gcp_zone }}, project {{ _project }}.

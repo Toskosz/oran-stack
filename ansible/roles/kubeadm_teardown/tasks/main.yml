@@ -1,0 +1,56 @@
+---
+# kubeadm_teardown/tasks/main.yml
+# Runs on ALL nodes. Resets kubeadm state and cleans up CNI/iptables.
+# Safe to run even if the cluster was never fully initialised.
+
+- name: Reset kubeadm on this node
+  command: kubeadm reset --force
+  ignore_errors: true
+
+- name: Remove CNI configuration
+  file:
+    path: /etc/cni/net.d
+    state: absent
+  ignore_errors: true
+
+- name: Remove Calico data directory
+  file:
+    path: /var/lib/calico
+    state: absent
+  ignore_errors: true
+
+- name: Remove OVS bridges
+  command: "ovs-vsctl --if-exists del-br {{ item.name }}"
+  loop: "{{ ovs_bridges | default([]) }}"
+  ignore_errors: true
+
+- name: Flush iptables (filter, nat, mangle, raw)
+  shell: |
+    iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
+  ignore_errors: true
+
+- name: Flush ip6tables
+  shell: |
+    ip6tables -F && ip6tables -t nat -F && ip6tables -t mangle -F && ip6tables -X
+  ignore_errors: true
+
+- name: Remove .kube directory for remote user
+  file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: absent
+  ignore_errors: true
+
+- name: Remove .kube directory for root
+  file:
+    path: /root/.kube
+    state: absent
+  ignore_errors: true
+
+- name: Remove kubeconfig from Ansible controller
+  file:
+    path: "{{ playbook_dir }}/../../kubeconfig"
+    state: absent
+  delegate_to: localhost
+  become: false
+  ignore_errors: true
+  run_once: true

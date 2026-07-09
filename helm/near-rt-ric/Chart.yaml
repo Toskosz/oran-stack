@@ -1,0 +1,16 @@
+apiVersion: v2
+name: near-rt-ric
+description: >
+  O-RAN SC Near-RT RIC Platform — e2term, e2mgr, submgr, rtmgr, appmgr,
+  a1mediator, and the Redis shared data layer (dbaas). Translates the
+  docker-compose.ric.yml stack into Kubernetes Deployments, preserving all
+  RMR routing tables and the known-good startup ordering.
+type: application
+version: 0.1.0
+appVersion: "6.0.8"
+keywords:
+  - o-ran
+  - near-rt-ric
+  - e2
+  - xapp
+home: https://wiki.o-ran-sc.org/display/RICPL

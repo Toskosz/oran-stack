@@ -1,0 +1,16 @@
+apiVersion: v2
+name: 5g-core
+description: >
+  Open5GS 5G/4G Core Network — all 17 Network Functions plus MongoDB.
+  Translates the docker-compose.yml stack into Kubernetes Deployments and
+  a MongoDB StatefulSet, preserving the same entrypoint.sh + envsubst
+  config-templating approach so images do not need to be rebuilt.
+type: application
+version: 0.1.0
+appVersion: "2.7.x"
+keywords:
+  - open5gs
+  - 5g-core
+  - o-ran
+  - nf
+home: https://open5gs.org

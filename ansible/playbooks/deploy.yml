@@ -1,0 +1,75 @@
+# ============================================================================
+# Playbook: deploy.yml
+# Purpose:  Deploy all Helm charts to the kubeadm cluster in dependency
+#           order: 5g-core → near-rt-ric → ran → xapp → monitoring.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/deploy.yml \
+#     --ask-vault-pass          # vault holds dockerhub_password
+#
+# Pre-requisites:
+#   - provision.yml has been run (kubeadm cluster up, ./kubeconfig written)
+#   - build_images.yml has been run (images exist on Docker Hub)
+#
+# Deployment order rationale:
+#   1. 5g-core     — MongoDB and NFs must be up before RIC or RAN connect
+#   2. near-rt-ric — e2term must be running before the DU sends E2 Setup
+#   3. ran         — CU/DU/UE Helm release (initContainers enforce ordering)
+#   4. verify      — deterministic readiness gates (E2 gNB + UE attach)
+#   5. xapp        — simple-mon KPM xApp (initContainer waits for gNB)
+#   6. monitoring  — deployed last so all ServiceMonitor targets are already up
+# ============================================================================
+---
+- name: Deploy 5G core (Open5GS NFs + MongoDB)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [deploy_5g_core]
+
+  roles:
+    - role: deploy_5g_core
+
+- name: Deploy Near-RT RIC (e2term, e2mgr, rtmgr, submgr, appmgr, a1mediator, dbaas)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [deploy_ric]
+
+  roles:
+    - role: deploy_ric
+
+- name: Deploy RAN (srsRAN CU, DU, UE)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [deploy_ran]
+
+  roles:
+    - role: deploy_ran
+
+- name: Verify E2 and UE readiness (deterministic gates)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [verify_stack, deploy_ran]
+
+  roles:
+    - role: verify_stack
+
+- name: Deploy simple-mon xApp (KPM monitor)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [deploy_xapp]
+
+  roles:
+    - role: deploy_xapp
+
+- name: Deploy Monitoring (Prometheus + Grafana)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [deploy_monitoring]
+
+  roles:
+    - role: deploy_monitoring

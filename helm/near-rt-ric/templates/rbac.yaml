@@ -1,0 +1,37 @@
+# ============================================================================
+# RBAC for Near-RT RIC
+# ============================================================================
+# e2term validates its pod_name at startup by querying the Kubernetes API
+# (GET /api/v1/namespaces/<ns>/pods/<pod_name>).  Without these permissions
+# the default ServiceAccount gets a 403, which is reported as:
+#   "illegal pod_name or environment variable not exists : <pod>"
+# ============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ric-e2term
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ric-e2term-pod-reader
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ric-e2term-pod-reader
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ric-e2term-pod-reader
+subjects:
+  - kind: ServiceAccount
+    name: ric-e2term
+    namespace: {{ .Values.namespace }}

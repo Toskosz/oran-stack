@@ -1,574 +1,289 @@
-# O-RAN Stack Setup Guide - 5G Core + Near-RT RIC + CU/DU Split
+# O-RAN Stack
 
-## Overview
+A Kubernetes-native O-RAN 5G Standalone network running on a kubeadm cluster provisioned with Ansible.
 
-This project deploys a complete O-RAN-compliant 5G network across **three Docker Compose stacks** totaling ~27 containers:
-
-| Stack | Compose File | Network | Containers |
-|-------|-------------|---------|------------|
-| **5G Core** | `docker-compose.yml` | `5g-core-network` (172.20.0.0/24) | 18 (17 NFs + MongoDB + WebUI) |
-| **Near-RT RIC** | `docker-compose.ric.yml` | `ric-network` (172.22.0.0/24) | 7 (dbaas, e2term, e2mgr, appmgr, submgr, rtmgr, a1mediator) |
-| **CU/DU + UE** | `docker-compose.cudu.yml` | `ran-network` (172.21.0.0/24) | 3 (srs_cu, srs_du, srsue_5g_zmq) |
-
-### Architecture Diagram
+## Architecture
 
 ```
-                       ric-network (172.22.0.0/24)
-                 ┌──────────────────────────────────────┐
-                 │  Near-RT RIC (O-RAN SC)              │
-                 │  ric-dbaas     (172.22.0.214)        │
-                 │  ric-e2term    (172.22.0.210) :36421 │
-                 │  ric-e2mgr     (172.22.0.211)        │
-                 │  ric-submgr    (172.22.0.212)        │
-                 │  ric-rtmgr     (172.22.0.213)        │
-                 │  ric-a1mediator(172.22.0.215)        │
-                 └────────┬─────────────────────────────┘
-                          │ E2 (SCTP :36421)
-                          │ DU_RIC_IP=172.22.0.51
-                          │
-       ran-network (172.21.0.0/24)
-  ┌───────────────────────┴────────────────────────────┐
-  │  srs_cu   (172.21.0.50)  <── F1 ──>  srs_du (172.21.0.51)  │
-  │                                       srsue  (172.21.0.34)  │
-  │                                       (ZMQ virtual radio)   │
-  └───────┬────────────────────────────────────────────┘
-          │ N2/NG-U (SCTP :38412, GTP :2152)
-          │ CU_CORE_IP=172.20.0.50
-          │
-       5g-core-network (172.20.0.0/24)
-  ┌───────┴──────────────────────────────────────────────────┐
-  │  5G Core (Open5GS)          │  4G/Legacy NFs             │
-  │  NRF  (172.20.0.10)         │  MME  (172.20.0.2)         │
-  │  SCP  (172.20.0.200)        │  SGW-C (172.20.0.3)        │
-  │  SEPP (172.20.0.250)        │  SGW-U (172.20.0.6)        │
-  │  AMF  (172.20.0.5)          │  HSS  (172.20.0.8)         │
-  │  SMF  (172.20.0.4)          │  PCRF (172.20.0.21)        │
-  │  UPF  (172.20.0.7)          │                            │
-  │  AUSF (172.20.0.11)         │  Infrastructure            │
-  │  UDM  (172.20.0.12)         │  MongoDB (172.20.0.254)    │
-  │  PCF  (172.20.0.13)         │  WebUI  (172.20.0.16)      │
-  │  NSSF (172.20.0.14)         │                            │
-  │  BSF  (172.20.0.15)         │                            │
-  │  UDR  (172.20.0.20)         │                            │
-  └──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│  Kubernetes cluster (kubeadm + Flannel + Multus + OVS-CNI)          │
+│                                                                      │
+│  namespace: 5g-core          namespace: near-rt-ric                  │
+│  ┌──────────────────────┐    ┌─────────────────────┐                 │
+│  │ Open5GS              │    │ O-RAN SC Near-RT RIC │                │
+│  │  NRF  SCP  SEPP      │    │  e2term  e2mgr       │                │
+│  │  AMF  SMF  UPF       │◄──►│  rtmgr   submgr      │                │
+│  │  AUSF UDM  PCF       │    │  appmgr  a1mediator  │                │
+│  │  NSSF BSF  UDR       │    │  dbaas (Redis)       │                │
+│  │  MongoDB  WebUI      │    └─────────────────────┘                 │
+│  └──────────────────────┘             ▲                              │
+│          ▲ N2/NGAP (SCTP)             │ E2AP (SCTP)                  │
+│          │  n2br (10.200.1.0/24)      │  e2br (10.200.3.0/24)        │
+│  namespace: ran                        │                              │
+│  ┌─────────────────────────────────────┘──────────────────────────┐  │
+│  │ srsRAN                                                         │  │
+│  │  CU ──F1AP (f1cbr 10.200.2.0/24)──► DU ──ZMQ──► UE           │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Multi-homed containers** bridge the stacks:
-- **srs_cu** connects to both `ran-network` (172.21.0.50) and `5g-core-network` (172.20.0.50) for N2/NG-U to AMF.
-- **srs_du** connects to both `ran-network` (172.21.0.51) and `ric-network` (172.22.0.51) for E2 to e2term.
+SCTP traffic (N2/NGAP, F1-C, E2AP) is carried on dedicated OVS secondary interfaces attached via Multus, not over the Flannel overlay. This eliminates the conntrack/VXLAN flapping that caused N2 and E2 association instability.
+
+**OVS bridges and static IPs:**
+
+| Bridge | Network | AMF | CU | DU | e2term |
+|--------|---------|-----|----|----|--------|
+| n2br | 10.200.1.0/24 | .2 | .3 | — | — |
+| f1cbr | 10.200.2.0/24 | — | .2 | .3 | — |
+| e2br | 10.200.3.0/24 | — | .2 | .3 | .4 |
+
+**PLMN:** MCC=001 MNC=01  
+**Test subscriber:** IMSI 001010000000001  
+**WebUI:** `http://<node-ip>:<nodePort>` — admin / 1423
 
 ---
 
-## Quick Start
+## Prerequisites
 
-### 1. Set Up Host TUN Interfaces
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Ansible | ≥ 2.15 | Cluster provisioning and deployment |
+| Docker | ≥ 24 | Building images |
+| Helm | ≥ 3.12 | Used via Ansible `kubernetes.core` collection |
 
-```bash
-sudo ./setup-host-tun.sh
-```
-
-### 2. Build srsRAN Images (first time only)
-
-```bash
-docker build -f Dockerfile.srsran -t srsran-split:latest .
-docker build -f Dockerfile.srsue -t srsue:latest .
-```
-
-### 3. Launch All Stacks
+Install Ansible Galaxy collections:
 
 ```bash
-# Start everything (core -> RIC -> CU/DU + UE)
-./launch-all.sh
-
-# Or start with options:
-./launch-all.sh --core-only    # Only 5G core
-./launch-all.sh --no-ue        # Skip UE container
-```
-
-### 4. Verify Deployment
-
-```bash
-# Quick status across all stacks
-./launch-all.sh --status
-
-# Detailed health report
-./scripts/check-nf-health.sh
-
-# Continuous monitoring
-./scripts/check-nf-health.sh watch
-```
-
-### 5. Shut Down
-
-```bash
-./launch-all.sh --down
+ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
 ---
 
-## Detailed Setup Instructions
+## Secrets setup
 
-### Prerequisites
-
-- Docker Engine 20.10+ (with Docker Compose)
-- Linux host with TUN/TAP support
-- Sufficient disk space (~15GB for all container images + MongoDB)
-- Root/sudo access for TUN interface creation
-- ~16GB RAM recommended (8GB minimum)
-
-### Step 1: Create Host TUN Interfaces
+Create the Ansible Vault file with your Docker Hub credentials:
 
 ```bash
-sudo ./setup-host-tun.sh
+ansible-vault create ansible/inventories/group_vars/all/vault.yml
 ```
 
-This creates:
-- `ogstun` - Primary TUN interface (10.45.0.1/16)
-- `ogstun2` - Secondary TUN interface (10.46.0.1/16)
-- `ogstun3` - Tertiary TUN interface (10.47.0.1/16)
+Paste:
 
-**Note**: TUN interfaces are lost after reboot. For persistence, add to your system network manager.
-
-### Step 2: Build Docker Images
-
-```bash
-# Build the 5G core image (if not already built)
-docker build -f Dockerfile.5gscore -t teste-core:latest .
-
-# Build srsRAN CU/DU image (multi-stage, clones from GitHub)
-docker build -f Dockerfile.srsran -t srsran-split:latest .
-
-# Build srsUE image (multi-stage, clones srsRAN_4G)
-docker build -f Dockerfile.srsue -t srsue:latest .
-
-# Build WebUI image
-docker-compose build 5g-core-webui
+```yaml
+vault_dockerhub_password: "your-docker-hub-pat"
 ```
 
-### Step 3: Start the Deployment
+Save the vault password to `~/.oran_vault_pass` (never commit this file):
 
 ```bash
-# Recommended: use the orchestration script
-./launch-all.sh
-
-# Or start stacks individually:
-docker-compose up -d                                                    # Core
-docker-compose -f docker-compose.ric.yml up -d                         # RIC
-docker-compose -f docker-compose.cudu.yml up -d                        # CU/DU + UE
-```
-
-### Step 4: Verify Deployment
-
-```bash
-# Check all containers
-./launch-all.sh --status
-
-# View logs across stacks
-./launch-all.sh --logs
-
-# Health check
-./scripts/check-nf-health.sh
+echo "your-vault-password" > ~/.oran_vault_pass
+chmod 600 ~/.oran_vault_pass
 ```
 
 ---
 
-## Network Architecture
+## Quick start
 
-### Three Docker Bridge Networks
+### Option A: GCP VMs (recommended)
 
-| Network | Subnet | Purpose |
-|---------|--------|---------|
-| `5g-core-network` | 172.20.0.0/24 | Core NF SBI + N2/N3/N4 interfaces |
-| `ran-network` | 172.21.0.0/24 | F1 (CU-DU) + ZMQ virtual radio (DU-UE) |
-| `ric-network` | 172.22.0.0/24 | RIC platform (E2, A1, internal RMR) |
-
-### Cross-Network Connectivity
-
-Multi-homed containers bridge the isolated networks:
-
-```
-5g-core-network          ran-network              ric-network
- 172.20.0.0/24           172.21.0.0/24            172.22.0.0/24
-      |                       |                        |
-      |   CU_CORE_IP         |   CU_RAN_IP            |
-      +--- 172.20.0.50 ------+--- 172.21.0.50         |
-      |                       |                        |
-      |                       |   DU_RAN_IP            |   DU_RIC_IP
-      |                       +--- 172.21.0.51 --------+--- 172.22.0.51
-      |                       |                        |
-```
-
-### 5G Core NF IP Allocations
-
-| NF | Container | IP Address | SBI Port | Other Ports |
-|---|---|---|---|---|
-| NRF | 5g-core-nrf | 172.20.0.10 | 7777 | - |
-| SCP | 5g-core-scp | 172.20.0.200 | 7777 | - |
-| SEPP | 5g-core-sepp | 172.20.0.250 | 7777 | - |
-| AMF | 5g-core-amf | 172.20.0.5 | 7777 | NGAP (38412) |
-| SMF | 5g-core-smf | 172.20.0.4 | 7777 | GTP (2123/2152), PFCP (8805) |
-| UPF | 5g-core-upf | 172.20.0.7 | - | GTP (2152), PFCP (8805) |
-| AUSF | 5g-core-ausf | 172.20.0.11 | 7777 | - |
-| UDM | 5g-core-udm | 172.20.0.12 | 7777 | - |
-| PCF | 5g-core-pcf | 172.20.0.13 | 7777 | - |
-| NSSF | 5g-core-nssf | 172.20.0.14 | 7777 | - |
-| BSF | 5g-core-bsf | 172.20.0.15 | 7777 | - |
-| UDR | 5g-core-udr | 172.20.0.20 | 7777 | - |
-| MME | 5g-core-mme | 172.20.0.2 | - | GTP (2123), S1AP (36412) |
-| SGW-C | 5g-core-sgwc | 172.20.0.3 | - | GTP (2123), PFCP (8805) |
-| SGW-U | 5g-core-sgwu | 172.20.0.6 | - | GTP (2152), PFCP (8805) |
-| HSS | 5g-core-hss | 172.20.0.8 | - | - |
-| PCRF | 5g-core-pcrf | 172.20.0.21 | - | - |
-| MongoDB | 5g-mongodb | 172.20.0.254 | 27017 | - |
-| WebUI | 5g-core-webui | 172.20.0.16 | 9999 | - |
-
-### Near-RT RIC IP Allocations
-
-| Component | Container | IP Address | Key Ports |
-|-----------|-----------|-----------|-----------|
-| DBAAS (Redis) | ric-dbaas | 172.22.0.214 | 6379 |
-| E2 Termination | ric-e2term | 172.22.0.210 | 36421 (SCTP), 38000 (RMR) |
-| E2 Manager | ric-e2mgr | 172.22.0.211 | 3800 (HTTP), 3801 (RMR) |
-| Subscription Mgr | ric-submgr | 172.22.0.212 | 8080 (HTTP), 4560 (RMR) |
-| Routing Manager | ric-rtmgr | 172.22.0.213 | 3800 (HTTP) |
-| A1 Mediator | ric-a1mediator | 172.22.0.215 | 10000 (HTTP) |
-
-### CU/DU + UE IP Allocations
-
-| Component | Container | Network(s) | IP Address(es) |
-|-----------|-----------|-----------|----------------|
-| CU (Central Unit) | srs_cu | ran + core | 172.21.0.50, 172.20.0.50 |
-| DU (Distributed Unit) | srs_du | ran + ric | 172.21.0.51, 172.22.0.51 |
-| UE (User Equipment) | srsue_5g_zmq | ran | 172.21.0.34 |
-
----
-
-## Startup Order
-
-### 5G Core (docker-compose.yml)
-
-```
-MongoDB (health check) -> NRF -> SCP -> SEPP -> AMF -> SMF -> UPF
--> AUSF -> UDM -> PCF -> NSSF -> BSF -> UDR -> MME -> SGW-C -> SGW-U -> HSS -> PCRF
-```
-
-### RIC (docker-compose.ric.yml)
-
-```
-ric-dbaas (Redis) -> ric-e2mgr -> ric-appmgr -> ric-submgr -> ric-rtmgr -> ric-e2term -> ric-a1mediator
-```
-
-### CU/DU (docker-compose.cudu.yml)
-
-```
-srs_cu -> srs_du -> srsue_5g_zmq
-```
-
-The `launch-all.sh` script orchestrates all three stacks in order.
-
----
-
-## Container Management
-
-### View Container Status
+#### 1. Provision the VMs
 
 ```bash
-# All stacks
-./launch-all.sh --status
-
-# Individual stacks
-docker-compose ps
-docker-compose -f docker-compose.ric.yml ps
-docker-compose -f docker-compose.cudu.yml ps
+ansible-playbook ansible/playbooks/gcp-vm-create.yml
 ```
 
-### View Container Logs
+This creates two GCP VMs (`oran-cp1`, `oran-w1`) and writes `ansible/inventories/gcp.ini`.
+
+#### 2. Bootstrap the cluster
 
 ```bash
-# Follow a specific container
-docker logs -f 5g-core-amf
-docker logs -f ric-e2term
-docker logs -f srs_cu
-
-# All logs from one stack
-docker-compose logs -f
-docker-compose -f docker-compose.ric.yml logs -f
-docker-compose -f docker-compose.cudu.yml logs -f
-
-# Cross-stack logs via orchestrator
-./launch-all.sh --logs
+ansible-playbook ansible/playbooks/provision.yml \
+  -i ansible/inventories/gcp.ini
 ```
 
-### Stop/Restart Containers
+Installs containerd, kubeadm, Flannel CNI, Multus, OVS-CNI (via CNAO), OVS VXLAN tunnels between nodes, and local-path-provisioner. Writes `./kubeconfig`.
+
+#### 3. Build and push Docker images
 
 ```bash
-# Stop everything
-./launch-all.sh --down
+ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
+```
 
-# Or individually
-docker-compose down
-docker-compose -f docker-compose.ric.yml down
-docker-compose -f docker-compose.cudu.yml down
+#### 4. Deploy the stack
 
-# Restart a specific container
-docker-compose restart 5g-core-amf
-docker-compose -f docker-compose.ric.yml restart ric-e2term
-docker-compose -f docker-compose.cudu.yml restart srs_du
+```bash
+ansible-playbook ansible/playbooks/deploy.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
+```
+
+### Option B: Bring Your Own machines
+
+For a two-machine home lab, reserve fixed LAN IPs on your router first so
+`ansible_host` does not change after reboot. See
+[docs/HOME_LAB_DHCP.md](docs/HOME_LAB_DHCP.md) for a step-by-step guide.
+
+Copy and edit the inventory template:
+
+```bash
+cp ansible/inventories/hosts.ini.example ansible/inventories/hosts.ini
+# edit hosts.ini with your machine IPs and SSH user
+```
+
+Then run:
+
+```bash
+ansible-playbook ansible/playbooks/provision.yml \
+  -i ansible/inventories/hosts.ini
+
+ansible-playbook ansible/playbooks/deploy.yml \
+  -i ansible/inventories/hosts.ini --ask-vault-pass
 ```
 
 ---
 
-## Monitoring and Logging
-
-### Health Check Script
+## Verify
 
 ```bash
-# One-time health report (all 3 stacks)
-./scripts/check-nf-health.sh
+export KUBECONFIG=$(pwd)/kubeconfig
 
-# Continuous monitoring
-./scripts/check-nf-health.sh watch
-```
+# All pods running
+kubectl get pods -A
 
-The health script checks:
-- All core containers (18)
-- All RIC containers (6)
-- All RAN containers (3)
-- Docker network connectivity
-- Redis (DBAAS) availability
+# UE attached to the 5G core
+kubectl logs -n ran deployment/srsue -f
+# Look for: RRC Connected  ->  PDU Session Established
 
-### Log Export
-
-```bash
-./scripts/export-logs.sh
-```
-
-Exports per-container logs to `logs/` with timestamps.
-
----
-
-## Key Interfaces
-
-### N2 (AMF <-> CU)
-
-The CU connects to AMF via the N2/NGAP interface:
-- AMF listens on `172.20.0.5:38412` (SCTP)
-- CU connects from `172.20.0.50` (its core-network IP)
-
-### F1 (CU <-> DU)
-
-F1 runs on `ran-network`:
-- CU: `172.21.0.50:2153`
-- DU: `172.21.0.51`
-
-### E2 (DU -> RIC)
-
-E2 runs between DU and e2term:
-- e2term listens on `172.22.0.210:36421` (SCTP)
-- DU connects from `172.22.0.51` (its ric-network IP)
-
-### ZMQ Virtual Radio (DU <-> UE)
-
-ZMQ sockets on `ran-network`:
-- DU TX -> UE RX: `tcp://172.21.0.51:2000`
-- UE TX -> DU RX: `tcp://172.21.0.34:2001`
-
----
-
-## Subscriber Data
-
-Two test subscribers are pre-loaded via `init-webui-data.js`:
-
-| Field | 5G Subscriber | 4G Subscriber |
-|-------|--------------|--------------|
-| IMSI | 001010000000001 | 001010000000002 |
-| K | 465B5CE8B199B49FAA5F0A2EE238A6BC | 465B5CE8B199B49FAA5F0A2EE238A6BC |
-| OPc | E8ED289DEBA952E4283B54E88E6183CA | E8ED289DEBA952E4283B54E88E6183CA |
-| APN | internet | internet |
-| PLMN | 001/01 | 001/01 |
-
-The srsUE configuration (`srsran/configs/ue.conf`) uses the 5G subscriber credentials.
-
-### WebUI Access
-
-```
-URL: http://localhost:9999
-Username: admin
-Password: 1423
+# OVS bridges on each node
+ssh <node> sudo ovs-vsctl show
 ```
 
 ---
 
-## MongoDB Access
+## Teardown
 
 ```bash
-# From host
-mongosh mongodb://localhost:27017/open5gs
+# Remove all Helm releases and reset the kubeadm cluster
+ansible-playbook ansible/playbooks/teardown.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass
 
-# From container
-docker exec -it 5g-mongodb mongosh mongodb://localhost:27017/open5gs
+# Delete GCP VMs
+ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+```
 
-# Check subscriber count
-docker exec 5g-mongodb mongosh open5gs --eval "db.subscribers.countDocuments()"
+---
+
+## GCP configuration reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `gcp_project` | `""` | GCP project (resolved from gcloud config if empty) |
+| `gcp_zone` | `us-central1-a` | Zone for both VMs |
+| `gcp_cp_name` | `oran-cp1` | Control-plane VM name |
+| `gcp_w_name` | `oran-w1` | Worker VM name |
+| `gcp_cp_machine_type` | `e2-standard-2` | cp1 (2 vCPU / 8 GB) |
+| `gcp_w_machine_type` | `e2-standard-4` | w1 (4 vCPU / 16 GB) |
+| `gcp_disk_size_gb` | `50` | Boot disk size (GB) |
+| `gcp_disk_type` | `pd-ssd` | Boot disk type |
+| `gcp_ssh_user` | `oran` | SSH user |
+| `gcp_ssh_pub_key_file` | `~/.ssh/oran_gcp.pub` | Public key injected into VMs |
+| `gcp_ssh_priv_key_file` | `~/.ssh/oran_gcp` | Private key used by Ansible |
+
+---
+
+## Configuration reference
+
+### Cluster / networking — `ansible/inventories/group_vars/all/vars.yml`
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `kubernetes_version` | `1.30` | K8s apt channel |
+| `pod_cidr` | `10.244.0.0/16` | Flannel pod network |
+| `service_cidr` | `10.96.0.0/12` | K8s service network |
+| `flannel_manifest_url` | flannel v0.25.4 | Flannel DaemonSet manifest |
+| `cnao_version` | `0.101.0-rc-0` | Cluster Network Addons Operator |
+| `secondary_networks.n2.amf_ip` | `10.200.1.2` | AMF static IP on n2br |
+| `secondary_networks.n2.cu_ip` | `10.200.1.3` | CU static IP on n2br |
+| `secondary_networks.f1c.cu_ip` | `10.200.2.2` | CU static IP on f1cbr |
+| `secondary_networks.f1c.du_ip` | `10.200.2.3` | DU static IP on f1cbr |
+| `secondary_networks.e2.cu_ip` | `10.200.3.2` | CU static IP on e2br |
+| `secondary_networks.e2.du_ip` | `10.200.3.3` | DU static IP on e2br |
+| `secondary_networks.e2.e2term_ip` | `10.200.3.4` | e2term static IP on e2br |
+
+### 5G settings
+
+| Setting | Value | File |
+|---------|-------|------|
+| MCC / MNC / TAC | 001 / 01 / 1 | `helm/5g-core/values.yaml` |
+| MongoDB storage | 20 Gi (`local-path`) | `helm/5g-core/values.yaml` |
+| UE subnet | 10.45.0.0/16 | `helm/5g-core/values.yaml` |
+| DL ARFCN | 368500 (Band 3, 20 MHz) | `helm/ran/values.yaml` |
+
+---
+
+## Repository structure
+
+```
+oran-stack/
+├── entrypoint.sh                  # NF container entrypoint (envsubst + launch)
+├── init-mongodb.js                # MongoDB replica-set init
+├── init-webui-data.js             # MongoDB subscriber seed data
+├── configs/                       # Open5GS NF config templates (baked into image)
+├── dockerfiles/                   # Dockerfiles for the 4 custom images
+├── helm/
+│   ├── 5g-core/                   # Open5GS + MongoDB Helm chart
+│   ├── near-rt-ric/               # O-RAN SC Near-RT RIC Helm chart
+│   └── ran/                       # srsRAN CU/DU/UE Helm chart
+├── ansible/
+│   ├── ansible.cfg
+│   ├── requirements.yml
+│   ├── inventories/
+│   │   ├── hosts.ini.example      # BYO machine inventory template
+│   │   ├── gcp.ini                # GCP VM inventory (generated by gcp-vm-create.yml)
+│   │   └── group_vars/all/
+│   │       ├── vars.yml           # All non-secret variables
+│   │       └── vault.yml          # Encrypted secrets (dockerhub_password)
+│   ├── playbooks/
+│   │   ├── provision.yml          # kubeadm cluster bootstrap
+│   │   ├── build_images.yml       # Docker build + push
+│   │   ├── deploy.yml             # Helm deploy (core -> ric -> ran)
+│   │   ├── teardown.yml           # Helm uninstall + kubeadm reset
+│   │   ├── gcp-vm-create.yml      # Provision GCP cluster VMs
+│   │   └── gcp-vm-delete.yml      # Delete GCP cluster VMs
+│   └── roles/
+│       ├── kubeadm_prereqs/       # OS prep (swap, modules, OVS, containerd, kubeadm)
+│       ├── kubeadm_control_plane/ # kubeadm init, Flannel, Multus, CNAO, NADs
+│       ├── kubeadm_worker/        # kubeadm join
+│       ├── kubeadm_teardown/      # kubeadm reset + OVS/iptables cleanup
+│       ├── ovs_vxlan/             # OVS bridge + VXLAN tunnel setup between nodes
+│       ├── gcp_vm/                # GCP VM create / delete (google.cloud collection)
+│       ├── container_images/      # Docker build + push
+│       ├── deploy_5g_core/        # Helm deploy for 5g-core
+│       ├── deploy_ric/            # Helm deploy for near-rt-ric
+│       └── deploy_ran/            # Helm deploy for ran
+└── docs/
+    ├── STATUS.md
+    ├── LEARNINGS.md
+    └── E2_STABILIZATION_PLAN.md
 ```
 
 ---
 
 ## Troubleshooting
 
-### Container Keeps Restarting
+**Nodes not Ready after provision**  
+Check Flannel pods: `kubectl get pods -n kube-flannel`. Re-run `provision.yml` — all tasks are idempotent.
 
-```bash
-# Check logs for the failing container
-docker logs 5g-core-nrf
-docker logs ric-e2term
-docker logs srs_cu
-```
+**Images fail to pull**  
+Verify the imagePullSecret: `kubectl get secret dockerhub-secret -n 5g-core`. Re-run `deploy.yml` to recreate it.
 
-Common causes:
-1. Image not built yet (`docker build -f Dockerfile.srsran ...`)
-2. MongoDB not healthy (wait longer, check `docker logs 5g-mongodb`)
-3. Dependent service not running (check startup order)
+**UPF pod CrashLoops**  
+UPF uses `hostNetwork: true` and creates TUN interfaces. Confirm `net.ipv4.ip_forward=1` is set on the worker: `ssh <node> sysctl net.ipv4.ip_forward`. The `kubeadm_prereqs` role sets this.
 
-### CU Cannot Reach AMF
+**SCTP associations not establishing**  
+Confirm secondary interfaces are attached: `kubectl exec -n ran deploy/srs-cu -- ip addr`. You should see interfaces with IPs from the 10.200.x.0/24 ranges. Check OVS bridge and VXLAN tunnels: `sudo ovs-vsctl show` on each node.
 
-```bash
-# Verify CU has core-network IP
-docker exec srs_cu ip addr show
-# Should show 172.20.0.50 on one interface
+**E2 interface not connecting**  
+Check `kubectl logs -n ran deployment/srs-du` for the E2 Setup Request and `kubectl logs -n near-rt-ric deployment/ric-e2term` for the response. The DU intentionally waits 30 seconds after F1 Setup before sending E2 Setup.
 
-# Test connectivity
-docker exec srs_cu ping 172.20.0.5
-```
-
-### DU Cannot Reach RIC
-
-```bash
-# Verify DU has ric-network IP
-docker exec srs_du ip addr show
-# Should show 172.22.0.51 on one interface
-
-# Test connectivity
-docker exec srs_du ping 172.22.0.210
-```
-
-### E2 Connection Failure
-
-```bash
-# Check e2term logs
-docker logs ric-e2term
-
-# Check Redis is up
-docker exec ric-dbaas redis-cli ping
-# Should return: PONG
-```
-
-### TUN Interface Issues
-
-```bash
-# Verify on host
-ip tuntap list
-
-# Recreate
-sudo ./setup-host-tun.sh
-
-# Verify in UPF container
-docker exec 5g-core-upf ip addr show ogstun
-```
-
-### Network Connectivity Between Stacks
-
-```bash
-# Inspect Docker networks
-docker network inspect 5g-core-network
-docker network inspect ran-network
-docker network inspect ric-network
-
-# Verify multi-homed containers
-docker inspect srs_cu --format '{{json .NetworkSettings.Networks}}' | python3 -m json.tool
-docker inspect srs_du --format '{{json .NetworkSettings.Networks}}' | python3 -m json.tool
-```
-
----
-
-## Files and Structure
-
-```
-.
-├── docker-compose.yml           # 5G Core (17 NFs + MongoDB + WebUI)
-├── docker-compose.ric.yml       # Near-RT RIC (6 services)
-├── docker-compose.cudu.yml      # CU/DU Split + UE (3 services)
-├── Dockerfile.5gscore           # Open5GS build image
-├── Dockerfile.webui             # Open5GS WebUI image
-├── Dockerfile.srsran            # srsRAN CU/DU build (multi-stage)
-├── Dockerfile.srsue             # srsRAN 4G UE build (multi-stage)
-├── .env                         # All IP/port/PLMN configuration
-├── entrypoint.sh                # Container initialization script
-├── init-mongodb.js              # MongoDB replica set setup
-├── init-webui-data.js           # Subscriber + admin initialization
-├── setup-host-tun.sh            # TUN interface creation
-├── launch-all.sh                # Multi-stack orchestration script
-├── launch-5g-core.sh            # Legacy core-only launcher
-├── srsran/
-│   ├── configs/
-│   │   ├── cu.yml               # CU configuration (N2, F1)
-│   │   ├── du.yml               # DU configuration (F1, E2, ZMQ, cell)
-│   │   └── ue.conf              # UE configuration (ZMQ, IMSI, keys)
-│   └── logs/                    # srsRAN runtime logs
-├── ric/
-│   └── config/
-│       ├── e2term/              # E2 termination config + routes
-│       ├── e2mgr/               # E2 manager config + routes
-│       ├── submgr/              # Subscription manager config + routes
-│       ├── rtmgr/               # Routing manager config
-│       └── a1mediator/          # A1 mediator config
-├── configs/                     # Open5GS NF YAML templates
-├── scripts/
-│   ├── export-logs.sh           # Log export utility
-│   └── check-nf-health.sh      # Health monitoring (all 3 stacks)
-├── logs/                        # Runtime logs (auto-generated)
-├── cu-du-split-report.md        # CU/DU split research report
-└── docs (*.md)                  # Documentation files
-```
-
----
-
-## Environment Variables
-
-Key variables in `.env`:
-
-```bash
-# PLMN
-MCC=001
-MNC=01
-
-# Core network
-DOCKER_SUBNET=172.20.0.0/24
-
-# RAN network
-RAN_SUBNET=172.21.0.0/24
-CU_RAN_IP=172.21.0.50
-CU_CORE_IP=172.20.0.50
-DU_RAN_IP=172.21.0.51
-DU_RIC_IP=172.22.0.51
-UE_IP=172.21.0.34
-
-# RIC network
-RIC_SUBNET=172.22.0.0/24
-RIC_E2TERM_IP=172.22.0.210
-
-# srsRAN radio (ZMQ)
-SRSRAN_DL_ARFCN=368500
-SRSRAN_BAND=3
-SRSRAN_BW_MHZ=20
-```
-
----
-
-## Next Steps
-
-1. **Deploy and validate E2 connectivity**: Check `docker logs ric-e2term` for SCTP association from DU
-2. **Test UE attachment**: Check `docker logs srs_cu` and `docker logs 5g-core-amf` for NAS registration
-3. **Develop xApps**: Build O-RAN SC xApps that connect to the RIC via RMR messaging
-4. **Scale to hardware**: Replace ZMQ virtual radio with USRP/SDR for over-the-air testing
-5. **Kubernetes migration**: Convert compose files to Helm charts for production orchestration
+**MongoDB PVC stays Pending**  
+Verify local-path-provisioner is running: `kubectl get pods -n local-path-storage`. If missing, re-run `provision.yml`.

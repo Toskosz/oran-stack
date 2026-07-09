@@ -1,0 +1,112 @@
+# ============================================================================
+# monitoring Helm Chart — values.yaml
+# ============================================================================
+# This chart is a thin wrapper around kube-prometheus-stack.
+# It pre-configures:
+#   - Prometheus to discover ServiceMonitors in 5g-core and near-rt-ric
+#   - Grafana with a pre-built O-RAN dashboard
+#   - Retention and storage appropriate for a lab cluster
+# ============================================================================
+
+namespace: monitoring
+
+# ----------------------------------------------------------------------------
+# kube-prometheus-stack sub-chart values
+# https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+# ----------------------------------------------------------------------------
+kube-prometheus-stack:
+
+  # --------------------------------------------------------------------------
+  # Prometheus
+  # --------------------------------------------------------------------------
+  prometheus:
+    prometheusSpec:
+      # Scrape interval — 15 s is enough for lab visibility.
+      scrapeInterval: 15s
+      evaluationInterval: 15s
+
+      # Retain 7 days of metrics in the lab (no PVC needed by default).
+      retention: 7d
+
+      # Allow Prometheus to watch ServiceMonitors in ALL namespaces so we
+      # can add monitors for 5g-core and near-rt-ric without modifying the
+      # release namespace.
+      serviceMonitorNamespaceSelector: {}
+      serviceMonitorSelector: {}
+      podMonitorNamespaceSelector: {}
+      podMonitorSelector: {}
+      ruleNamespaceSelector: {}
+
+      # Storage: emptyDir for lab (data lost on pod restart).
+      # Override with a PVC for persistent storage:
+      #   storageSpec:
+      #     volumeClaimTemplate:
+      #       spec:
+      #         storageClassName: local-path
+      #         resources:
+      #           requests:
+      #             storage: 10Gi
+      storageSpec: {}
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 512Mi
+
+  # --------------------------------------------------------------------------
+  # Grafana
+  # --------------------------------------------------------------------------
+  grafana:
+    # Default admin credentials — change in production.
+    adminUser: admin
+    adminPassword: oran-lab
+
+    # Persist dashboards across pod restarts via ConfigMap sidecar.
+    sidecar:
+      dashboards:
+        enabled: true
+        # Watch for ConfigMaps with this label in any namespace.
+        searchNamespace: ALL
+        label: grafana_dashboard
+        labelValue: "1"
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+    grafana.ini:
+      server:
+        root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+      auth.anonymous:
+        enabled: false
+
+  # --------------------------------------------------------------------------
+  # Alertmanager — disabled for lab simplicity
+  # --------------------------------------------------------------------------
+  alertmanager:
+    enabled: false
+
+  # --------------------------------------------------------------------------
+  # Node exporter — useful for seeing CPU/mem on Vagrant/GCP nodes
+  # --------------------------------------------------------------------------
+  nodeExporter:
+    enabled: true
+
+  # --------------------------------------------------------------------------
+  # kube-state-metrics — tracks Deployment/Pod status
+  # --------------------------------------------------------------------------
+  kubeStateMetrics:
+    enabled: true
+
+  # --------------------------------------------------------------------------
+  # Disable components not relevant to a 2-node lab cluster
+  # --------------------------------------------------------------------------
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeProxy:
+    enabled: false

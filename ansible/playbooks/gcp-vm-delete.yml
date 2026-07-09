@@ -1,0 +1,28 @@
+# =============================================================================
+# Playbook: gcp-vm-delete.yml
+# Purpose:  Delete the two GCP VMs (cp1 + w1) and firewall rules created by
+#           gcp-vm-create.yml. Also removes the generated gcp.ini inventory.
+#
+# WARNING: Permanently deletes the VMs and their boot disks.
+#          Any cluster state, PVC data, and logs will be lost.
+#          Run teardown.yml first if you want a clean Helm uninstall.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+#
+#   # If you used non-default names/zone at create time:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete.yml \
+#     -e gcp_cp_name=oran-cp1-test \
+#     -e gcp_w_name=oran-w1-test \
+#     -e gcp_zone=europe-west1-b
+# =============================================================================
+---
+- name: Delete GCP cluster VMs
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: gcp_vm
+      vars:
+        gcp_vm_action: delete

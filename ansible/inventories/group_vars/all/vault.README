@@ -1,0 +1,15 @@
+# vault.yml — Ansible Vault encrypted file
+#
+# Contains:
+#   vault_dockerhub_password:  Docker Hub personal access token
+#
+# The old vault_gcp_billing_account variable (GKE era) can be removed
+# if present; it is no longer referenced. To re-create a clean vault:
+#
+#   ansible-vault create ansible/inventories/group_vars/all/vault.yml
+#
+# Paste in:
+#   vault_dockerhub_password: "your-docker-hub-pat"
+#
+# Then save ~/.oran_vault_pass with the vault password, or always pass
+# --ask-vault-pass when running playbooks that need Docker Hub access.

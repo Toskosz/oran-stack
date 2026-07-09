@@ -1,0 +1,128 @@
+# ============================================================================
+# Role: deploy_ran
+# Purpose: Deploy the ran Helm chart (srsRAN CU, DU, UE) onto the kubeadm cluster.
+#   1. Create namespace with privileged pod-security label
+#   2. Create imagePullSecret
+#   3. helm upgrade --install ran
+#   4. Wait for Deployments
+# ============================================================================
+---
+
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+# ----------------------------------------------------------------------------
+# 1. Create ran namespace
+# ----------------------------------------------------------------------------
+- name: Create ran namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ namespaces.ran }}"
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/warn:    privileged
+          pod-security.kubernetes.io/audit:   privileged
+
+# ----------------------------------------------------------------------------
+# 2. Create Docker Hub imagePullSecret in ran namespace
+# ----------------------------------------------------------------------------
+- name: Create Docker Hub imagePullSecret in ran namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name:      "{{ image_pull_secret_name }}"
+        namespace: "{{ namespaces.ran }}"
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: >-
+          {{ ({
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "username": dockerhub_username,
+                "password": dockerhub_password,
+                "auth": (dockerhub_username ~ ":" ~ dockerhub_password) | b64encode
+              }
+            }
+          }) | to_json | b64encode }}
+  no_log: true
+
+# ----------------------------------------------------------------------------
+# 3. Helm upgrade --install ran
+#    SCTP interfaces (N2, F1-C, E2AP) use static secondary OVS IPs defined
+#    in secondaryNetworks in values.yaml. Override here only if the operator
+#    has customised the IP ranges in group_vars/all/vars.yml.
+# ----------------------------------------------------------------------------
+- name: Deploy ran Helm chart
+  kubernetes.core.helm:
+    kubeconfig: "{{ _kubeconfig }}"
+    name:             "{{ helm_releases.ran }}"
+    chart_ref:        "{{ playbook_dir }}/../../{{ helm_charts.ran }}"
+    release_namespace: "{{ namespaces.ran }}"
+    create_namespace: false
+    wait:             false
+    values:
+      images:
+        srsran:
+          repository: "{{ images.srsran.repository }}"
+          tag:         "{{ images.srsran.tag }}"
+        srsue:
+          repository: "{{ images.srsue.repository }}"
+          tag:         "{{ images.srsue.tag }}"
+      plmn:
+        mcc: "{{ plmn.mcc }}"
+        mnc: "{{ plmn.mnc }}"
+        tac: "{{ plmn.tac }}"
+      secondaryNetworks:
+        n2:
+          nadName:  "{{ secondary_networks.n2.nad_name }}"
+          amfIP:    "{{ secondary_networks.n2.amf_ip }}"
+          cuIP:     "{{ secondary_networks.n2.cu_ip }}"
+        f1c:
+          nadName:  "{{ secondary_networks.f1c.nad_name }}"
+          cuIP:     "{{ secondary_networks.f1c.cu_ip }}"
+          duIP:     "{{ secondary_networks.f1c.du_ip }}"
+        e2:
+          nadName:   "{{ secondary_networks.e2.nad_name }}"
+          cuIP:      "{{ secondary_networks.e2.cu_ip }}"
+          duIP:      "{{ secondary_networks.e2.du_ip }}"
+          e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
+  register: helm_ran
+
+- name: Wait for ran Helm release with live status output
+  ansible.builtin.shell: |
+    set +e
+    echo "=== $(date -u +%H:%M:%S) ran namespace ==="
+    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" -o wide
+    echo "--- deployments ---"
+    kubectl --kubeconfig="{{ _kubeconfig }}" get deploy -n "{{ namespaces.ran }}" \
+      -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas,DESIRED:.spec.replicas'
+    echo "--- helm ---"
+    helm --kubeconfig="{{ _kubeconfig }}" status "{{ helm_releases.ran }}" -n "{{ namespaces.ran }}" 2>&1 | head -5
+    echo "--- not ready ---"
+    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" \
+      --field-selector=status.phase!=Running 2>/dev/null
+    kubectl --kubeconfig="{{ _kubeconfig }}" wait --for=condition=available deployment --all \
+      -n "{{ namespaces.ran }}" --timeout=10s >/dev/null 2>&1
+  register: _ran_wait
+  until: _ran_wait.rc == 0
+  retries: "{{ (helm_timeout | regex_replace('s$', '') | int // 10) | int }}"
+  delay: 10
+  changed_when: false
+
+- name: Show final ran pod status
+  ansible.builtin.debug:
+    msg: "{{ _ran_wait.stdout_lines }}"
+
+- name: Show ran Helm release status
+  ansible.builtin.debug:
+    msg: "ran release deployed (revision {{ helm_ran.status.revision | default('unknown') }}); stack_stabilize runs next"

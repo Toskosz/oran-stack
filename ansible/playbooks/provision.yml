@@ -1,0 +1,57 @@
+# ============================================================================
+# Playbook: provision.yml
+# Purpose:  Bootstrap a kubeadm Kubernetes cluster with Flannel + Multus + OVS-CNI.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/hosts.ini
+#   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
+#
+# Pre-requisites:
+#   - Ansible Galaxy collections installed:
+#       ansible-galaxy collection install -r ansible/requirements.yml
+#   - Inventory file configured with node IPs and SSH credentials
+#
+# What this playbook does:
+#   1. Prepares both nodes (swap, kernel modules, sysctl, OVS, containerd, kubeadm)
+#   2. Initialises the control-plane with kubeadm init + Flannel + Multus + OVS-CNI
+#   3. Installs local-path-provisioner for MongoDB PVC storage
+#   4. Joins the worker node to the cluster
+#   5. Configures VXLAN tunnels between nodes for OVS bridges
+#   6. Fetches kubeconfig to the repo root as ./kubeconfig
+#
+# After this playbook:
+#   export KUBECONFIG=$(pwd)/kubeconfig
+#   kubectl get nodes        # should show cp1 + w1 Ready
+# ============================================================================
+---
+- name: Prepare all cluster nodes
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: kubeadm_prereqs
+
+- name: Initialise control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: kubeadm_control_plane
+
+- name: Join worker nodes
+  hosts: workers
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: kubeadm_worker
+
+- name: Configure VXLAN tunnels for OVS bridges
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: ovs_vxlan

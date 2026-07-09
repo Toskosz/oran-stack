@@ -1,0 +1,132 @@
+# ============================================================================
+# ServiceMonitors — O-RAN stack metrics endpoints
+# ============================================================================
+# These tell Prometheus (via the Operator) which pods/services to scrape.
+#
+# All target services already expose /metrics on the ports below — they were
+# wired in the 5g-core and near-rt-ric charts but never scraped until now.
+#
+# Ports scraped:
+#   Open5GS NFs (AMF, SMF, UPF, PCF)  — port 9090  (Prometheus pull)
+#   Near-RT RIC (e2term, submgr)        — port 8088  (Prometheus pull)
+# ============================================================================
+
+# --- Open5GS AMF -------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: open5gs-amf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - 5g-core
+  selector:
+    matchLabels:
+      app: amf
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# --- Open5GS SMF -------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: open5gs-smf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - 5g-core
+  selector:
+    matchLabels:
+      app: smf
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# --- Open5GS UPF -------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: open5gs-upf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - 5g-core
+  selector:
+    matchLabels:
+      app: upf
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# --- Open5GS PCF -------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: open5gs-pcf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - 5g-core
+  selector:
+    matchLabels:
+      app: pcf
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# --- Near-RT RIC e2term -------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ric-e2term
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - near-rt-ric
+  selector:
+    matchLabels:
+      app: ric-e2term
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# --- Near-RT RIC submgr -------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ric-submgr
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - near-rt-ric
+  selector:
+    matchLabels:
+      app: ric-submgr
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

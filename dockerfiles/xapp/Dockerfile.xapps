@@ -1,0 +1,15 @@
+ARG XAPP_RUNNER_IMAGE=oran-xapp-runner:latest
+FROM ${XAPP_RUNNER_IMAGE}
+
+COPY xapps/python/ /opt/xApps/
+COPY dockerfiles/xapp/uta-rtg.rt /opt/ric/config/uta-rtg.rt
+
+RUN chmod +x /opt/xApps/*.py
+
+WORKDIR /opt/xApps
+
+ENV RMR_SEED_RT=/opt/ric/config/uta-rtg.rt
+ENV PYTHONUNBUFFERED=1
+ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+
+CMD ["/bin/bash"]

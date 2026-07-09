@@ -1,0 +1,100 @@
+# ============================================================================
+# SCTP Kernel Module DaemonSet
+# ============================================================================
+# Ubuntu nodes may not have the SCTP kernel module loaded by default.
+# This DaemonSet runs a privileged initContainer on every node that calls
+# `modprobe sctp`. If SCTP is already built into the kernel it is a no-op.
+#
+# This is required for:
+#   - AMF: NodePort Service with protocol: SCTP on port 38412 (N2/NGAP)
+#   - e2term (near-rt-ric chart): NodePort with SCTP on port 36421 (E2)
+#
+# The main container is a permanent pause so the DaemonSet pod stays Running
+# and can be monitored. The actual work happens in initContainers.
+#
+# Why a DaemonSet and not a node startup script?
+#   DaemonSets are Kubernetes-native, version-controlled, and re-run
+#   automatically when new nodes join the pool (e.g., after auto-repair).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sctp-init
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: sctp-init
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  selector:
+    matchLabels:
+      app: sctp-init
+  template:
+    metadata:
+      labels:
+        app: sctp-init
+    spec:
+      # hostPID: true is needed so nsenter can reach the host's PID namespace
+      # and run modprobe in the host kernel context (not just the container).
+      hostPID: true
+      tolerations:
+        - operator: Exists  # Run on all nodes including tainted ones.
+      initContainers:
+        - name: load-sctp
+          image: alpine:3.19
+          securityContext:
+            privileged: true
+          # nsenter -t 1 -m -u -i -n: enter the host's mount/uts/ipc/net
+          # namespaces via PID 1 (init). This makes modprobe run against
+          # the host kernel's module tree, not the container's.
+          #
+          # On GKE COS kernels >= 6.12, SCTP is compiled in (not a .ko module),
+          # so modprobe exits 1 with "Module not found" even though SCTP works.
+          # We verify SCTP availability by attempting to open an SCTP socket
+          # directly, which works regardless of whether SCTP is a module or
+          # built-in (it will not appear in /proc/modules when built-in).
+          command:
+            - nsenter
+            - "-t"
+            - "1"
+            - "-m"
+            - "-u"
+            - "-i"
+            - "-n"
+            - "--"
+            - sh
+            - "-c"
+            - |
+              # ── Step 1: ensure SCTP is available ───────────────────────────
+              if modprobe sctp 2>/dev/null; then
+                echo "sctp module loaded"
+              elif [ -d /proc/net/sctp ]; then
+                echo "sctp built-in and available"
+              else
+                echo "ERROR: SCTP not available" >&2
+                exit 1
+              fi
+
+              # ── Step 2: SCTP sysctl tuning ─────────────────────────────────
+              # SCTP traffic uses dedicated OVS L2 secondary interfaces (via
+              # Multus), so there is no overlay encapsulation or ARP convergence
+              # delay. We apply modest tuning to speed up dead association
+              # detection without being overly aggressive.
+              #
+              # rto_max (ms): cap the maximum retransmission timeout so that a
+              #   dead peer is detected in ~30 s rather than the default ~60 s.
+              sysctl -w net.sctp.rto_max=10000
+              #
+              # max_retrans_association: reduce from 10 to 5 to clear ghost
+              #   associations faster after a pod restart.
+              sysctl -w net.sctp.max_retrans_association=5
+              #
+              # addip_enable: keep disabled — single secondary IP per interface.
+              sysctl -w net.sctp.addip_enable=0
+              #
+              echo "SCTP sysctl tuning applied"
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi

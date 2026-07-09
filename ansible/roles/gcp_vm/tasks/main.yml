@@ -1,0 +1,13 @@
+---
+# gcp_vm/tasks/main.yml
+# Dispatches to create.yml or delete.yml based on gcp_vm_action (default: create).
+# All tasks run on localhost — the Ansible controller calls GCP APIs via
+# the google.cloud collection (Application Default Credentials).
+
+- name: Include create tasks
+  ansible.builtin.include_tasks: create.yml
+  when: gcp_vm_action | default('create') == 'create'
+
+- name: Include delete tasks
+  ansible.builtin.include_tasks: delete.yml
+  when: gcp_vm_action | default('create') == 'delete'

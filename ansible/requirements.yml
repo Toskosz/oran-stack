@@ -1,0 +1,18 @@
+# ============================================================================
+# Ansible Collection Requirements — O-RAN Stack
+# ============================================================================
+# Install with:  ansible-galaxy collection install -r ansible/requirements.yml
+# ============================================================================
+collections:
+  # Kubernetes / Helm — deploy charts, create Secrets, wait for rollouts
+  - name: kubernetes.core
+    version: ">=3.0"
+
+  # Docker — build images and push to Docker Hub
+  - name: community.docker
+    version: ">=3.0"
+
+  # GCP — provision compute instances for the cloud dev path
+  # Authenticates via Application Default Credentials (gcloud auth application-default login)
+  - name: google.cloud
+    version: ">=1.3"

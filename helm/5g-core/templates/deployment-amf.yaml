@@ -1,0 +1,120 @@
+# ============================================================================
+# AMF — Access and Mobility Management Function
+# ============================================================================
+# Two Services:
+#   1. amf       (ClusterIP)  — SBI HTTP/2 on port 7777, internal only
+#   2. amf-ngap  (NodePort)   — SCTP N2/NGAP on port 38412, for real gNBs
+#                               outside the cluster.
+#
+# N2/NGAP for the in-cluster srs-cu uses the secondary OVS interface
+# (n2br-net NAD). The CU connects to .Values.secondaryNetworks.n2.amfIP
+# directly over the dedicated L2 OVS bridge, bypassing Flannel entirely.
+# This eliminates the SCTP conntrack corruption that occurred with Calico
+# VXLAN overlay — no headless service workaround is needed.
+#
+# The SCTP kernel module must be loaded first — see daemonset-sctp-init.yaml.
+{{- if .Values.nf.amf.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: amf
+  template:
+    metadata:
+      labels:
+        app: amf
+      annotations:
+        # Attach a secondary interface on the n2br OVS bridge with a static IP.
+        # The CU connects to this IP directly over L2 for N2/NGAP SCTP.
+        k8s.v1.cni.cncf.io/networks: '[{"name":"{{ .Values.secondaryNetworks.n2.nadName }}","ips":["{{ .Values.secondaryNetworks.n2.amfIP }}"]}]'
+    spec:
+      {{- include "5g-core.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: amf
+          image: {{ .Values.images.core.repository }}:{{ .Values.images.core.tag }}
+          imagePullPolicy: {{ .Values.images.core.pullPolicy }}
+          command: ["/entrypoint.sh", "./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
+          workingDir: /open5gs
+          env:
+            {{ include "5g-core.commonEnv" . | nindent 12 }}
+            # AMF_IP is the secondary OVS interface IP so SCTP binds only to
+            # the dedicated N2 bridge interface, not the primary Flannel eth0
+            # or the UPF ogstun. This keeps N2/NGAP on the OVS L2 domain.
+            - name: AMF_IP
+              value: "{{ .Values.secondaryNetworks.n2.amfIP }}"
+          ports:
+            - containerPort: 7777
+              name: sbi
+            - containerPort: 38412
+              name: ngap
+              protocol: SCTP
+            - containerPort: 9090
+              name: metrics
+          readinessProbe:
+            tcpSocket:
+              port: 7777
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 7777
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          {{ include "5g-core.privilegedSecurityContext" . | nindent 10 }}
+          volumeMounts:
+            {{ include "5g-core.nfVolumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        {{ include "5g-core.nfVolumes" . | nindent 8 }}
+---
+# Internal SBI service (HTTP/2) — used by other NFs to reach AMF.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+spec:
+  selector:
+    app: amf
+  ports:
+    - name: sbi
+      port: 7777
+      targetPort: 7777
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+---
+# External SCTP service for N2/NGAP — for real gNBs outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf-ngap
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: amf
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app: amf
+  ports:
+    - name: ngap
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP
+{{- end }}

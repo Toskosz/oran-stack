@@ -296,6 +296,135 @@ A 201/200 response with the profile body = NRF is healthy.
 
 ---
 
+## Part 3: Ansible Image Build Pipeline
+
+---
+
+## 14. `dockerhub_password` undefined despite vault file existing
+
+**Symptom:**
+```
+[ERROR]: Task failed: Finalization of task args for 'community.docker.docker_login' failed:
+Error while resolving value for 'password': 'dockerhub_password' is undefined
+```
+
+**Cause:** `group_vars/all.vault.yml` is not a filename Ansible auto-loads. Ansible's
+`host_group_vars` vars plugin resolves `group_vars/` relative to the **inventory file** and
+the **playbook file** — never relative to `ansible.cfg`. The directory `ansible/group_vars/`
+is adjacent to neither, so it was silently ignored and `vault_dockerhub_password` was never
+defined.
+
+**Fix:** Convert the flat files into a directory structure next to the inventory file:
+```
+ansible/inventories/
+  localhost.ini
+  group_vars/        ← adjacent to inventory: loaded automatically
+    all/
+      vars.yml       ← was ansible/group_vars/all.yml
+      vault.yml      ← was ansible/group_vars/all.vault.yml
+```
+Ansible auto-loads every file inside a `group_vars/all/` directory, including the vault file
+(decrypted via `--ask-vault-pass` or `vault_password_file`).
+
+**Lesson:** `group_vars/` must sit next to the inventory file or the playbook file.
+A file named `all.vault.yml` at any other location is silently ignored. Use the `all/`
+directory pattern so both plain vars and vault vars are loaded from the same place.
+
+---
+
+## 15. Docker daemon not running
+
+**Symptom:**
+```
+[ERROR]: Module failed: Error connecting: Error while fetching server API version:
+('Connection aborted.', FileNotFoundError(2, 'No such file or directory'))
+```
+
+**Fix:**
+```bash
+sudo systemctl start docker
+# If not installed:
+sudo apt-get install -y docker.io
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER && newgrp docker
+```
+
+---
+
+## 16. Build succeeds but push fails with "Cannot find image locally"
+
+**Symptom:**
+```
+[ERROR]: Module failed: Cannot find the image x0tok/oran-5gcore:latest locally.
+```
+Even though images existed on the host (visible in `docker images`).
+
+**Cause:** The Dockerfile paths and build contexts in `group_vars` were stale and didn't
+match the actual repository layout. All four Dockerfiles live in `dockerfiles/` with
+`.5gscore`/`.webui`/`.srsran`/`.srsue` suffixes; the vars file still referenced
+`Dockerfile`, `Dockerfile.webui`, `srsran/Dockerfile`, etc. The build tasks failed
+silently (or were skipped due to idempotency), so no image was ever produced under
+the expected name.
+
+**Fix:** Correct `dockerfiles` and `build_contexts` in `vars.yml`:
+```yaml
+dockerfiles:
+  core:   "dockerfiles/Dockerfile.5gscore"
+  webui:  "dockerfiles/Dockerfile.webui"
+  srsran: "dockerfiles/Dockerfile.srsran"
+  srsue:  "dockerfiles/Dockerfile.srsue"
+
+build_contexts:
+  core:   "."
+  webui:  "."
+  srsran: "."
+  srsue:  "."
+```
+All four build contexts are the repo root because `Dockerfile.5gscore` copies `configs/`
+and `entrypoint.sh` from there, and the srsRAN Dockerfiles are multi-stage (no local
+`COPY` from context needed).
+
+---
+
+## 17. `RUN --mount` fails without BuildKit (`Dockerfile.srsue`)
+
+**Symptom:**
+```
+fatal: the --mount option requires BuildKit.
+Refer to https://docs.docker.com/go/buildkit/ to learn how to build images with BuildKit enabled
+```
+Only `Dockerfile.srsue` was affected — the other three Dockerfiles use only plain
+`COPY --from=builder` and have no BuildKit dependency.
+
+**Root cause:** `Dockerfile.srsue` used `RUN --mount=type=bind,from=builder,...` to find
+and copy `.so` files scattered across the srsRAN 4G build tree. The
+`community.docker.docker_image` Ansible module calls the Docker API directly (via the
+Python SDK) and does not honour the `DOCKER_BUILDKIT=1` environment variable — that
+variable only affects the Docker CLI, not API clients.
+
+**Why only srsue?** srsRAN 4G scatters shared libraries across many unpredictable
+subdirectories in its build tree. A `find *.so*` glob was needed rather than explicit
+`COPY` paths, and `--mount=type=bind` was chosen to avoid adding a large intermediate
+layer. The other three Dockerfiles copy only specific known binary paths.
+
+**Fix:** Replace the `--mount` with an equivalent classic approach that works without
+BuildKit:
+```dockerfile
+# Before (BuildKit only)
+RUN --mount=type=bind,from=builder,source=/opt/srsRAN_4G/build,target=/srsran-build \
+    find /srsran-build -name "*.so*" -exec cp -P {} /usr/local/lib/ \; && ldconfig
+
+# After (no BuildKit required; same final image size)
+COPY --from=builder /opt/srsRAN_4G/build /srsran-build
+RUN find /srsran-build -name "*.so*" -exec cp -P {} /usr/local/lib/ \; \
+    && ldconfig \
+    && rm -rf /srsran-build
+```
+The `rm -rf /srsran-build` at the end keeps the layer size equivalent to the `--mount`
+version (which never wrote the build tree into a layer at all).
+
+---
+
 ## Part 2: Near-RT RIC Bootstrap
 
 This section captures the root causes and fixes required to get an srsRAN CU/DU split gNB registered in the O-RAN Near-RT RIC e2mgr (`/v1/nodeb/states` endpoint). The stack uses Docker Compose with `ric-plt-e2mgr`, `ric-plt-rtmgr:0.9.6`, and `ric-plt-e2:6.0.5` (e2term).
@@ -501,3 +630,854 @@ docker logs ric-e2term --tail 10 2>&1 | grep "RMR \[INFO\] sends"
 | `srsran/configs/ue.conf` | Removed unrecognised `gw.tun_dev_name` option |
 | `ric/config/e2mgr/configuration.yaml` | Fixed rtmgr port (8989→3800), increased keep-alive timers, set debug logging |
 | `ric/config/rtmgr/rtmgr-config.yaml` | Added `messagetypes` (37 entries), added `PlatformRoutes` (8 static routes), set debug logging |
+
+---
+
+## Part 5: GKE Helm Deployment — RAN (srsRAN CU/DU/UE)
+
+---
+
+## 20. F1AP SCTP: kube-proxy conntrack kills association after F1SetupResponse
+
+**Symptom:** After the CU sends `F1SetupResponse`, the CU's F1AP SCTP association
+immediately enters `SHUTDOWN_ACK_SENT` while the DU stays `ESTABLISHED`. No error is
+logged by either side. This happened 100% of the time and made F1 setup impossible.
+
+**Root cause:** The DU connected to the `srs-cu` **ClusterIP** service. kube-proxy
+performed DNAT (rewrote the destination IP in the IP header), but Linux conntrack for SCTP
+is unreliable in cloud environments: after `F1SetupResponse`, conntrack failed to track
+the SCTP association state and synthesised a spurious `SHUTDOWN` chunk. The CU received
+the spurious SHUTDOWN, entered `SHUTDOWN_ACK_SENT`, and closed silently. The DU never
+saw it at the application layer.
+
+In the local Docker Compose setup the DU connected directly to the CU IP — no NAT, no
+conntrack, no issue.
+
+**Fix:** Convert the `srs-cu` Service to **Headless** (`clusterIP: None`).
+With a headless service, Kubernetes creates DNS A-records pointing directly to the backing
+pod IP — no virtual IP, no kube-proxy DNAT, no conntrack involved. The DU resolves
+`srs-cu` and gets the actual CU pod IP, routing directly as in Docker Compose.
+
+```yaml
+# helm/ran/templates/deployments.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: srs-cu
+spec:
+  clusterIP: None   # ← headless: DNS → pod IP directly, no kube-proxy
+  selector:
+    app: srs-cu
+  ports:
+    - name: f1ap
+      port: 38472
+      protocol: SCTP
+```
+
+**Important:** Kubernetes does not allow changing `clusterIP` in-place. Must
+`kubectl delete service srs-cu -n ran` first, then `helm upgrade`.
+
+**Lesson:** SCTP over kube-proxy ClusterIP is unreliable on GKE (standard nodes, no
+Cilium/Dataplane V2). The conntrack SCTP state machine misbehaves under load. Use headless
+services for any SCTP control-plane interface (F1AP, NGAP, E2AP) where the server side is
+a single pod. Only E2AP to e2term (which is a multi-client server) proved stable through
+ClusterIP — possibly because e2term's SCTP association patterns differ.
+
+---
+
+## 21. CU and DU bind addresses must be the pod IP, not `0.0.0.0`
+
+**Symptom:** With `bind_addr: 0.0.0.0` in `cu.yml` and `du.yml`, the CU closed the SCTP
+association immediately after `F1SetupResponse`. The TNL address IEs in F1SetupRequest and
+F1SetupResponse contained `0.0.0.0`, which srsRAN cannot resolve to a valid peer address
+for F1-U (GTP-U user-plane). This caused a secondary teardown separate from the conntrack
+issue.
+
+**Fix:** Use the actual pod IP in all bind addresses. Since pod IPs are assigned at runtime,
+use config templates with `${POD_IP}` substituted via an `initContainer` using `envsubst`
+and the Kubernetes Downward API:
+
+```yaml
+# helm/ran/templates/deployments.yaml — CU and DU initContainers
+- name: render-config
+  image: alpine:3.19
+  command:
+    - sh
+    - -c
+    - |
+      apk add --no-cache gettext > /dev/null 2>&1
+      envsubst < /mnt/srsran/templates/cu.yml.tpl > /mnt/srsran/configs/cu.yml
+  env:
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+```
+
+```yaml
+# helm/ran/templates/configmap-srsran-configs.yaml — cu.yml.tpl excerpt
+cu_cp:
+  amf:
+    bind_addr: ${POD_IP}
+  f1ap:
+    bind_addr: ${POD_IP}
+cu_up:
+  f1u:
+    socket:
+      - bind_addr: ${POD_IP}
+  ngu:
+    socket:
+      - bind_addr: ${POD_IP}
+```
+
+---
+
+## 22. DU log to file blocks startup; use `/dev/stdout`
+
+**Symptom:** With `log.filename: /mnt/srsran/logs/du.log`, the DU log file was frozen at
+exactly 4096 bytes (one filesystem block). The DU process was alive (7% CPU from ZMQ),
+F1 Setup had completed, but: no E2 connection was attempted, no cell activation message
+appeared, and the UE stayed at `Attaching UE...` indefinitely.
+
+**Root cause:** The DU writes a large SIB1 ASN.1 JSON dump (≈6 KB) to the log file
+synchronously during the F1 Setup completion handler. The hostPath volume backing
+`/mnt/srsran/logs/` limited the write to one block (4096 bytes) before stalling. Because
+the startup sequence is linear (log SIB1 → start E2 → activate cell), blocking on the log
+write prevented all subsequent steps.
+
+The 7% CPU was the ZMQ thread pool, which is started earlier in the sequence and continues
+running regardless.
+
+**Fix:** Set `log.filename: /dev/stdout`. Stdout is a pipe drained continuously by the
+container runtime — it never blocks.
+
+```yaml
+# du.yml.tpl
+log:
+  filename: /dev/stdout
+  all_level: info
+```
+
+**Note:** The CU was already logging to `/dev/stdout` and had no issue. The DU originally
+used a file to avoid mixing DU logs with the ZMQ noise on stdout. The ZMQ `[zmq:tx:0:0]
+Waiting for request` / `[zmq:rx:0:0] Waiting for data` lines print at 1 Hz while idle —
+use `grep -v "Waiting for"` when reading DU logs.
+
+---
+
+## 23. F1SetupFailure: `message-not-compatible-with-receiver-state` on DU restart (**RESOLVED — P4**)
+
+**Symptom:** After the DU pod restarts (new pod, new IP), the new DU sends `F1SetupRequest`
+and immediately receives `F1SetupFailure` with cause
+`message-not-compatible-with-receiver-state`. The DU has `max_retries: 1` (hardcoded, not
+configurable) and gives up, so the cell never activates.
+
+**Root cause:** The CU retains DU state in memory. When the previous DU pod terminates, its
+SCTP association to the CU drops. The CU marks DU 0 as disconnected but does not remove it
+from its internal state immediately. When the new DU connects and sends `F1SetupRequest`,
+the CU sees a duplicate DU ID while the old DU entry is still present, and rejects it. The
+CU purges the stale entry ~23 s after SCTP COMM_LOST.
+
+**Fix (implemented):** The DU Deployment's `wait-for-cu` initContainer
+(`helm/ran/templates/deployments.yaml`) was extended with a post-ready hold-off step.
+After confirming the CU process is reachable (DNS + UDP F1-U port probe), the container
+sleeps for `duF1SetupHoldOffSec` seconds (default: **30 s**, set in
+`helm/ran/values.yaml`) before allowing srsRAN to start. This guarantees the 23 s CU
+cleanup window has elapsed before the DU's single F1Setup attempt is made, eliminating
+the race entirely without requiring a CU restart.
+
+**Previous workaround (no longer needed for normal restarts):**
+
+```bash
+kubectl rollout restart deployment/srs-cu -n ran
+# wait for CU ready, then restart DU
+kubectl rollout restart deployment/srs-du -n ran
+```
+
+**Restart order that works (still valid for hard CU crashes):**
+1. Restart CU → wait `rollout status`
+2. Restart DU → F1 Setup succeeds on first attempt against fresh CU state
+3. Restart UE → ZMQ connects to active cell
+
+---
+
+## 24. E2AP SCTP through ClusterIP — works, unlike F1AP
+
+**Observation:** After the F1/bind-addr fixes, the DU connects to `e2term` via its
+ClusterIP (`10.8.5.199:36421`) and the SCTP association stays `ESTABLISHED`. No conntrack
+teardown occurs.
+
+**Why it works here:** e2term is a persistent server that handles many short-lived SCTP
+associations. Its SCTP socket patterns (rapid INIT/COOKIE/ESTABLISHED cycles from many
+nodes) may keep conntrack in a more valid state. Alternatively, the E2 setup packet exchange
+is short enough to complete before conntrack times out.
+
+**Implication:** E2AP does not need a headless service on this GKE setup. Only the F1AP
+interface (where the DU connects to the CU's SCTP server and holds a long-lived association
+with infrequent keepalives) triggers the conntrack bug.
+
+---
+
+## 25. ZMQ radio bootstrap deadlock: UE must start after cell is active
+
+**Symptom:** Both DU and UE are running, ZMQ TCP connections are `ESTAB`, but:
+- DU logs `[zmq:tx:0:0] Waiting for data` (MAC scheduler has no DL frames to send)
+- UE logs `[zmq:rx:0:0] Waiting for data` (PHY has no DL samples to decode)
+- UE stays at `Attaching UE...` indefinitely
+
+**Root cause:** srsRAN ZMQ uses a pull model: the UE PHY sends a REQ for each DL subframe;
+the DU MAC responds with a subframe's worth of IQ samples. The DU MAC only produces frames
+when it receives a REQ tick. The UE only sends REQ ticks after it receives at least one
+frame to synchronise its timing. Neither side will go first unless the UE connects to an
+already-ticking DU.
+
+In Docker Compose both containers start nearly simultaneously and the ZMQ handshake
+bootstraps within a few ms. On Kubernetes, if the UE starts while the DU cell is not yet
+active (e.g. because F1 Setup is still in progress), the ZMQ session gets into a deadlock
+state that persists even after F1 Setup completes.
+
+**Fix:** Add a post-probe delay in the UE's `wait-for-du` init container so the UE waits
+for the cell to be active, not just the ZMQ port to be open:
+
+```yaml
+# helm/ran/templates/deployments.yaml — srsue initContainers
+- name: wait-for-du
+  image: busybox:1.36
+  command:
+    - sh
+    - -c
+    - |
+      until nc -z srs-du 2000; do
+        echo "waiting for DU ZMQ port..."
+        sleep 3
+      done
+      echo "DU ZMQ port open — waiting 10s for cell to activate..."
+      sleep 10
+```
+
+The 10-second sleep covers the time from the DU's ZMQ port opening (early in DU startup)
+to `SCHED: Cell scheduling was activated` (after F1 Setup completes, typically 2–4 seconds
+after the ZMQ port opens).
+
+---
+
+## 26. Open5GS subscriber provisioning: MongoDB replica set not initialised
+
+**Symptom:** The UE could not attach. The `mongodb-init-scripts` ConfigMap contained the
+correct subscriber document, but the subscriber collection was empty.
+
+**Root cause:** MongoDB was deployed as a replica set member (`isreplicaset: true`) but
+`rs.initiate()` had never been called, leaving it in a state of `Does not have a valid
+replica set config` — neither primary nor secondary. All writes to the database (including
+the init scripts) failed with `node is not in primary or recovering state`.
+
+**Fix:** Run `rs.initiate()` once after MongoDB starts:
+
+```bash
+kubectl exec -n 5g-core mongodb-0 -- mongosh \
+  "mongodb://localhost:27017/open5gs?directConnection=true" \
+  --quiet --eval 'rs.initiate()'
+```
+
+Then provision the subscriber directly:
+
+```bash
+kubectl exec -n 5g-core mongodb-0 -- mongosh \
+  "mongodb://localhost:27017/open5gs?directConnection=true" \
+  --quiet --eval '
+db.subscribers.insertOne({
+  imsi: "001010000000001",
+  security: {
+    k: "465B5CE8B199B49FAA5F0A2EE238A6BC",
+    op: null,
+    opc: "E8ED289DEBA952E4283B54E88E6183CA",
+    amf: "8000",
+    sqn: NumberLong("0")
+  },
+  ambr: { downlink: {value:1,unit:3}, uplink: {value:1,unit:3} },
+  slice: [{
+    sst: 1,
+    default_indicator: true,
+    session: [{
+      name: "internet", type: 3, pcc_rule: [],
+      ambr: { downlink: {value:1,unit:3}, uplink: {value:1,unit:3} },
+      qos: { index: 9, arp: {priority_level:8,
+        pre_emption_capability:1, pre_emption_vulnerability:1} }
+    }]
+  }],
+  access_restriction_data: 32,
+  subscriber_status: 0,
+  operator_determined_barring: 0,
+  network_access_mode: 0
+})'
+```
+
+**Long-term fix needed:** Add a Kubernetes Job to the 5g-core Helm chart that runs after
+MongoDB is ready and calls `rs.initiate()` + seeds the subscriber. The existing
+`mongodb-init-scripts` ConfigMap is correct but is never executed because there is no Job
+or initContainer wiring it up.
+
+---
+
+## 27. Current state (end of Part 5 session)
+
+| Component | Status | Notes |
+|---|---|---|
+| 5g-core | All 16 pods Running | Subscriber provisioned manually |
+| near-rt-ric | All 7 pods Running | |
+| srs-cu | Running, `10.4.0.33` | NG Setup with AMF ✅, F1 Setup ✅ |
+| srs-du | Running, `10.4.0.34` | F1 Setup ✅, E2 connected ✅, cell active ✅ |
+| srsue | Running, `10.4.1.31` | ZMQ connected, `Attaching UE...` |
+| F1AP SCTP | ESTAB both sides | DU→CU pod IP direct (headless svc) ✅ |
+| E2AP SCTP | ESTAB | DU→e2term ClusterIP (no conntrack issue) ✅ |
+| UE attach | **Not yet confirmed** | UE scanning, cell active, subscriber provisioned |
+
+**Immediate next steps:**
+1. Confirm UE finds cell and sends PRACH (watch DU for `Random Access` or `UE connected` log)
+2. If UE attaches: check AMF logs for `Registration Accept` and UPF for GTP-U tunnel
+3. Verify E2 gNB registration: `kubectl exec -n near-rt-ric ric-e2mgr -- curl -s http://localhost:3800/v1/nodeb/states`
+4. Fix MongoDB replica set init in the 5g-core Helm chart (Job + rs.initiate)
+
+---
+
+## 28. Files Modified (Part 5)
+
+| File | Change |
+|---|---|
+| `helm/ran/templates/deployments.yaml` | `srs-cu` Service: `clusterIP: None` (headless); CU/DU: added `render-config` initContainer (envsubst + Downward API); UE `wait-for-du`: added 10s post-probe sleep |
+| `helm/ran/templates/configmap-srsran-configs.yaml` | `cu.yml` → `cu.yml.tpl` with `${POD_IP}`; `du.yml` → `du.yml.tpl` with `${POD_IP}`; DU log: file → `/dev/stdout` |
+
+---
+
+## Part 4: GKE Helm Deployment — 5g-core
+
+---
+
+## 18. `helm --wait` times out with `context deadline exceeded`
+
+**Symptom:**
+```
+TASK [deploy_5g_core : Deploy 5g-core Helm chart]
+fatal: [localhost]: FAILED! => {"msg": "Failure when executing Helm command. Exited 1.\n
+stdout: Release \"5g-core\" does not exist. Installing it now.\n
+stderr: Error: context deadline exceeded\n"}
+```
+
+Two independent root causes caused the 600 s Helm wait deadline to expire.
+
+---
+
+### 18.1 `wait-for-mongodb` init containers had no retry loop
+
+**Files:** `helm/5g-core/templates/deployment-nrf.yaml`, `deployment-webui.yaml`
+
+**Cause:** Both `nrf` and `webui` pods ran a single-shot `mongosh ping` as their init
+container — no loop, no retry:
+```yaml
+command: ["mongosh", "--host", "mongodb:27017", "--eval", "db.adminCommand('ping')", "--quiet"]
+```
+If MongoDB's readiness probe had not yet passed at that exact moment, the init container
+exited non-zero. Kubernetes then put the pod into `Init:CrashLoopBackOff` with exponential
+backoff (10 s, 20 s, 40 s…). The 600 s Helm `--wait` deadline expired before the pods ever
+became `Ready`.
+
+**Fix:** Wrap the command in a shell retry loop:
+```yaml
+command:
+  - sh
+  - -c
+  - |
+    until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
+      echo "Waiting for MongoDB..."; sleep 5;
+    done
+```
+
+**Lesson:** Any init container that depends on another service becoming ready must loop.
+A single-shot probe will race against pod startup order and cause `CrashLoopBackOff`
+cascades that consume the entire Helm wait budget.
+
+---
+
+### 18.2 GCP external load balancers do not support SCTP
+
+**File:** `helm/5g-core/templates/deployment-amf.yaml`
+
+**Cause:** `amf-ngap` was a `type: LoadBalancer` service with `protocol: SCTP` on port 38412.
+GCP's external Network Load Balancers (both classic and passthrough) only support **TCP and
+UDP** as forwarding rule protocols. SCTP is rejected at the GCP API level:
+
+```
+Error syncing load balancer: failed to ensure load balancer: failed to create forwarding rule
+for load balancer (…): invalid protocol SCTP, only TCP and UDP are supported
+```
+
+The service stayed permanently at `EXTERNAL-IP: <pending>`, and Helm's `--wait` flag treats
+an unready `LoadBalancer` service as a deployment failure.
+
+**What does not work:**
+- `cloud.google.com/load-balancer-type: "External"` — this is the annotation for *internal*
+  passthrough NLBs and has no effect on external ones.
+- `networking.gke.io/load-balancer-type: "External"` — routes to the NEG-based external LB,
+  which also rejects SCTP at the GCP forwarding rule level.
+
+**GKE Dataplane V2 (Cilium) caveat:** The GKE docs for SCTP describe **Pod-to-Pod** and
+**ClusterIP** SCTP via Cilium — not external LoadBalancer exposure. External SCTP LB is
+unsupported regardless of dataplane choice.
+
+**Fix:** Change `amf-ngap` to `type: NodePort`. Kubernetes/kube-proxy handles SCTP via
+iptables rules at the node level, which works without GCP LB involvement:
+```yaml
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  ports:
+    - name: ngap
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP
+      # nodePort omitted — auto-assigned from 30000-32767 range
+```
+
+**Note:** Static `nodePort: 38412` is invalid — GKE's NodePort range is 30000–32767.
+Let Kubernetes assign the port dynamically and read it back after deployment.
+
+**CU configuration change required:** Update the srsRAN CU's AMF N2 address from the old
+LoadBalancer IP to any GKE node's external IP on the dynamically assigned NodePort.
+
+**Lesson:** GCP cannot load-balance raw SCTP externally. For 5G N2 (NGAP/SCTP) exposure on
+GKE, use `NodePort` and connect directly to a node IP. If a stable single endpoint is needed,
+use a GCP forwarding rule created manually (outside Kubernetes) pointing at the NodePort.
+
+---
+
+### 18.3 Ansible task polling for LoadBalancer IP now polls NodePort
+
+**File:** `ansible/roles/deploy_5g_core/tasks/main.yml`
+
+The old task used `retries: 20 / delay: 15` waiting for
+`status.loadBalancer.ingress[0].ip` to appear — it would always fail (and block for 5
+minutes) since the service is now a NodePort.
+
+**Fix:** Replace the LB polling task with two tasks that read the node external IP and the
+assigned NodePort:
+```yaml
+- name: Get AMF NGAP NodePort Service
+  kubernetes.core.k8s_info:
+    kind: Service
+    name: amf-ngap
+    namespace: "{{ namespaces.core }}"
+  register: amf_svc
+
+- name: Get GKE node external IPs
+  kubernetes.core.k8s_info:
+    kind: Node
+  register: cluster_nodes
+
+- name: Show AMF NGAP NodePort endpoint
+  ansible.builtin.debug:
+    msg: >-
+      AMF NGAP SCTP endpoint (NodePort):
+      {{ cluster_nodes.resources[0].status.addresses
+         | selectattr('type', 'equalto', 'ExternalIP')
+         | map(attribute='address') | first }}:{{
+      amf_svc.resources[0].spec.ports
+         | selectattr('name', 'equalto', 'ngap')
+         | map(attribute='nodePort') | first }}
+```
+
+---
+
+## 19. Files Modified (Part 4)
+
+| File | Change |
+|---|---|
+| `helm/5g-core/templates/deployment-nrf.yaml` | `wait-for-mongodb` init container: single-shot → retry loop |
+| `helm/5g-core/templates/deployment-webui.yaml` | `wait-for-mongodb` init container: single-shot → retry loop |
+| `helm/5g-core/templates/deployment-amf.yaml` | `amf-ngap`: `LoadBalancer` → `NodePort`; removed GCP LB annotations |
+| `ansible/roles/deploy_5g_core/tasks/main.yml` | Replaced LB IP polling with NodePort + node IP read |
+| `ansible/roles/deploy_5g_core/tasks/main.yml` | Replaced LB IP polling with NodePort + node IP read |
+
+---
+
+## Part 6: GKE Helm Deployment — N2 SCTP Flapping, UE Log Fix
+
+---
+
+## 29. N2/NGAP SCTP flapping — CU→AMF connection unstable
+
+**Symptom:** After deploying on fresh nodes, `srs-cu` showed 5+ restarts and a rapid
+connect/disconnect loop on N2. AMF logged `"connection refused!!!"` every ~1.2 seconds
+immediately after `NGSetupResponse`. The CU had just received a valid `NGSetupResponse`
+but the SCTP association was torn down within ~300ms.
+
+**Cause:** Identical root cause to issue §16 (F1AP SCTP conntrack bug), but on the N2 path.
+The CU was connecting to `amf-ngap.5g-core.svc.cluster.local` which resolved to the
+NodePort `ClusterIP: 10.8.7.111`. When CU and AMF pods were on **different nodes**,
+kube-proxy DNAT rewrote the destination address for each packet, confusing the SCTP
+multi-stream conntrack. The SCTP association was torn down after NGSetupResponse was
+delivered but before any further N2 messages could flow.
+
+When both pods happened to land on the same node (after a CU restart), the connection was
+stable because local traffic doesn't cross kube-proxy DNAT. This made the bug intermittent
+and node-scheduling-dependent.
+
+**Fix:** Add a headless service `amf-ngap-headless` (`clusterIP: None`) to
+`helm/5g-core/templates/deployment-amf.yaml`. Update `amfAddress` in
+`helm/ran/values.yaml` from `amf-ngap.5g-core.svc.cluster.local` to
+`amf-ngap-headless.5g-core.svc.cluster.local`. With `clusterIP: None`, DNS resolves
+directly to the AMF pod IP, bypassing kube-proxy DNAT entirely.
+
+The existing `amf-ngap` NodePort service is retained for external gNBs.
+
+**Lesson:** Any SCTP service used for intra-cluster communication should be headless.
+This applies to: AMF N2/NGAP (N2), srs-cu F1AP (already fixed §16), and e2term E2AP.
+The e2term service is a regular ClusterIP — if SCTP issues appear on E2, apply the same fix.
+
+**Helm upgrade commands used:**
+```bash
+# Add headless service to 5g-core
+helm upgrade 5g-core helm/5g-core/ -n 5g-core --reuse-values --timeout 120s
+
+# Update amfAddress (must use --set, not -f values.yaml, to avoid losing stored image values)
+helm upgrade ran helm/ran/ -n ran --reuse-values \
+  --set amfAddress="amf-ngap-headless.5g-core.svc.cluster.local" --timeout 120s
+
+# Restart CU to re-render config with new address
+kubectl rollout restart deployment/srs-cu -n ran
+
+# Restart DU (stale F1AP state after CU restart — same as §26)
+kubectl rollout restart deployment/srs-du -n ran
+```
+
+---
+
+## 30. Helm `--reuse-values` vs `-f values.yaml` — stored values overwrite pitfall
+
+**Symptom:** Running `helm upgrade ran helm/ran/ -n ran -f helm/ran/values.yaml` caused
+`InvalidImageName` errors on all three ran pods because the image repository became `":latest"`.
+
+**Cause:** The `ran` Helm release had user-supplied values `images.srsran.repository=x0tok/oran-srsran`
+and `images.srsue.repository=x0tok/oran-srsue` stored in the Helm release (set during the
+initial Ansible deploy via `--set`). The file `helm/ran/values.yaml` still has
+`repository: ""` as placeholders. Running `-f values.yaml` merged the file on top of the
+stored values, overwriting the image repositories with empty strings.
+
+**Fix:** Always use `--reuse-values` when upgrading to keep stored values, then apply
+targeted overrides with `--set`:
+```bash
+helm upgrade ran helm/ran/ -n ran --reuse-values \
+  --set amfAddress="amf-ngap-headless.5g-core.svc.cluster.local"
+```
+
+If a full values file override is needed, use `helm get values ran -n ran -o yaml > /tmp/ran-values.yaml`,
+edit the file, and then `helm upgrade ran helm/ran/ -n ran -f /tmp/ran-values.yaml`.
+
+---
+
+## 31. Helm rollback removes the release entirely when a failed revision exists
+
+**Symptom:** `helm rollback ran -n ran` succeeded, but then `helm list -n ran` showed no
+release. Subsequent `helm upgrade` returned `Error: "ran" has no deployed releases`.
+
+**Cause:** The `ran` release history at rollback time had: revision 10 (`failed`/`superseded`),
+revision 11 (`failed` due to InvalidImageName). Helm's rollback went to revision 9 but that
+revision was already `superseded`. Helm cleaned up the history and ended with no `deployed`
+revision, leaving the release in a broken state.
+
+**Fix:** After a rollback that leaves no deployed release, use `helm install` (not `helm upgrade`).
+Check for any existing resources in the namespace first (`kubectl get all -n ran`) and delete
+them if they have stale owner references, or use `--replace` flag if supported.
+
+---
+
+## 32. UE log file `/mnt/srsran/logs/ue.log` produces 0 bytes — UE attach progress invisible
+
+**Symptom:** srsUE was stuck at `Attaching UE...` with no further console output and no
+PHY-level logging visible. The file `/mnt/srsran/logs/ue.log` existed but was 0 bytes.
+
+**Cause:** srsUE (srsRAN_4G) writes all detailed logs to `[log] filename` in `ue.conf`.
+The file is created at startup but PHY scanning logs are only written when events occur.
+Since the PHY had not yet detected the cell, nothing had been logged yet. Without stdout
+logging, the container log showed only the static startup banner and `Attaching UE...`.
+
+**Fix:** Change `filename = /mnt/srsran/logs/ue.log` to `filename = /dev/stdout` in the
+UE config template (`helm/ran/templates/configmap-srsran-configs.yaml`), the same fix
+applied to the DU (`du.yml`) in §26.
+
+---
+
+## 33. `[gw] netns = ue1` — network namespace not present in container
+
+**Observation:** The `ue.conf` had `[gw] netns = ue1`. No `ue1` network namespace exists
+in the container. srsUE would fail to set up the data plane TUN interface after attach.
+
+**Fix:** Remove `netns = ue1` from the `[gw]` section in the UE config template. With
+`netns` unset, srsUE creates the TUN interface in the default network namespace (the pod's
+network namespace), which is correct for Kubernetes.
+
+---
+
+## 34. GKE preemptible nodes — full cluster loss during active session
+
+**Symptom:** All GKE nodes were preempted simultaneously during the session. Kubernetes
+went from 2 Running nodes → 0 nodes → cluster entered `RECONCILING` state → briefly showed
+2 new nodes → then cluster entered `STOPPING` state → billing error (403).
+
+**Root cause:** GCP preemptible VMs have a 24-hour maximum lifetime and can be reclaimed
+at any time. When both nodes were preempted simultaneously, the cluster had no nodes.
+GKE attempted to recreate the node pool but GCP returned a billing error
+(`This API method requires billing to be enabled`), indicating the project's billing account
+was detached or exhausted.
+
+**Impact:** All running pods, all Helm releases, and all PVC data (MongoDB) were lost.
+The GKE control plane (master) survived but the data plane is gone.
+
+**Mitigation options:**
+1. Re-enable billing in the GCP console: <https://console.developers.google.com/billing/enable?project=oran-lab>
+2. Change `preemptible = false` in `terraform/variables.tf` and `terraform apply` to use
+   standard VMs (higher cost but no surprise preemption).
+3. Use `spot_instance_config { preemptible = true }` with `min_node_count = 1` autoscaling
+   so GKE can scale back up automatically.
+4. Add a `PodDisruptionBudget` and node anti-affinity to prevent all pods from landing on
+   the same node (mitigates simultaneous preemption).
+
+**Recovery procedure:**
+1. Re-enable billing at the GCP console link above.
+2. Wait for cluster to return to `RUNNING`.
+3. Re-run `ansible-playbook ansible/playbooks/deploy.yml`.
+   All three charts will re-deploy from scratch (namespaces and imagePullSecrets must
+   be recreated first since they were lost with the nodes).
+4. After MongoDB is Running, manually run `rs.initiate()` and seed the subscriber
+   (see §26 for commands), until the Job-based init is implemented.
+
+---
+
+## 35. Files Modified (Part 6)
+
+| File | Change |
+|---|---|
+| `helm/5g-core/templates/deployment-amf.yaml` | Added `amf-ngap-headless` headless Service for intra-cluster SCTP; updated header comment |
+| `helm/ran/values.yaml` | `amfAddress`: `amf-ngap` → `amf-ngap-headless` |
+| `helm/ran/templates/configmap-srsran-configs.yaml` | UE: `filename` → `/dev/stdout`; removed `netns = ue1` from `[gw]` |
+
+---
+
+## Part 7: kubeadm GCP Deployment — First Clean Full-Stack Run
+
+Session date: 2026-04-14
+Cluster: two-node kubeadm on GCP (`oran-cp1` e2-standard-2 `34.173.61.132`, `oran-w1` e2-standard-4 `34.46.210.174`).
+Pipeline: `gcp-vm-create.yml` → `provision.yml` → `deploy.yml` (Ansible), then Helm charts for 5g-core, near-rt-ric, ran, monitoring.
+Outcome: **50/50 pods Running** — first successful full-stack deployment on a fresh kubeadm cluster.
+
+---
+
+## 36. `crictl` not found during `provision.yml`
+
+**File:** `ansible/roles/kubeadm_prereqs/tasks/main.yml`
+
+**Symptom:**
+```
+TASK [kubeadm_prereqs : Verify containerd CRI socket is responding]
+fatal: [oran-cp1]: FAILED! => {"msg": "No such file or directory: b'crictl'"}
+```
+
+**Root cause:** The `Verify containerd CRI socket is responding` task (originally line 108) ran
+**before** the `Install kubeadm, kubelet, kubectl` apt task (line 132). `crictl` is shipped as
+part of the Kubernetes apt package group (`cri-tools`), not with containerd. At the point of the
+check, the package had not yet been installed.
+
+**Fix:** Moved the `Verify containerd CRI socket is responding` task to the very end of the role,
+after `Enable and start kubelet`.
+
+**Lesson:** Tool-presence checks must come after the task that installs the tool.
+Even if containerd itself is already running, `crictl` (which talks to it) lives in a separate
+package. Ordering matters inside a role just as much as between roles.
+
+---
+
+## 37. e2term `CrashLoopBackOff`: `illegal pod_name or environment variable not exists`
+
+**File:** `helm/near-rt-ric/templates/deployments.yaml`
+
+**Symptom:**
+```
+[ERROR] e2term: illegal pod_name or environment variable not exists : ric-e2term
+```
+After an attempted fix (substituting `metadata.name`):
+```
+[ERROR] e2term: illegal pod_name or environment variable not exists : ric-e2term-6d8f4b9c7-xkqzp
+```
+Pod was in `CrashLoopBackOff` on every start.
+
+**Root cause (two-step):**
+
+1. The `render-config` initContainer was substituting `pod_name=E2TERM_POD_NAME` with
+   `pod_name=ric-e2term` (the hardcoded Service name). The field `pod_name=` in `config.conf` is
+   **not a literal pod name** — it is the name of an environment variable that the e2term binary
+   dereferences at runtime via `getenv(config["pod_name"])`. So the binary was calling
+   `getenv("ric-e2term")`, which does not exist.
+
+2. After changing the substitution to use `metadata.name` (giving `pod_name=ric-e2term-<hash>`),
+   the binary correctly called `getenv("ric-e2term-<hash>")` — but that env var also does not
+   exist. The actual env var the binary expects is `E2TERM_POD_NAME`.
+
+**Fix:**
+- **Do not substitute `pod_name` at all** in the `render-config` initContainer. Leave it as
+  `pod_name=E2TERM_POD_NAME` (the default from the image's bundled `config.conf`).
+- In the main container's `env:` block, expose `E2TERM_POD_NAME` via Downward API
+  (`fieldRef: fieldPath: metadata.name`).
+- Remove the `POD_NAME` Downward API env from the initContainer (it was only needed to drive the
+  now-removed substitution).
+
+**Lesson:** The default `config.conf` in the e2term image contains `pod_name=E2TERM_POD_NAME`.
+This is a **pointer pattern**: the value is the *name of an env var*, not the pod name itself.
+Never substitute it away — just ensure the referenced env var is set in the main container.
+
+---
+
+## 38. e2term still crashes after §37 fix: RBAC 403 from Kubernetes API
+
+**File:** `helm/near-rt-ric/templates/rbac.yaml` *(new file)*, `helm/near-rt-ric/templates/deployments.yaml`
+
+**Symptom:** After the `pod_name` pointer fix (§37), e2term still crashed immediately with the
+same `illegal pod_name` error even though `E2TERM_POD_NAME` was correctly set to the real pod name.
+
+**Root cause:** The e2term binary **validates its own pod name by querying the Kubernetes API**:
+```
+GET /api/v1/namespaces/<ns>/pods/<pod_name>
+```
+The `default` ServiceAccount in the `near-rt-ric` namespace has no RBAC permissions. The API
+server returned HTTP 403, which e2term surfaces as `illegal pod_name`.
+
+**Fix:**
+Created `helm/near-rt-ric/templates/rbac.yaml` containing:
+- A `ServiceAccount` named `ric-e2term` in the `near-rt-ric` namespace.
+- A `Role` granting `get` and `list` on `pods`.
+- A `RoleBinding` linking the Role to the ServiceAccount.
+
+Added `serviceAccountName: ric-e2term` to the e2term Deployment pod spec.
+
+**Verification:**
+```bash
+kubectl auth can-i get pods \
+  --as=system:serviceaccount:near-rt-ric:ric-e2term \
+  -n near-rt-ric
+# → yes
+```
+
+**Lesson:** e2term silently conflates an RBAC denial with a bad pod name. If it keeps crashing
+after the env var fix, check whether the service account can `get pods` in its own namespace.
+
+---
+
+## 39. `srs-cu` always `0/1 Ready`: TCP probe against UDP-only port
+
+**File:** `helm/ran/templates/deployments.yaml`
+
+**Symptom:** `srs-cu` pod was `Running` but perpetually `Ready: 0/1`. Its headless service had
+no ready endpoints, so DNS returned no A records. The DU's `wait-for-cu` initContainer looped
+forever:
+```
+nslookup: can't resolve 'srs-cu.ran.svc.cluster.local'
+```
+CU logs showed a fully operational stack (NGSetup, F1Setup, and E2 all complete).
+
+**Root cause:** The readiness (and liveness) probe was:
+```yaml
+tcpSocket:
+  port: 2153
+```
+Port 2153 is the **F1-U GTP-U port**, which is UDP. A TCP connection to a UDP-only port always
+fails with `connection refused`. Kubelet's `tcpSocket` probe uses TCP, so it can never pass.
+The CU was healthy; only the probe was wrong.
+
+**Fix:** Replaced both readiness and liveness probes with an exec probe:
+```yaml
+exec:
+  command: ["sh", "-c", "kill -0 $(pgrep srscu) 2>/dev/null"]
+```
+This tests whether the `srscu` process is alive, which is the correct readiness signal for a
+binary that uses SCTP and UDP transport ports that kubelet cannot natively probe.
+
+**Lesson:** Never use `tcpSocket` probes for UDP ports. SCTP ports (e.g., 38472 F1-C) are
+similarly unprobable by kubelet. Use a process-existence exec probe as a safe fallback for
+non-TCP services.
+
+---
+
+## 40. Prometheus pod `Pending`: insufficient CPU on fully-packed worker
+
+**File:** `helm/monitoring/values.yaml`
+
+**Symptom:**
+```
+0/2 nodes are available: 1 node(s) had untolerated taint (control-plane),
+1 node(s) were unschedulable due to insufficient cpu.
+```
+Worker node `oran-w1` (e2-standard-4, 4 vCPU) showed 3851m/4000m CPU allocated.
+Prometheus StatefulSet requested 200m — 51m more than available.
+
+**Root cause:** All 5g-core NFs (13 pods), all near-rt-ric pods (7), all ran pods (3), plus
+monitoring Grafana/operator/kube-state-metrics were co-located on the single worker, leaving
+~149m free. The default Prometheus CPU request of 200m could not be satisfied.
+
+**Fix:** Reduced Prometheus CPU request in `helm/monitoring/values.yaml`:
+```yaml
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      resources:
+        requests:
+          cpu: 50m   # was 200m
+```
+
+**Helm stuck-release side effect:** The Helm release was left in `pending-upgrade` /
+`pending-rollback` state due to an API server timeout. Recovery:
+1. Identify stuck secrets:
+   ```bash
+   kubectl get secrets -n monitoring | grep sh.helm.release
+   ```
+2. Delete the secrets with `pending-upgrade` or `pending-rollback` status to unblock Helm.
+
+**Lesson:** On a resource-constrained single-worker cluster, default upstream chart resource
+requests (especially Prometheus at 200m+) will cause scheduling failures. Audit `requests.cpu`
+for all monitoring components before the first deploy. A `pending-upgrade` Helm state that
+survives a rerun must be cleared by deleting its release secrets.
+
+---
+
+## 41. Final state (end of Part 7 session — 2026-04-14)
+
+| Component | Status | Notes |
+|---|---|---|
+| 5g-core | All 13 pods Running | All NFs healthy |
+| near-rt-ric | All 7 pods Running | e2mgr, e2term, a1mediator, rtmgr, dbaas, xapp-mgr |
+| srs-cu | Running, Ready 1/1 | NGSetup ✅, F1Setup ✅ |
+| srs-du | Running, Ready 1/1 | F1Setup ✅, E2 connected ✅, cell active ✅ |
+| srsue | Running | ZMQ link ESTAB, `NAS5G: Switching on` (cell search in progress) |
+| monitoring | All pods Running | Prometheus 50m CPU request; Grafana, kube-state-metrics ✅ |
+| N2 (NG Setup) | Complete | NGSetupRequest → NGSetupResponse; AMF stable for hours ✅ |
+| F1 (F1 Setup) | Complete | F1SetupRequest → F1SetupResponse; cell scheduler activated ✅ |
+| E2 | gNB registered | `gnb_001_001_00019b` confirmed via `GET /v1/nodeb/states` ✅ |
+| ZMQ | ESTAB | `10.244.190.105:2000 ↔ 10.244.190.103` ✅ |
+
+**Open items:**
+- **P2 (E2 Setup timeout):** CU logs show `E2 Setup procedure aborted` at ~T+10 min. The E2
+  Setup Request reached e2mgr before the CU-side timeout; the response path back timed out.
+  gNB remains registered. Root cause not yet fully diagnosed.
+- **P3 (UE attach):** UE is scanning for the cell (`NAS5G: Switching on`). Full attach
+  (Registration Accept + GTP-U tunnel) not yet confirmed.
+
+---
+
+## 42. Files Modified (Part 7)
+
+| File | Change |
+|---|---|
+| `ansible/roles/kubeadm_prereqs/tasks/main.yml` | Moved `Verify containerd CRI socket is responding` task to after `Enable and start kubelet` |
+| `helm/near-rt-ric/templates/deployments.yaml` | Removed `pod_name` substitution from `render-config` initContainer; added `serviceAccountName: ric-e2term`; cleaned up `POD_NAME` env from initContainer |
+| `helm/near-rt-ric/templates/rbac.yaml` | **New file**: `ServiceAccount`, `Role` (get/list pods), and `RoleBinding` for e2term |
+| `helm/ran/templates/deployments.yaml` | `srs-cu` readiness/liveness probes: `tcpSocket:2153` → `exec: kill -0 $(pgrep srscu)` |
+| `helm/monitoring/values.yaml` | Prometheus CPU request: `200m` → `50m` |
+| `docs/STATUS.md` | Updated with 2026-04-14 session summary |
+

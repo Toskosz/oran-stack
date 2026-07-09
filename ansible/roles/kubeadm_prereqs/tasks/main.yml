@@ -1,0 +1,170 @@
+---
+# kubeadm_prereqs/tasks/main.yml
+# Runs on ALL nodes (control-plane and workers).
+# Prepares the OS for kubeadm: swap off, kernel modules, sysctl,
+# containerd, and kubeadm/kubelet/kubectl installation.
+
+- name: Disable swap immediately
+  command: swapoff -a
+  changed_when: false
+
+- name: Remove swap entries from /etc/fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    replace: '# \1'
+
+# ── Kernel modules ─────────────────────────────────────────────────────────────
+
+- name: Load required kernel modules at boot
+  copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+      sctp
+      openvswitch
+    mode: '0644'
+
+- name: Load kernel modules now
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+    - sctp
+    - openvswitch
+
+# ── sysctl ─────────────────────────────────────────────────────────────────────
+
+- name: Set required sysctl parameters
+  copy:
+    dest: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+    mode: '0644'
+
+- name: Apply sysctl parameters
+  command: sysctl --system
+  changed_when: false
+
+# ── Open vSwitch ────────────────────────────────────────────────────────────────
+
+- name: Install Open vSwitch
+  apt:
+    name: openvswitch-switch
+    state: present
+    update_cache: true
+
+- name: Ensure Open vSwitch is running
+  systemd:
+    name: openvswitch-switch
+    state: started
+    enabled: true
+
+# ── containerd ─────────────────────────────────────────────────────────────────
+
+- name: Install prerequisite packages
+  apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - apt-transport-https
+    state: present
+    update_cache: true
+
+- name: Create /etc/apt/keyrings
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Docker apt GPG key
+  get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Add Docker apt repository
+  apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu
+      {{ ansible_distribution_release }} stable
+    filename: docker
+    state: present
+
+- name: Install containerd
+  apt:
+    name: containerd.io
+    state: present
+    update_cache: true
+
+- name: Generate default containerd config (always, to ensure CRI plugin is present)
+  shell: containerd config default > /etc/containerd/config.toml
+  changed_when: true
+
+- name: Enable SystemdCgroup in containerd config
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+
+- name: Restart and enable containerd
+  systemd:
+    name: containerd
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+# ── kubeadm / kubelet / kubectl ────────────────────────────────────────────────
+
+- name: Add Kubernetes apt GPG key
+  get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: '0644'
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc]
+      https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /
+    filename: kubernetes
+    state: present
+
+- name: Install kubeadm, kubelet, kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    update_cache: true
+
+- name: Hold kubeadm, kubelet, kubectl at current version
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable and start kubelet
+  systemd:
+    name: kubelet
+    state: started
+    enabled: true
+
+- name: Verify containerd CRI socket is responding
+  command: crictl --runtime-endpoint unix:///var/run/containerd/containerd.sock info
+  changed_when: false
+  retries: 5
+  delay: 5
+  register: _cri_check
+  until: _cri_check.rc == 0

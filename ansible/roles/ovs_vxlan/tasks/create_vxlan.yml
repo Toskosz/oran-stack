@@ -1,0 +1,20 @@
+---
+# ovs_vxlan/tasks/create_vxlan.yml
+# Creates VXLAN ports on _bridge to every other node in the cluster.
+# The VXLAN key is derived from the bridge name so each bridge gets a unique VNI.
+
+- name: "Derive VXLAN key for {{ _bridge.name }}"
+  set_fact:
+    _vxlan_key: "{{ (_bridge.name | hash('md5'))[:4] | int(base=16) }}"
+
+- name: "Add VXLAN port on {{ _bridge.name }}"
+  command: >
+    ovs-vsctl --may-exist add-port {{ _bridge.name }} vx-{{ _bridge.name }}-{{ remote_node }}
+    -- set interface vx-{{ _bridge.name }}-{{ remote_node }} type=vxlan
+    options:remote_ip={{ hostvars[remote_node]['control_plane_ip'] | default(hostvars[remote_node]['ansible_host']) }}
+    options:key={{ _vxlan_key }}
+  when: remote_node != inventory_hostname
+  loop: "{{ groups['k8s_cluster'] }}"
+  loop_control:
+    loop_var: remote_node
+    label: "{{ _bridge.name }} -> {{ remote_node }}"

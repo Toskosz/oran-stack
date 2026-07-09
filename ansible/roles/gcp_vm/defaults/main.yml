@@ -1,0 +1,43 @@
+---
+# gcp_vm defaults — all overridable via -e on the command line
+# Authenticates via Application Default Credentials:
+#   gcloud auth application-default login
+
+# GCP project — resolved from active gcloud config if left empty
+gcp_project: ""
+
+# Zone for both VMs
+gcp_zone: "us-central1-a"
+
+# OS image
+gcp_image_family:  "ubuntu-2204-lts"
+gcp_image_project: "ubuntu-os-cloud"
+
+# Boot disk (shared by both VMs)
+gcp_disk_size_gb: 50
+gcp_disk_type:    "pd-ssd"
+
+# Network — uses the project default VPC
+gcp_network: "default"
+
+# Network tags — used by firewall rules
+gcp_tags: ["oran-dev"]
+
+# SSH user created on the VMs (injected via instance metadata)
+gcp_ssh_user: "oran"
+
+# Local SSH key pair — public key is injected into the VM,
+# private key is used by Ansible (and written to gcp.ini).
+# Generate once with: ssh-keygen -t rsa -b 4096 -f ~/.ssh/oran_gcp
+gcp_ssh_pub_key_file:  "~/.ssh/oran_gcp.pub"
+gcp_ssh_priv_key_file: "~/.ssh/oran_gcp"
+
+# VM names
+gcp_cp_name: "oran-cp1"
+gcp_w_name:  "oran-w1"
+
+# Machine types — asymmetric sizing:
+#   cp1: e2-standard-2  (2 vCPU / 8 GB)  — control-plane only
+#   w1:  e2-standard-4  (4 vCPU / 16 GB) — runs all workloads
+gcp_cp_machine_type: "e2-standard-2"
+gcp_w_machine_type:  "e2-standard-4"
