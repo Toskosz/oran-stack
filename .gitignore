@@ -10,9 +10,13 @@ srsran/logs/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
+
+# Local inventory overrides
+inventories/gcp.ini
 
 # RMR runtime stash files (written by containers at runtime, root-owned, ephemeral)
 ric/config/e2term/dockerRouter.txt.stash

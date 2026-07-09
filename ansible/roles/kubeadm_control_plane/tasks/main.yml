@@ -364,4 +364,6 @@
   replace:
     path: "{{ playbook_dir }}/../../kubeconfig"
     regexp: 'server: https://.*:6443'
-    replace: "server: https://{{ hostvars[groups['control_plane'][0]]['_apiserver_advertise_address'] | default(hostvars[groups['control_plane'][0]]['ansible_host']) }}:6443"
+    # ansible_host = external/NAT IP (reachable from the controller).
+    # Do not use _apiserver_advertise_address (control_plane_ip / VPC-internal).
+    replace: "server: https://{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:6443"
