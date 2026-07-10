@@ -16,6 +16,11 @@
 # ----------------------------------------------------------------------------
 namespace: 5g-core
 
+# RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
+# avoids Pending pods when the worker is near its CPU request limit.
+# Also required for Multus static IPs (AMF) and UPF hostNetwork port binds.
+deploymentStrategy: Recreate
+
 # ----------------------------------------------------------------------------
 # Secondary network (Multus/OVS) — static IPs on dedicated OVS bridges.
 # These are used for SCTP N2/NGAP traffic between AMF and the CU.

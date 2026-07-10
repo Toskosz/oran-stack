@@ -20,6 +20,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: srs-cu
@@ -168,6 +170,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: srs-du
@@ -356,7 +360,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: {{ .Values.ueDeploymentStrategy }}
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: srsue

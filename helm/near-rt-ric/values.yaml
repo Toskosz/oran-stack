@@ -6,6 +6,11 @@ namespace: near-rt-ric
 
 imagePullSecretName: dockerhub-secret
 
+# RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
+# avoids Pending pods when the worker is near its CPU request limit.
+# Also required for Multus static IP on e2term.
+deploymentStrategy: Recreate
+
 # ----------------------------------------------------------------------------
 # Secondary network (Multus/OVS) — static IP on the e2br OVS bridge.
 # Used for SCTP E2AP traffic between e2term and the CU/DU.

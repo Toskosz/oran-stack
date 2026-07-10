@@ -19,6 +19,8 @@ metadata:
   labels: { app: mme, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels: { app: mme }
   template:
@@ -57,6 +59,8 @@ metadata:
   labels: { app: sgwc, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels: { app: sgwc }
   template:
@@ -95,6 +99,8 @@ metadata:
   labels: { app: sgwu, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels: { app: sgwu }
   template:
@@ -126,6 +132,8 @@ metadata:
   labels: { app: hss, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels: { app: hss }
   template:
@@ -154,6 +162,8 @@ metadata:
   labels: { app: pcrf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels: { app: pcrf }
   template:

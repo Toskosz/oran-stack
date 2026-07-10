@@ -93,4 +93,5 @@ deployUE: true
 
 # RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
 # avoids Pending pods when the worker is near its CPU request limit.
-ueDeploymentStrategy: Recreate
+# Also required for Multus static IPs (CU/DU) which cannot surge.
+deploymentStrategy: Recreate

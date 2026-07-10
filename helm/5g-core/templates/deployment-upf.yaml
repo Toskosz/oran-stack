@@ -28,6 +28,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: upf

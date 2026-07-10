@@ -22,4 +22,8 @@ xapp:
   e2NodeId: ""
   ranFuncId: ""
 
+# RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
+# avoids Pending pods when the worker is near its CPU request limit.
+deploymentStrategy: Recreate
+
 resources: {}

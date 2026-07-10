@@ -26,6 +26,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-dbaas
@@ -82,6 +84,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-e2mgr
@@ -179,6 +183,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-appmgr
@@ -247,6 +253,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-submgr
@@ -347,6 +355,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-rtmgr
@@ -482,6 +492,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-e2term
@@ -677,6 +689,8 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  strategy:
+    type: {{ .Values.deploymentStrategy }}
   selector:
     matchLabels:
       app: ric-a1mediator
