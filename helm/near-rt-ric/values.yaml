@@ -26,8 +26,11 @@ secondaryNetworks:
 # ----------------------------------------------------------------------------
 images:
   dbaas:
-    repository: redis
-    tag: "6-alpine"
+    # OSC dbaas ships Redis + SDL redismodule (MSETMPUB). Plain redis:6-alpine
+    # lacks MSETMPUB, so e2mgr ChangeStatus(CONNECTED) fails with RNIB error and
+    # never sends E2SetupResponse (12002).
+    repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-dbaas
+    tag: "0.6.5"
     pullPolicy: IfNotPresent
   e2term:
     repository: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2

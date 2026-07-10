@@ -78,6 +78,9 @@
         srsue:
           repository: "{{ images.srsue.repository }}"
           tag:         "{{ images.srsue.tag }}"
+      e2Readiness:
+        enabled: true
+        e2mgrUrl: "http://ric-e2mgr.{{ namespaces.ric }}.svc.cluster.local:3800"
       plmn:
         mcc: "{{ plmn.mcc }}"
         mnc: "{{ plmn.mnc }}"

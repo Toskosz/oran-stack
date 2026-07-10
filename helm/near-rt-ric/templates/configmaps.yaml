@@ -45,13 +45,22 @@ data:
       stateChangeMessageChannel: RAN_CONNECTION_STATUS_CHANGE
       ranManipulationMessageChannel: RAN_MANIPULATION
 
+  # mdclog dynamic level file mounted at /etc/config/log-level.yaml.
+  # e2mgr main.go passes -f to this file and UnmarshalKey("loglevel") as int:
+  #   1=ERROR 2=WARNING 3=INFO 4=DEBUG. A string like "log-level: debug" leaves
+  #   loglevel=0 and silences all Infof/Errorf after startup (hides Setup/12002).
+  log-level.yaml: |
+    loglevel: 4
+
+  # Seed routes aligned with rtmgr messagetypes:
+  #   1100=E2_TERM_INIT, 1101=KEEP_ALIVE_REQ, 1102=KEEP_ALIVE_RESP,
+  #   12001=E2_SETUP_REQ, 12002=E2_SETUP_RESP, 12003=E2_SETUP_FAILURE
+  # Outbound from e2mgr: KA_REQ + setup responses go to e2term.
   router.txt: |
     newrt|start
     rte|1080|ric-e2term:38000
     rte|1090|ric-e2term:38000
-    rte|1100|ric-e2term:38000
     rte|1101|ric-e2term:38000
-    rte|1102|ric-e2mgr:3801
     rte|1200|ric-submgr:4560
     rte|1210|ric-submgr:4560
     rte|1220|ric-submgr:4560
@@ -85,13 +94,13 @@ data:
   # secondary OVS IP (secondaryNetworks.e2.e2termIP) for E2AP.
   config.conf: |
     nano=38000
-    volume=log
+    volume=/log
     local-ip=POD_IP_PLACEHOLDER
     prometheusMode=pull
     prometheusPushTimeOut=10
     prometheusPushAddr=127.0.0.1:7676
     prometheusPort=8088
-    trace=stop
+    trace=start
     external-fqdn=ric-e2term
     pod_name=E2TERM_POD_NAME
     sctp-port=36421
@@ -130,9 +139,6 @@ data:
       - name: E2TERM
         fqdn: ric-e2term
         port: 38000
-      - name: E2TERMINST
-        fqdn: ric-e2term
-        port: 38000
       - name: SUBMAN
         fqdn: ric-submgr
         port: 4560
@@ -152,6 +158,16 @@ data:
         endpoint: E2MAN
         meid: ""
       - messagetype: E2_TERM_KEEP_ALIVE_RESP
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_SCTP_CONNECTION_FAILURE
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: E2MAN
+        meid: ""
+      - messagetype: RIC_SCTP_CLEAR_ALL
         senderendpoint: ""
         subscriptionid: -1
         endpoint: E2MAN
@@ -247,7 +263,7 @@ data:
       timeout: 30
 
   rt.json: |
-    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"E2TERMINST","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"APPMGR","fqdn":"ric-appmgr","port":8080},{"name":"A1MEDIATOR","fqdn":"ric-a1mediator","port":4562}]}
+    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"APPMGR","fqdn":"ric-appmgr","port":8080},{"name":"A1MEDIATOR","fqdn":"ric-a1mediator","port":4562}]}
 ---
 # --- submgr configuration ----------------------------------------------------
 apiVersion: v1

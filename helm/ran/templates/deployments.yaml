@@ -53,6 +53,26 @@ spec:
       imagePullSecrets:
         - name: {{ .Values.imagePullSecretName }}
       initContainers:
+        {{ if .Values.e2Readiness.enabled }}
+        - name: wait-for-e2t
+          image: alpine:3.19
+          env:
+            - name: E2MGR_URL
+              value: {{ .Values.e2Readiness.e2mgrUrl | quote }}
+            - name: POLL_INTERVAL_SEC
+              value: {{ .Values.e2Readiness.pollIntervalSec | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for an E2T endpoint at ${E2MGR_URL}/v1/e2t/list..."
+              until E2T_LIST="$(wget -qO- "${E2MGR_URL}/v1/e2t/list" 2>/dev/null)" \
+                && echo "${E2T_LIST}" | grep -q '"e2tAddress"'; do
+                echo "e2mgr is unavailable or has no E2T endpoint; retrying in ${POLL_INTERVAL_SEC}s..."
+                sleep "${POLL_INTERVAL_SEC}"
+              done
+              echo "E2T endpoint ready: ${E2T_LIST}"
+        {{ end }}
         - name: render-config
           image: alpine:3.19
           command:

@@ -165,6 +165,13 @@ verify_stack:
   # E2 gNB registration gate
   e2_gnb_wait_retries: 30
   e2_gnb_wait_delay: 10
+  # One controlled CU→DU restart is allowed when an E2T exists but the gNB
+  # is still absent. This recovers srsRAN's non-retrying E2 Setup procedure
+  # without turning verification into an unbounded restart loop.
+  e2_recovery_restart_enabled: true
+  e2_recovery_rollout_timeout: "300s"
+  e2_recovery_wait_retries: 30
+  e2_recovery_wait_delay: 10
   # UE attach gate
   ue_attach_wait_retries: 36
   ue_attach_wait_delay: 10

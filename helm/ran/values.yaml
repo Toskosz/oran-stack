@@ -16,6 +16,14 @@ images:
     tag: "latest"
     pullPolicy: IfNotPresent
 
+# The CU sends E2SetupRequest only once. Do not start it until e2mgr has
+# registered an E2 termination endpoint. This API is intentionally checked
+# before the CU process starts, rather than relying only on pod readiness.
+e2Readiness:
+  enabled: true
+  e2mgrUrl: "http://ric-e2mgr.near-rt-ric.svc.cluster.local:3800"
+  pollIntervalSec: 5
+
 # ----------------------------------------------------------------------------
 # Secondary networks (Multus/OVS) — static IPs on dedicated OVS bridges.
 # SCTP traffic uses these secondary interfaces so it stays on a flat L2 domain

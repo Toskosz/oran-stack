@@ -1,10 +1,11 @@
 # ============================================================================
 # Role: verify_stack
 # Purpose: Deterministic readiness gates after the Helm charts are deployed.
-# No blind restart loops — deployment ordering + initContainers + the e2term
-# local-ip fix make E2/UE come up on first deploy. This role only *verifies*
-# the deterministic outcome and fails loudly with actionable diagnostics if a
-# gate is not met.
+# No blind restart loops — deployment ordering and initContainers target a
+# first-pass startup. E2 verification permits one evidence-driven CU→DU
+# recovery only when e2mgr already has an E2T endpoint, because srsRAN does
+# not retry an aborted E2 Setup procedure. It then fails loudly with
+# actionable diagnostics if the deterministic gate is still not met.
 # ============================================================================
 
 - name: Set kubeconfig fact

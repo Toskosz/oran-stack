@@ -40,6 +40,17 @@ spec:
         - name: redis
           image: {{ .Values.images.dbaas.repository }}:{{ .Values.images.dbaas.tag }}
           imagePullPolicy: {{ .Values.images.dbaas.pullPolicy }}
+          # SDL redismodule provides MSETMPUB required by e2mgr
+          # UpdateNodebInfoOnConnectionStatusInversion. Without it, CONNECTED
+          # status update fails and E2SetupResponse (12002) is never sent.
+          args:
+            - redis-server
+            - --loadmodule
+            - /usr/local/libexec/redismodule/libredismodule.so
+            - --save
+            - ""
+            - --appendonly
+            - "no"
           ports:
             - containerPort: 6379
               name: redis
@@ -111,6 +122,13 @@ spec:
               value: /tmp/rmr.verbose
             - name: RMR_RTG_SVC
               value: ric-rtmgr:4561
+            # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
+            # rtmgr pushes sender-qualified routes keyed on ric-e2mgr:3801
+            # (mse|1101|ric-e2mgr:3801|…|ric-e2term:38000). A pod-name src
+            # never matches, so keepalive and E2SetupResponse cannot leave
+            # e2mgr (RMR open=0/succ=0) and the CU aborts after 10 minutes.
+            - name: RMR_SRC_ID
+              value: ric-e2mgr
             - name: port
               value: "3800"
             - name: DBAAS_SERVICE_HOST
@@ -142,6 +160,9 @@ spec:
             - name: e2mgr-config
               mountPath: /opt/E2Manager/router.txt
               subPath: router.txt
+            - name: e2mgr-config
+              mountPath: /etc/config/log-level.yaml
+              subPath: log-level.yaml
           resources:
             requests:
               cpu: 100m
@@ -278,6 +299,9 @@ spec:
               value: /opt/config/submgr-uta-rtg.rt
             - name: RMR_RTG_SVC
               value: ric-rtmgr:4561
+            # Match rtmgr sender-qualified routes (same rationale as e2mgr).
+            - name: RMR_SRC_ID
+              value: ric-submgr
             - name: DBAAS_SERVICE_HOST
               value: ric-dbaas
             - name: DBAAS_SERVICE_PORT
@@ -634,6 +658,10 @@ spec:
           emptyDir: {}
 ---
 # Internal RMR service for e2term — used by other RIC components.
+# Headless (clusterIP: None) so DNS returns the pod IP directly. RMR cannot
+# reliably open connections via kube-proxy ClusterIP (open=0 succ=0 to
+# ric-e2term:38000) while pod-IP targets work. Seed routes use the service
+# name; headless makes that name resolve to the Flannel pod IP.
 apiVersion: v1
 kind: Service
 metadata:
@@ -642,6 +670,7 @@ metadata:
   labels:
     app: ric-e2term
 spec:
+  clusterIP: None
   selector:
     app: ric-e2term
   ports:
