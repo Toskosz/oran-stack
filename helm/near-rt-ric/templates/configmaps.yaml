@@ -55,6 +55,8 @@ data:
     rte|1200|ric-submgr:4560
     rte|1210|ric-submgr:4560
     rte|1220|ric-submgr:4560
+    rte|12002|ric-e2term:38000
+    rte|12003|ric-e2term:38000
     rte|12010|ric-e2mgr:3801
     rte|12011|ric-e2mgr:3801
     rte|12012|ric-e2mgr:3801

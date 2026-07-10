@@ -119,7 +119,6 @@ data:
     [rat.nr]
     bands = {{ .Values.radio.band }}
     nof_carriers = 1
-    dl_arfcn = {{ .Values.radio.dlArfcn }}
 
     [pcap]
     enable = none
