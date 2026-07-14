@@ -40,7 +40,8 @@ data:
         socket:
           - bind_addr: ${POD_IP}
     e2:
-      enable_cu_cp_e2: true
+      enable_cu_cp_e2: false
+      enable_cu_up_e2: true
       addr: ${E2TERM_IP}
       port: 36421
       bind_addr: ${E2_IP}

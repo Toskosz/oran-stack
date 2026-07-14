@@ -1,0 +1,9 @@
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+- name: Verify xApp functional readiness
+  ansible.builtin.include_tasks: verify_xapp.yml
+
+- name: Verify UE attachment (RRC + PDU session)
+  ansible.builtin.include_tasks: verify_ue.yml

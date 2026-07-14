@@ -8,12 +8,8 @@
 # actionable diagnostics if the deterministic gate is still not met.
 # ============================================================================
 
-- name: Set kubeconfig fact
-  ansible.builtin.set_fact:
-    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
-
-- name: Verify E2 gNB registration in e2mgr
+- name: Run pre-xApp E2 verification stage
   ansible.builtin.include_tasks: verify_e2.yml
 
-- name: Verify UE attachment (RRC + PDU session)
-  ansible.builtin.include_tasks: verify_ue.yml
+- name: Run post-xApp functional and UE verification stage
+  ansible.builtin.include_tasks: verify_post_xapp.yml

@@ -1,9 +1,10 @@
 xapp:
-  script: simple_mon_xapp.py
+  script: kpm_mon_xapp.py
   rmrPort: 4561
   httpPort: 8091
   args:
-    - "--metrics=DRB.UEThpDl,DRB.UEThpUl"
+    - "--metrics=DRB.PacketSuccessRateUlgNBUu"
+    - "--kpm_report_style=1"
     - "--rmr_port=4561"
     - "--http_server_port=8091"
   # e2_node_id is set by Ansible from group_vars (xapp.e2_node_id)

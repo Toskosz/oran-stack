@@ -1,6 +1,10 @@
 # Wait for the deterministic outcome: gNB registered on E2 in e2mgr.
 # This is a readiness gate, not a restart loop.
 
+- name: Set kubeconfig fact
+  ansible.builtin.set_fact:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
 - name: Wait for gNB {{ xapp.e2_node_id }} to register in e2mgr
   ansible.builtin.command:
     cmd: >

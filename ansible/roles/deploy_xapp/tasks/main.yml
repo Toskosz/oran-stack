@@ -4,7 +4,11 @@
 #   1. Create ricxapp namespace with privileged pod-security label
 #   2. Create imagePullSecret
 #   3. helm upgrade --install r4-simple-mon
-#   4. Wait for the xApp Deployment to be Available
+#   4. Sync RTMgr/xApp RMR routes; re-POST subscription handles to defeat
+#      A1Mediator-triggered newrt wipes of mse|12050; wait for KPM indication
+#   5. Wait for the xApp Deployment to be Available
+# Do not restart E2Term after the xApp subscribes — that drops SCTP and the
+# CU will not re-setup, leaving the gNB DISCONNECTED.
 # ============================================================================
 ---
 
@@ -87,9 +91,59 @@
     msg: "xApp release status: {{ helm_xapp.status }}"
 
 # ----------------------------------------------------------------------------
-# 4. Wait for xApp Deployment to be Available
+# 4. RTMgr only syncs xApps from AppMgr at startup. Resync routes after the
+#    xApp registers, then restart the xApp so it subscribes against a stable
+#    RMR routing table.
 # ----------------------------------------------------------------------------
-- name: Wait for xApp Deployment to be Available
+- name: Wait for initial xApp AppMgr registration in logs
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
+      deployment/{{ helm_releases.xapp }} -c xapp --tail=200
+  register: _xapp_register_logs
+  until: >-
+    'appmgr register' in (_xapp_register_logs.stdout | default('')) and
+    'HTTP 201' in (_xapp_register_logs.stdout | default(''))
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Restart RTMgr so it reloads xApps from AppMgr
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} rollout restart
+      deployment/ric-rtmgr -n {{ namespaces.ric }}
+  changed_when: true
+
+- name: Wait for RTMgr rollout after xApp registration
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} rollout status
+      deployment/ric-rtmgr -n {{ namespaces.ric }} --timeout=300s
+  changed_when: false
+
+- name: Wait for RTMgr to push platform routes to the xApp
+  ansible.builtin.shell: |
+    set -euo pipefail
+    kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ric }} \
+      deployment/ric-rtmgr -c rtmgr --since=10m | \
+      rg -q 'Update Routes to Endpoint: service-ricxapp-{{ helm_releases.xapp }}-rmr\.{{ namespaces.xapp }}:4561 successful'
+  args:
+    executable: /bin/bash
+  register: _rtmgr_route_push
+  until: _rtmgr_route_push.rc == 0
+  retries: 36
+  delay: 5
+  changed_when: false
+
+- name: Restart xApp so it subscribes only after RTMgr route sync
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} rollout restart
+      deployment/{{ helm_releases.xapp }} -n {{ namespaces.xapp }}
+  changed_when: true
+
+- name: Wait for xApp Deployment to be Available after route sync
   kubernetes.core.k8s_info:
     kubeconfig: "{{ _kubeconfig }}"
     kind: Deployment
@@ -99,31 +153,98 @@
     wait_condition:
       type:   Available
       status: "True"
-    wait_timeout: 600
+    wait_timeout: "{{ verify_stack.xapp_deployment_wait_timeout }}"
 
-- name: Wait for xApp to subscribe without submgr errors
+- name: Wait for xApp AppMgr registration after route sync restart
   ansible.builtin.command:
     cmd: >
       kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
-      deployment/{{ helm_releases.xapp }} --tail=100
-  register: _xapp_logs
+      deployment/{{ helm_releases.xapp }} -c xapp --tail=200
+  register: _xapp_register_logs_after_restart
   until: >-
-    'Subscribe to E2 node ID' in _xapp_logs.stdout and
-    'ApiException' not in _xapp_logs.stdout and
-    '503' not in _xapp_logs.stdout
-  retries: "{{ verify_stack.xapp_subscription_wait_retries }}"
-  delay: "{{ verify_stack.xapp_subscription_wait_delay }}"
+    'appmgr register' in (_xapp_register_logs_after_restart.stdout | default('')) and
+    'HTTP 201' in (_xapp_register_logs_after_restart.stdout | default(''))
+  retries: 30
+  delay: 5
   changed_when: false
 
-- name: Fail if xApp subscription still failing
-  ansible.builtin.fail:
-    msg: >-
-      xApp {{ helm_releases.xapp }} did not subscribe successfully.
-      Check: kubectl logs -n {{ namespaces.xapp }} deployment/{{ helm_releases.xapp }}
-  when: >-
-    'ApiException' in _xapp_logs.stdout or
-    '503' in _xapp_logs.stdout
+- name: Wait for xApp to subscribe after route sync restart
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
+      deployment/{{ helm_releases.xapp }} -c xapp --tail=200
+  register: _xapp_subscribe_logs
+  until: >-
+    'Subscribe to E2 node ID' in (_xapp_subscribe_logs.stdout | default('')) and
+    'Successfully subscribed' in (_xapp_subscribe_logs.stdout | default(''))
+  retries: 30
+  delay: 5
+  changed_when: false
 
-- name: Show xApp subscription result
-  ansible.builtin.debug:
-    msg: "xApp {{ helm_releases.xapp }} subscribed to gNB {{ xapp.e2_node_id }}"
+- name: Wait for RTMgr subscription route (12050) installed
+  ansible.builtin.shell: |
+    set -euo pipefail
+    # Do NOT restart E2Term after this: that drops the SCTP association and
+    # srsRAN CU does not re-setup E2, leaving the gNB DISCONNECTED and the
+    # just-installed 12050 indication route orphaned.
+    LOGS=$(kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ric }} \
+      deployment/ric-rtmgr -c rtmgr --since=10m)
+    echo "$LOGS" | rg -q 'RoutingManager->SubManager Add Request Success'
+    echo "$LOGS" | rg -q \
+      'Update Routes to Endpoint: service-ricxapp-{{ helm_releases.xapp }}-rmr\.{{ namespaces.xapp }}:4561 successful.*Entries:9'
+    echo "$LOGS" | rg -q \
+      'Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9'
+  args:
+    executable: /bin/bash
+  register: _rtmgr_sub_route_push
+  until: _rtmgr_sub_route_push.rc == 0
+  retries: 36
+  delay: 5
+  changed_when: false
+
+- name: Keep subscription routes installed and wait for KPM indication
+  # rtmgr hardcodes a lookup for Platform component "A1Mediator". When that
+  # fails it redistributes a full newrt table that wipes mse|12050|<subid>
+  # routes installed via updatert. Re-POST the subscription handle every few
+  # seconds so the indication route stays alive long enough to observe KPM.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    KC={{ _kubeconfig }}
+    NS_XAPP={{ namespaces.xapp }}
+    NS_RIC={{ namespaces.ric }}
+    XAPP={{ helm_releases.xapp }}
+    EP="service-ricxapp-${XAPP}-rmr.{{ namespaces.xapp }}"
+    RTMGR="http://ric-rtmgr.{{ namespaces.ric }}:3800/ric/v1/handles/xapp-subscription-handle"
+
+    XLOG=$(kubectl --kubeconfig="$KC" logs -n "$NS_XAPP" deployment/"$XAPP" -c xapp --tail=300)
+    echo "$XLOG" | rg -q 'RIC Indication Received' && exit 0
+
+    SUBID=$(echo "$XLOG" | rg -o 'mapping: .* -> ([0-9]+)' -r '$1' | tail -1 || true)
+    if [[ -z "${SUBID:-}" || "$SUBID" == "0" ]]; then
+      echo "No usable E2EventInstanceId mapping yet" >&2
+      exit 1
+    fi
+
+    # Re-install 12050 routes, then poll briefly for an indication.
+    POD="xapp-route-keep-$$-$RANDOM"
+    kubectl --kubeconfig="$KC" delete pod "$POD" --ignore-not-found >/dev/null 2>&1 || true
+    kubectl --kubeconfig="$KC" run "$POD" --rm -i --restart=Never \
+      --image=curlimages/curl:8.5.0 \
+      --overrides='{"spec":{"nodeName":"w1"}}' -- \
+      curl -sf -X POST "$RTMGR" \
+        -H 'Content-Type: application/json' \
+        -d "{\"address\":\"${EP}\",\"port\":4561,\"subscription_id\":${SUBID}}" >/dev/null
+
+    for _ in $(seq 1 5); do
+      XLOG=$(kubectl --kubeconfig="$KC" logs -n "$NS_XAPP" deployment/"$XAPP" -c xapp --tail=300)
+      echo "$XLOG" | rg -q 'RIC Indication Received' && exit 0
+      sleep 2
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  register: _xapp_indication_logs
+  until: _xapp_indication_logs.rc == 0
+  retries: "{{ verify_stack.xapp_functional_wait_retries }}"
+  delay: 1
+  changed_when: false

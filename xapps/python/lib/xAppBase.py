@@ -68,6 +68,8 @@ class xAppBase(object):
         self.e2sm_rc = e2sm_rc_module(self)
         # dict to store active subscriptions
         self.my_subscriptions = {}
+        self._subscription_lock = threading.Lock()
+        self._pending_event_instance_ids = {}
 
         # helper variables
         self.running = False
@@ -155,10 +157,15 @@ class xAppBase(object):
         SubscriptionId = data['SubscriptionId']
         E2EventInstanceId = data['SubscriptionInstances'][0]["E2EventInstanceId"]  # subscription ID used in RIC indication
         print("Received Subscription ID to E2EventInstanceId mapping: {} -> {}".format(SubscriptionId, E2EventInstanceId))
-        if SubscriptionId in self.my_subscriptions:
-            self.my_subscriptions[SubscriptionId].e2_event_instance_id = E2EventInstanceId
-            # update the key, as it is more convenient to use E2EventInstanceId that is used in RIC indication msgs
-            self.my_subscriptions[E2EventInstanceId]= self.my_subscriptions.pop(SubscriptionId)
+        with self._subscription_lock:
+            if SubscriptionId in self.my_subscriptions:
+                self.my_subscriptions[SubscriptionId].e2_event_instance_id = E2EventInstanceId
+                # update the key, as it is more convenient to use E2EventInstanceId that is used in RIC indication msgs
+                self.my_subscriptions[E2EventInstanceId] = self.my_subscriptions.pop(SubscriptionId)
+            else:
+                # SubMgr can POST this callback before Subscribe() returns and
+                # the REST subscription ID has been stored.
+                self._pending_event_instance_ids[SubscriptionId] = E2EventInstanceId
 
         response = self._create_http_response()
         response['payload'] = ("{}")
@@ -190,7 +197,13 @@ class xAppBase(object):
         subscriptionObj.subscription_id = subscription_id
         subscriptionObj.callback_func = indication_callback
         # Store active subscription in the dict
-        self.my_subscriptions[subscription_id] = subscriptionObj
+        with self._subscription_lock:
+            E2EventInstanceId = self._pending_event_instance_ids.pop(subscription_id, None)
+            if E2EventInstanceId is None:
+                self.my_subscriptions[subscription_id] = subscriptionObj
+            else:
+                subscriptionObj.e2_event_instance_id = E2EventInstanceId
+                self.my_subscriptions[E2EventInstanceId] = subscriptionObj
 
     def unsubscribe(self, subscription_id):
         print("Unsubscribe Subscription ID: ", subscription_id)

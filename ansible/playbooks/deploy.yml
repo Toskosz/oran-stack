@@ -1,7 +1,8 @@
 # ============================================================================
 # Playbook: deploy.yml
 # Purpose:  Deploy all Helm charts to the kubeadm cluster in dependency
-#           order: 5g-core → near-rt-ric → ran → xapp → monitoring.
+#           order: 5g-core → near-rt-ric → ran → E2 gate → xapp →
+#                  xApp/UE gates → monitoring.
 #
 # Usage:
 #   ansible-playbook ansible/playbooks/deploy.yml \
@@ -15,9 +16,10 @@
 #   1. 5g-core     — MongoDB and NFs must be up before RIC or RAN connect
 #   2. near-rt-ric — e2term must be running before the DU sends E2 Setup
 #   3. ran         — CU/DU/UE Helm release (initContainers enforce ordering)
-#   4. verify      — deterministic readiness gates (E2 gNB + UE attach)
+#   4. E2 verify   — registration gate and one bounded recovery opportunity
 #   5. xapp        — simple-mon KPM xApp (initContainer waits for gNB)
-#   6. monitoring  — deployed last so all ServiceMonitor targets are already up
+#   6. verify      — require xApp subscription/indication before checking UE
+#   7. monitoring  — deployed last so all ServiceMonitor targets are already up
 # ============================================================================
 ---
 - name: Deploy 5G core (Open5GS NFs + MongoDB)
@@ -47,23 +49,38 @@
   roles:
     - role: deploy_ran
 
-- name: Verify E2 and UE readiness (deterministic gates)
+- name: Verify E2 readiness before deploying the xApp
   hosts: localhost
   connection: local
   gather_facts: false
   tags: [verify_stack, deploy_ran]
 
-  roles:
-    - role: verify_stack
+  tasks:
+    - name: Run pre-xApp E2 verification stage
+      ansible.builtin.include_role:
+        name: verify_stack
+        tasks_from: verify_e2.yml
 
-- name: Deploy simple-mon xApp (KPM monitor)
+- name: Deploy simple-mon xApp (KPM monitor) after E2 readiness
   hosts: localhost
   connection: local
   gather_facts: false
-  tags: [deploy_xapp]
+  tags: [deploy_xapp, deploy_ran]
 
   roles:
     - role: deploy_xapp
+
+- name: Verify xApp functional readiness before UE attachment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [verify_stack, deploy_xapp, deploy_ran]
+
+  tasks:
+    - name: Run post-xApp functional and UE verification stage
+      ansible.builtin.include_role:
+        name: verify_stack
+        tasks_from: verify_post_xapp.yml
 
 - name: Deploy Monitoring (Prometheus + Grafana)
   hosts: localhost

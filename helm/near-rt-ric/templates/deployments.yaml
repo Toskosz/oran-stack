@@ -439,7 +439,7 @@ spec:
             # e2term/e2mgr then try to resolve the pod name to ACK route
             # updates, which fails. Force the stable service name instead.
             - name: RMR_SRC_ID
-              value: ric-rtmgr
+              value: ric-rtmgr.{{ .Values.namespace }}
             - name: CFGFILE
               value: /cfg/rtmgr-config.yaml
             - name: RTFILE
@@ -745,6 +745,11 @@ spec:
               value: ric-dbaas
             - name: DBAAS_SERVICE_PORT
               value: "6379"
+            # Match rtmgr PlatformComponents fqdn so route ACKs resolve.
+            - name: RMR_SRC_ID
+              value: ric-a1mediator
+            - name: RMR_RTG_SVC
+              value: "ric-rtmgr:4561"
           ports:
             - containerPort: 10000
               name: http

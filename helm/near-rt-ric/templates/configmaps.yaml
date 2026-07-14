@@ -145,12 +145,6 @@ data:
       - name: E2MAN
         fqdn: ric-e2mgr
         port: 3801
-      - name: APPMGR
-        fqdn: ric-appmgr
-        port: 8080
-      - name: A1MEDIATOR
-        fqdn: ric-a1mediator
-        port: 4562
     PlatformRoutes:
       - messagetype: E2_TERM_INIT
         senderendpoint: ""
@@ -188,11 +182,31 @@ data:
         endpoint: E2MAN
         meid: ""
       - messagetype: RIC_SUB_REQ
+        senderendpoint: SUBMAN
+        subscriptionid: -1
+        endpoint: ""
+        meid: "%meid"
+      - messagetype: RIC_SUB_RESP
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: SUBMAN
+        meid: ""
+      - messagetype: RIC_SUB_FAILURE
         senderendpoint: ""
         subscriptionid: -1
         endpoint: SUBMAN
         meid: ""
       - messagetype: RIC_SUB_DEL_REQ
+        senderendpoint: SUBMAN
+        subscriptionid: -1
+        endpoint: ""
+        meid: "%meid"
+      - messagetype: RIC_SUB_DEL_RESP
+        senderendpoint: ""
+        subscriptionid: -1
+        endpoint: SUBMAN
+        meid: ""
+      - messagetype: RIC_SUB_DEL_FAILURE
         senderendpoint: ""
         subscriptionid: -1
         endpoint: SUBMAN
@@ -237,9 +251,10 @@ data:
       - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
       - "RIC_HEALTH_CHECK_REQ=100"
       - "RIC_HEALTH_CHECK_RESP=101"
-      - "A1_POLICY_REQ=20010"
-      - "A1_POLICY_RESP=20011"
-      - "A1_POLICY_QUERY=20012"
+    # A1_POLICY_* deliberately omitted: referencing them makes rtmgr look up
+    # Platform component "A1Mediator". When that lookup fails (or A1's RMR
+    # wormhole is down), rtmgr redistributes a full newrt every few seconds
+    # and wipes subscription indication routes (mse|12050|<subid>|...).
     local:
       host: ":8989"
     logger:
@@ -263,7 +278,7 @@ data:
       timeout: 30
 
   rt.json: |
-    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"APPMGR","fqdn":"ric-appmgr","port":8080},{"name":"A1MEDIATOR","fqdn":"ric-a1mediator","port":4562}]}
+    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801}]}
 ---
 # --- submgr configuration ----------------------------------------------------
 apiVersion: v1
@@ -285,7 +300,8 @@ data:
       "numWorkers": 1
     "rtmgr":
       "hostAddr": "ric-rtmgr"
-      "port": "8989"
+      # ric-plt-rtmgr:0.9.6 ignores local.host and binds its REST API to 3800.
+      "port": "3800"
       "baseUrl": "/ric/v1"
     "db":
       "sessionNamespace": "XMSession"

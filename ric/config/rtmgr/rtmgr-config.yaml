@@ -11,12 +11,6 @@ PlatformComponents:
   - name: E2MAN
     fqdn: ric-e2mgr
     port: 3801
-  - name: APPMGR
-    fqdn: ric-appmgr
-    port: 8080
-  - name: A1MEDIATOR
-    fqdn: ric-a1mediator
-    port: 4562
 PlatformRoutes:
   - messagetype: E2_TERM_INIT
     senderendpoint: ""
@@ -44,11 +38,31 @@ PlatformRoutes:
     endpoint: E2MAN
     meid: ""
   - messagetype: RIC_SUB_REQ
+    senderendpoint: SUBMAN
+    subscriptionid: -1
+    endpoint: ""
+    meid: "%meid"
+  - messagetype: RIC_SUB_RESP
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: SUBMAN
+    meid: ""
+  - messagetype: RIC_SUB_FAILURE
     senderendpoint: ""
     subscriptionid: -1
     endpoint: SUBMAN
     meid: ""
   - messagetype: RIC_SUB_DEL_REQ
+    senderendpoint: SUBMAN
+    subscriptionid: -1
+    endpoint: ""
+    meid: "%meid"
+  - messagetype: RIC_SUB_DEL_RESP
+    senderendpoint: ""
+    subscriptionid: -1
+    endpoint: SUBMAN
+    meid: ""
+  - messagetype: RIC_SUB_DEL_FAILURE
     senderendpoint: ""
     subscriptionid: -1
     endpoint: SUBMAN
@@ -93,9 +107,7 @@ messagetypes:
   - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
   - "RIC_HEALTH_CHECK_REQ=100"
   - "RIC_HEALTH_CHECK_RESP=101"
-  - "A1_POLICY_REQ=20010"
-  - "A1_POLICY_RESP=20011"
-  - "A1_POLICY_QUERY=20012"
+  # A1_POLICY_* omitted — see helm near-rt-ric rtmgr-config comment.
 local:
   # NOTE: This value is NOT used by ric-plt-rtmgr:0.9.6. The swagger-generated
   # HTTP server ignores local.host and hardcodes port 3800 as its NBI REST bind port.

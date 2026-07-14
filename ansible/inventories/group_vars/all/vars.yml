@@ -156,7 +156,7 @@ plmn:
 # e2_node_id must match the gNB registered in e2mgr (GET /v1/nodeb/states).
 # ----------------------------------------------------------------------------
 xapp:
-  e2_node_id: "gnb_001_001_00019b"
+  e2_node_id: "gnbc_001_001_00019b_0"
 
 # ----------------------------------------------------------------------------
 # Post-deploy verification — deterministic readiness gates (no restart loops)
@@ -177,6 +177,8 @@ verify_stack:
   ue_attach_wait_delay: 10
   # Fail the deploy if UE attach is not confirmed (set false to only warn)
   ue_attach_required: true
-  # xApp subscription gate (used by deploy_xapp)
-  xapp_subscription_wait_retries: 18
-  xapp_subscription_wait_delay: 10
+  # xApp functional gate: Deployment available, clean subscription, and KPM
+  # indication received before UE attachment is evaluated.
+  xapp_deployment_wait_timeout: 600
+  xapp_functional_wait_retries: 18
+  xapp_functional_wait_delay: 10

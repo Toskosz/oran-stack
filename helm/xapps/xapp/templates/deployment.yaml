@@ -69,6 +69,7 @@ spec:
             - name: XAPP_NAMESPACE
               value: {{ .Release.Namespace }}
             - name: XAPP_IP
+              # Must exactly match the endpoint registered with AppMgr.
               value: service-ricxapp-{{ .Release.Name }}-rmr.{{ .Release.Namespace }}
             - name: SUB_MGR_URI
               value: {{ .Values.ric.submgrUri | quote }}

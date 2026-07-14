@@ -8,7 +8,8 @@
   "numWorkers": 1
 "rtmgr":
   "hostAddr": "ric-rtmgr"
-  "port": "8989"
+  # ric-plt-rtmgr:0.9.6 ignores local.host and binds its REST API to 3800.
+  "port": "3800"
   "baseUrl": "/ric/v1"
 "db":
   "sessionNamespace": "XMSession"

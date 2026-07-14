@@ -1,0 +1,62 @@
+# Wait for the xApp to be available and prove its KPM subscription works
+# end-to-end before evaluating UE attachment.
+
+- name: Wait for xApp Deployment to be Available
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ _kubeconfig }}"
+    kind: Deployment
+    name: "{{ helm_releases.xapp }}"
+    namespace: "{{ namespaces.xapp }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ verify_stack.xapp_deployment_wait_timeout }}"
+
+- name: Wait for xApp subscription and KPM indication
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
+      deployment/{{ helm_releases.xapp }} -c xapp --tail=200
+  register: _xapp_logs
+  until: >-
+    'Subscribe to E2 node ID' in _xapp_logs.stdout and
+    'RIC Indication Received' in _xapp_logs.stdout and
+    'ApiException' not in _xapp_logs.stdout and
+    '503' not in _xapp_logs.stdout
+  retries: "{{ verify_stack.xapp_functional_wait_retries }}"
+  delay: "{{ verify_stack.xapp_functional_wait_delay }}"
+  changed_when: false
+  failed_when: false
+
+- name: Set xApp functional readiness fact
+  ansible.builtin.set_fact:
+    _xapp_functional: >-
+      {{ 'Subscribe to E2 node ID' in (_xapp_logs.stdout | default('')) and
+         'RIC Indication Received' in (_xapp_logs.stdout | default('')) and
+         'ApiException' not in (_xapp_logs.stdout | default('')) and
+         '503' not in (_xapp_logs.stdout | default('')) }}
+
+- name: Fail with actionable xApp diagnostics
+  ansible.builtin.fail:
+    msg: |-
+      xApp {{ helm_releases.xapp }} did NOT subscribe cleanly and receive a
+      KPM indication within
+      {{ verify_stack.xapp_functional_wait_retries | int * verify_stack.xapp_functional_wait_delay | int }}s.
+
+      kubectl return code: {{ _xapp_logs.rc | default('n/a') }}
+      kubectl stderr: {{ _xapp_logs.stderr | default('') }}
+
+      xApp log tail:
+      {{ _xapp_logs.stdout | default('') | regex_search('(?s).{0,2000}$') }}
+
+      Check:
+      kubectl logs -n {{ namespaces.xapp }} deployment/{{ helm_releases.xapp }} -f
+  when: not (_xapp_functional | bool)
+
+- name: Show xApp functional readiness result
+  ansible.builtin.debug:
+    msg: >-
+      xApp {{ helm_releases.xapp }} OK — subscription is clean and a KPM
+      indication was received from {{ xapp.e2_node_id }}
+  when: _xapp_functional | bool

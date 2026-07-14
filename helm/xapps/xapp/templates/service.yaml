@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 spec:
-  clusterIP: None
+  publishNotReadyAddresses: true
   selector:
     app: {{ .Release.Name }}
     release: {{ .Release.Name }}
@@ -13,6 +13,10 @@ spec:
     - name: rmr
       port: {{ .Values.xapp.rmrPort }}
       targetPort: {{ .Values.xapp.rmrPort }}
+      protocol: TCP
+    - name: http
+      port: {{ .Values.xapp.httpPort }}
+      targetPort: {{ .Values.xapp.httpPort }}
       protocol: TCP
 ---
 apiVersion: v1
