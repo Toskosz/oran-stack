@@ -1,5 +1,5 @@
 # ============================================================================
-# srsRAN DU (Distributed Unit) Configuration
+# OCUDU DU (Distributed Unit) Configuration
 # ============================================================================
 # Based on 3GPP Option 2 split (PDCP/RLC boundary).
 # The DU includes embedded RU functionality using ZMQ virtual radio.
@@ -66,5 +66,5 @@ cell_cfg:
     prach_config_index: 1
 
 log:
-  filename: /mnt/srsran/logs/du.log
+  filename: /mnt/ocudu/logs/du.log
   all_level: info
