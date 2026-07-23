@@ -1,0 +1,95 @@
+# ============================================================================
+# OCUDU - CU/DU Split Docker Image
+# ============================================================================
+# Builds the ocu and odu binaries from the OCUDU repository (the Linux
+# Foundation successor to srsRAN Project). These implement the 3GPP Option 2
+# CU/DU split (PDCP/RLC boundary).
+#
+# Binaries produced:
+#   /usr/local/bin/ocu    - Central Unit (CU-CP + CU-UP combined)
+#   /usr/local/bin/odu    - Distributed Unit (DU + embedded RU via ZMQ)
+#   /usr/local/bin/gnb    - Monolithic gNB (fallback, optional)
+#
+# Build:
+#   docker build -f dockerfiles/Dockerfile.ocudu -t ocudu-split:latest .
+#
+# Notes:
+#   - Pinned to the release_26_04 tag for reproducible builds.
+#   - OCUDU requires gcc >= 15.2 or clang >= 14; Ubuntu 22.04 ships gcc 11,
+#     so the builder stage compiles with clang-14.
+#   - ZMQ virtual radio support requires -DENABLE_ZEROMQ=ON.
+#   - Build takes 15-30 minutes due to full C++ compilation.
+# ============================================================================
+
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    build-essential \
+    clang-14 \
+    cmake \
+    ninja-build \
+    git \
+    libsctp-dev \
+    libyaml-cpp-dev \
+    libmbedtls-dev \
+    libzmq3-dev \
+    libfftw3-dev \
+    libgtest-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone OCUDU (5G NR CU/DU stack - provides ocu, odu, gnb)
+WORKDIR /opt
+RUN git clone --depth 1 --branch release_26_04 https://gitlab.com/ocudu/ocudu.git
+
+# Build OCUDU with ZMQ virtual radio support
+WORKDIR /opt/ocudu
+RUN cmake -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=clang-14 \
+    -DCMAKE_CXX_COMPILER=clang++-14 \
+    -DENABLE_ZEROMQ=ON \
+    -DBUILD_TESTING=OFF
+RUN cmake --build build -j4
+
+# Verify binaries exist
+RUN test -f /opt/ocudu/build/apps/cu/ocu
+RUN test -f /opt/ocudu/build/apps/du/odu
+RUN test -f /opt/ocudu/build/apps/gnb/gnb
+
+# ============================================================================
+# Runtime stage - minimal image with only the binaries and runtime libs
+# ============================================================================
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only runtime dependencies (no build tools)
+RUN apt-get update && apt-get install -y \
+    libatomic1 \
+    libsctp1 \
+    libyaml-cpp0.7 \
+    libmbedtls14 \
+    libmbedcrypto7 \
+    libmbedx509-1 \
+    libzmq5 \
+    libfftw3-single3 \
+    libfftw3-double3 \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    tcpdump \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy binaries from builder
+COPY --from=builder /opt/ocudu/build/apps/cu/ocu /usr/local/bin/ocu
+COPY --from=builder /opt/ocudu/build/apps/du/odu /usr/local/bin/odu
+COPY --from=builder /opt/ocudu/build/apps/gnb/gnb /usr/local/bin/gnb
+
+WORKDIR /mnt/ocudu
+
+CMD ["/bin/bash"]
