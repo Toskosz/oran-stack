@@ -2,6 +2,8 @@
 
 A Kubernetes-native O-RAN 5G Standalone network running on a kubeadm cluster provisioned with Ansible.
 
+The RAN CU/DU is [OCUDU](https://ocudu.org/) (the Linux Foundation successor to srsRAN Project), pinned to the `release_26_04` tag. The UE simulator remains srsUE from srsRAN_4G, connected over ZMQ virtual radio.
+
 ## Architecture
 
 ```
@@ -21,7 +23,7 @@ A Kubernetes-native O-RAN 5G Standalone network running on a kubeadm cluster pro
 │          │  n2br (10.200.1.0/24)      │  e2br (10.200.3.0/24)        │
 │  namespace: ran                        │                              │
 │  ┌─────────────────────────────────────┘──────────────────────────┐  │
-│  │ srsRAN                                                         │  │
+│  │ OCUDU (CU/DU) + srsUE                                          │  │
 │  │  CU ──F1AP (f1cbr 10.200.2.0/24)──► DU ──ZMQ──► UE           │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────┘
@@ -232,7 +234,7 @@ oran-stack/
 ├── helm/
 │   ├── 5g-core/                   # Open5GS + MongoDB Helm chart
 │   ├── near-rt-ric/               # O-RAN SC Near-RT RIC Helm chart
-│   └── ran/                       # srsRAN CU/DU/UE Helm chart
+│   └── ran/                       # OCUDU CU/DU + srsUE Helm chart
 ├── ansible/
 │   ├── ansible.cfg
 │   ├── requirements.yml
@@ -280,10 +282,10 @@ Verify the imagePullSecret: `kubectl get secret dockerhub-secret -n 5g-core`. Re
 UPF uses `hostNetwork: true` and creates TUN interfaces. Confirm `net.ipv4.ip_forward=1` is set on the worker: `ssh <node> sysctl net.ipv4.ip_forward`. The `kubeadm_prereqs` role sets this.
 
 **SCTP associations not establishing**  
-Confirm secondary interfaces are attached: `kubectl exec -n ran deploy/srs-cu -- ip addr`. You should see interfaces with IPs from the 10.200.x.0/24 ranges. Check OVS bridge and VXLAN tunnels: `sudo ovs-vsctl show` on each node.
+Confirm secondary interfaces are attached: `kubectl exec -n ran deploy/ocudu-cu -- ip addr`. You should see interfaces with IPs from the 10.200.x.0/24 ranges. Check OVS bridge and VXLAN tunnels: `sudo ovs-vsctl show` on each node.
 
 **E2 interface not connecting**  
-Check `kubectl logs -n ran deployment/srs-du` for the E2 Setup Request and `kubectl logs -n near-rt-ric deployment/ric-e2term` for the response. The DU intentionally waits 30 seconds after F1 Setup before sending E2 Setup.
+Check `kubectl logs -n ran deployment/ocudu-du` for the E2 Setup Request and `kubectl logs -n near-rt-ric deployment/ric-e2term` for the response. The DU intentionally waits 30 seconds after F1 Setup before sending E2 Setup.
 
 **MongoDB PVC stays Pending**  
 Verify local-path-provisioner is running: `kubectl get pods -n local-path-storage`. If missing, re-run `provision.yml`.
