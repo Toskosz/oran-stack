@@ -85,8 +85,8 @@ images:
   webui:
     repository: "{{ dockerhub_username }}/oran-webui"
     tag: "latest"
-  srsran:
-    repository: "{{ dockerhub_username }}/oran-srsran"
+  ocudu:
+    repository: "{{ dockerhub_username }}/oran-ocudu"
     tag: "latest"
   srsue:
     repository: "{{ dockerhub_username }}/oran-srsue"
@@ -101,7 +101,7 @@ images:
 dockerfiles:
   core:   "dockerfiles/Dockerfile.5gscore"
   webui:  "dockerfiles/Dockerfile.webui"
-  srsran: "dockerfiles/Dockerfile.srsran"
+  ocudu:  "dockerfiles/Dockerfile.ocudu"
   srsue:  "dockerfiles/Dockerfile.srsue"
   xapp_runner: "dockerfiles/xapp/Dockerfile.runner"
   xapps:  "dockerfiles/xapp/Dockerfile.xapps"
@@ -109,7 +109,7 @@ dockerfiles:
 build_contexts:
   core:   "."
   webui:  "."
-  srsran: "."
+  ocudu:  "."
   srsue:  "."
 
 # ----------------------------------------------------------------------------
@@ -166,8 +166,9 @@ verify_stack:
   e2_gnb_wait_retries: 30
   e2_gnb_wait_delay: 10
   # One controlled CU→DU restart is allowed when an E2T exists but the gNB
-  # is still absent. This recovers srsRAN's non-retrying E2 Setup procedure
-  # without turning verification into an unbounded restart loop.
+  # is still absent. This recovers OCUDU's non-retrying E2 Setup procedure
+  # (behaviour inherited from srsRAN) without turning verification into an
+  # unbounded restart loop.
   e2_recovery_restart_enabled: true
   e2_recovery_rollout_timeout: "300s"
   e2_recovery_wait_retries: 30

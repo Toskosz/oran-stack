@@ -28,7 +28,7 @@
   failed_when: false
 
 # This is a single, evidence-driven recovery attempt, not a blind restart
-# loop. srsRAN does not retry E2Setup after its procedure aborts. Restarting
+# loop. OCUDU does not retry E2Setup after its procedure aborts. Restarting
 # CU then DU is safe only after e2mgr reports an E2T endpoint; the CU Helm
 # initContainer enforces the same prerequisite on the replacement pod.
 - name: Recover CU and DU when E2T is ready but gNB is absent
@@ -41,21 +41,21 @@
       ansible.builtin.debug:
         msg: >-
           E2T is registered but {{ xapp.e2_node_id }} is absent after the initial
-          wait. Restarting CU then DU once because srsRAN does not retry a failed
+          wait. Restarting CU then DU once because OCUDU does not retry a failed
           E2 Setup procedure.
 
     - name: Restart CU to reissue E2 Setup
       ansible.builtin.command:
         cmd: >
           kubectl --kubeconfig={{ _kubeconfig }} rollout restart
-          deployment/srs-cu -n {{ namespaces.ran }}
+          deployment/ocudu-cu -n {{ namespaces.ran }}
       changed_when: true
 
     - name: Wait for restarted CU
       ansible.builtin.command:
         cmd: >
           kubectl --kubeconfig={{ _kubeconfig }} rollout status
-          deployment/srs-cu -n {{ namespaces.ran }}
+          deployment/ocudu-cu -n {{ namespaces.ran }}
           --timeout={{ verify_stack.e2_recovery_rollout_timeout }}
       changed_when: false
 
@@ -63,14 +63,14 @@
       ansible.builtin.command:
         cmd: >
           kubectl --kubeconfig={{ _kubeconfig }} rollout restart
-          deployment/srs-du -n {{ namespaces.ran }}
+          deployment/ocudu-du -n {{ namespaces.ran }}
       changed_when: true
 
     - name: Wait for restarted DU
       ansible.builtin.command:
         cmd: >
           kubectl --kubeconfig={{ _kubeconfig }} rollout status
-          deployment/srs-du -n {{ namespaces.ran }}
+          deployment/ocudu-du -n {{ namespaces.ran }}
           --timeout={{ verify_stack.e2_recovery_rollout_timeout }}
       changed_when: false
 
@@ -104,7 +104,7 @@
 
     - name: Dump CU E2-relevant log lines
       ansible.builtin.shell: |
-        kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ran }} deploy/srs-cu --tail=800 \
+        kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ran }} deploy/ocudu-cu --tail=800 \
           | grep -iE 'E2-CU|E2AP|E2 Setup|36421|Near-RT|aborted' | tail -40
       register: _cu_e2_log
       changed_when: false
@@ -159,7 +159,7 @@
             rtmgr sender-qualified routes for keepalive/E2SetupResponse miss.
           - e2term local-ip must be the primary Flannel pod IP (not OVS).
           - CU has no E2 retry: after "E2 Setup procedure aborted", restart
-            srs-cu only after RIC RMR routes are healthy.
+            ocudu-cu only after RIC RMR routes are healthy.
           See helm/near-rt-ric/templates/{configmaps,deployments}.yaml and
           docs/E2_STABILIZATION_PLAN.md.
 

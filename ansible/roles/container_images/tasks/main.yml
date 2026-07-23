@@ -1,7 +1,7 @@
 # ============================================================================
 # Role: container_images
-# Purpose: Build Docker images for Open5GS NFs, WebUI, and srsRAN from the
-#          local repository, tag them, and push to Docker Hub.
+# Purpose: Build Docker images for Open5GS NFs, WebUI, OCUDU, and srsUE from
+#          the local repository, tag them, and push to Docker Hub.
 #
 # Pre-requisites (see TODO.md):
 #   - Docker daemon running on the Ansible controller
@@ -50,19 +50,19 @@
       nocache: false
   register: build_webui
 
-- name: Build srsRAN CU/DU image
+- name: Build OCUDU CU/DU image
   community.docker.docker_image:
-    name: "{{ images.srsran.repository }}"
-    tag:  "{{ images.srsran.tag }}"
+    name: "{{ images.ocudu.repository }}"
+    tag:  "{{ images.ocudu.tag }}"
     source: build
     build:
-      path: "{{ playbook_dir }}/../../{{ build_contexts.srsran }}"
-      dockerfile: "{{ dockerfiles.srsran }}"
+      path: "{{ playbook_dir }}/../../{{ build_contexts.ocudu }}"
+      dockerfile: "{{ dockerfiles.ocudu }}"
       pull: true
       nocache: false
-  register: build_srsran
+  register: build_ocudu
 
-- name: Build srsRAN UE image
+- name: Build srsUE image
   community.docker.docker_image:
     name: "{{ images.srsue.repository }}"
     tag:  "{{ images.srsue.tag }}"
@@ -117,14 +117,14 @@
     source: local
     push: true
 
-- name: Push srsRAN CU/DU image
+- name: Push OCUDU CU/DU image
   community.docker.docker_image:
-    name: "{{ images.srsran.repository }}"
-    tag:  "{{ images.srsran.tag }}"
+    name: "{{ images.ocudu.repository }}"
+    tag:  "{{ images.ocudu.tag }}"
     source: local
     push: true
 
-- name: Push srsRAN UE image
+- name: Push srsUE image
   community.docker.docker_image:
     name: "{{ images.srsue.repository }}"
     tag:  "{{ images.srsue.tag }}"

@@ -40,7 +40,7 @@
   roles:
     - role: deploy_ric
 
-- name: Deploy RAN (srsRAN CU, DU, UE)
+- name: Deploy RAN (OCUDU CU, DU + srsUE)
   hosts: localhost
   connection: local
   gather_facts: false

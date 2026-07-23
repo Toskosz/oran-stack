@@ -1,6 +1,6 @@
 # ============================================================================
 # Role: deploy_ran
-# Purpose: Deploy the ran Helm chart (srsRAN CU, DU, UE) onto the kubeadm cluster.
+# Purpose: Deploy the ran Helm chart (OCUDU CU, DU + srsUE) onto the kubeadm cluster.
 #   1. Create namespace with privileged pod-security label
 #   2. Create imagePullSecret
 #   3. helm upgrade --install ran
@@ -72,9 +72,9 @@
     wait:             false
     values:
       images:
-        srsran:
-          repository: "{{ images.srsran.repository }}"
-          tag:         "{{ images.srsran.tag }}"
+        ocudu:
+          repository: "{{ images.ocudu.repository }}"
+          tag:         "{{ images.ocudu.tag }}"
         srsue:
           repository: "{{ images.srsue.repository }}"
           tag:         "{{ images.srsue.tag }}"
