@@ -185,7 +185,7 @@
   ansible.builtin.shell: |
     set -euo pipefail
     # Do NOT restart E2Term after this: that drops the SCTP association and
-    # srsRAN CU does not re-setup E2, leaving the gNB DISCONNECTED and the
+    # OCUDU CU does not re-setup E2, leaving the gNB DISCONNECTED and the
     # just-installed 12050 indication route orphaned.
     LOGS=$(kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ric }} \
       deployment/ric-rtmgr -c rtmgr --since=10m)
@@ -204,60 +204,80 @@
 
 - name: Keep subscription routes installed and wait for KPM indication
   # rtmgr hardcodes a lookup for Platform component "A1Mediator". When that
-  # fails it redistributes a full newrt table that wipes mse|12050|<subid>
-  # routes installed via updatert. Re-POST the subscription handle every few
-  # seconds so the indication route stays alive long enough to observe KPM.
-  ansible.builtin.shell: |
-    set -euo pipefail
-    KC={{ _kubeconfig }}
-    NS_XAPP={{ namespaces.xapp }}
-    NS_RIC={{ namespaces.ric }}
-    XAPP={{ helm_releases.xapp }}
-    EP="service-ricxapp-${XAPP}-rmr.{{ namespaces.xapp }}"
-    RTMGR="http://ric-rtmgr.{{ namespaces.ric }}:3800/ric/v1/handles/xapp-subscription-handle"
+  # fails it redistributes a full newrt table (about every 10s) that wipes
+  # mse|12050|<subid> routes installed via updatert. The previous approach
+  # re-created a repost pod on every Ansible retry, which left gaps (pod
+  # delete + recreate + wait-for-Ready) between repost cycles; if a newrt
+  # wipe landed in one of those gaps, no indication would ever get through
+  # in 18 retries. Instead, start ONE persistent repost pod that keeps
+  # reinstalling the route every second for the whole wait window, and let
+  # Ansible's retry loop just poll the (unrelated, side-effect-free) xApp
+  # logs — no more pod churn racing against the wipe.
+  block:
+    - name: Extract E2EventInstanceId (subscription_id) for route keep-alive
+      ansible.builtin.shell: |
+        set -euo pipefail
+        XLOG=$(kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }} \
+          deployment/{{ helm_releases.xapp }} -c xapp --tail=300)
+        SUBID=$(echo "$XLOG" | rg -o 'mapping: .* -> ([0-9]+)' -r '$1' | tail -1 || true)
+        [[ -n "${SUBID:-}" && "$SUBID" != "0" ]]
+        echo "$SUBID"
+      args:
+        executable: /bin/bash
+      register: _subid_extract
+      until: _subid_extract.rc == 0
+      retries: 30
+      delay: 2
+      changed_when: false
 
-    XLOG=$(kubectl --kubeconfig="$KC" logs -n "$NS_XAPP" deployment/"$XAPP" -c xapp --tail=300)
-    echo "$XLOG" | rg -q 'RIC Indication Received' && exit 0
+    - name: Start persistent route-keeper pod to counteract RTMgr's periodic route wipe
+      ansible.builtin.shell: |
+        set -euo pipefail
+        KC={{ _kubeconfig }}
+        NS_XAPP={{ namespaces.xapp }}
+        XAPP={{ helm_releases.xapp }}
+        EP="service-ricxapp-${XAPP}-rmr.{{ namespaces.xapp }}"
+        RTMGR="http://ric-rtmgr.{{ namespaces.ric }}:3800/ric/v1/handles/xapp-subscription-handle"
+        SUBID="{{ _subid_extract.stdout | trim }}"
 
-    SUBID=$(echo "$XLOG" | rg -o 'mapping: .* -> ([0-9]+)' -r '$1' | tail -1 || true)
-    if [[ -z "${SUBID:-}" || "$SUBID" == "0" ]]; then
-      echo "No usable E2EventInstanceId mapping yet" >&2
-      exit 1
-    fi
+        kubectl --kubeconfig="$KC" delete pod xapp-route-keep -n "$NS_XAPP" \
+          --ignore-not-found --wait=true >/dev/null 2>&1 || true
 
-    # Keep re-installing 12050 while polling. RTMgr refreshes its full route
-    # table about every 10 seconds, so a single POST can be wiped before the
-    # next Ansible retry starts.
-    POD="xapp-route-keep-$$-$RANDOM"
-    cleanup() {
-      kubectl --kubeconfig="$KC" delete pod "$POD" \
-        --ignore-not-found --wait=false >/dev/null 2>&1 || true
-    }
-    trap cleanup EXIT
+        # Repost every second (well under RTMgrs ~10s newrt wipe cadence)
+        # for the entire lifetime of this pod, so there is no window where
+        # the specific mse|12050|<subid> route is missing for more than ~1s.
+        kubectl --kubeconfig="$KC" run xapp-route-keep -n "$NS_XAPP" --restart=Never \
+          --image=curlimages/curl:8.5.0 \
+          --overrides='{"spec":{"nodeName":"w1"}}' --command -- \
+          sh -c "while true; do
+            curl -sf -X POST '$RTMGR' \
+              -H 'Content-Type: application/json' \
+              -d '{\"address\":\"$EP\",\"port\":4561,\"subscription_id\":$SUBID}' \
+              >/dev/null || true
+            sleep 1
+          done" >/dev/null
+        kubectl --kubeconfig="$KC" wait --for=condition=Ready \
+          pod/xapp-route-keep -n "$NS_XAPP" --timeout=30s >/dev/null
+      args:
+        executable: /bin/bash
+      changed_when: true
 
-    kubectl --kubeconfig="$KC" run "$POD" --restart=Never \
-      --image=curlimages/curl:8.5.0 \
-      --overrides='{"spec":{"nodeName":"w1"}}' --command -- \
-      sh -c "while true; do
-        curl -sf -X POST '$RTMGR' \
-          -H 'Content-Type: application/json' \
-          -d '{\"address\":\"$EP\",\"port\":4561,\"subscription_id\":$SUBID}' \
-          >/dev/null || true
-        sleep 2
-      done" >/dev/null
-    kubectl --kubeconfig="$KC" wait --for=condition=Ready \
-      pod/"$POD" --timeout=30s >/dev/null
-
-    for _ in $(seq 1 10); do
-      XLOG=$(kubectl --kubeconfig="$KC" logs -n "$NS_XAPP" deployment/"$XAPP" -c xapp --tail=300)
-      echo "$XLOG" | rg -q 'RIC Indication Received' && exit 0
-      sleep 2
-    done
-    exit 1
-  args:
-    executable: /bin/bash
-  register: _xapp_indication_logs
-  until: _xapp_indication_logs.rc == 0
-  retries: "{{ verify_stack.xapp_functional_wait_retries }}"
-  delay: 1
-  changed_when: false
+    - name: Wait for KPM indication while routes are kept alive
+      ansible.builtin.command:
+        cmd: >
+          kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.xapp }}
+          deployment/{{ helm_releases.xapp }} -c xapp --tail=300
+      register: _xapp_indication_logs
+      until: >-
+        'RIC Indication Received' in (_xapp_indication_logs.stdout | default(''))
+      retries: "{{ verify_stack.xapp_functional_wait_retries }}"
+      delay: "{{ verify_stack.xapp_functional_wait_delay }}"
+      changed_when: false
+  always:
+    - name: Stop route-keeper pod
+      ansible.builtin.command:
+        cmd: >
+          kubectl --kubeconfig={{ _kubeconfig }} delete pod xapp-route-keep
+          -n {{ namespaces.xapp }} --ignore-not-found --wait=false
+      changed_when: false
+      failed_when: false
