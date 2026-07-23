@@ -1,5 +1,5 @@
 # ============================================================================
-# ConfigMap: srsRAN CU, DU, and UE configuration files
+# ConfigMap: OCUDU CU, DU, and srsUE configuration files
 # ============================================================================
 # SCTP traffic (N2, F1-C, E2AP) uses dedicated secondary OVS interfaces
 # with static IPs assigned via Multus NetworkAttachmentDefinitions.
@@ -12,7 +12,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: srsran-configs
+  name: ocudu-configs
   namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/part-of: oran-stack
@@ -111,7 +111,7 @@ data:
     nof_antennas = 1
 
     device_name = zmq
-    device_args = tx_port=tcp://0.0.0.0:{{ .Values.zmq.duRxPort }},rx_port=tcp://srs-du:{{ .Values.zmq.duTxPort }},base_srate={{ .Values.radio.srate }}
+    device_args = tx_port=tcp://0.0.0.0:{{ .Values.zmq.duRxPort }},rx_port=tcp://ocudu-du:{{ .Values.zmq.duTxPort }},base_srate={{ .Values.radio.srate }}
 
     [rat.eutra]
     dl_earfcn = 2850
