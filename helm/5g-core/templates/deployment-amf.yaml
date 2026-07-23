@@ -6,7 +6,7 @@
 #   2. amf-ngap  (NodePort)   — SCTP N2/NGAP on port 38412, for real gNBs
 #                               outside the cluster.
 #
-# N2/NGAP for the in-cluster srs-cu uses the secondary OVS interface
+# N2/NGAP for the in-cluster ocudu-cu uses the secondary OVS interface
 # (n2br-net NAD). The CU connects to .Values.secondaryNetworks.n2.amfIP
 # directly over the dedicated L2 OVS bridge, bypassing Flannel entirely.
 # This eliminates the SCTP conntrack corruption that occurred with Calico

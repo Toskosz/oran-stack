@@ -1,5 +1,5 @@
-# srsRAN logs
-srsran/logs/
+# OCUDU logs
+ocudu/logs/
 
 # Environment files
 .env.local

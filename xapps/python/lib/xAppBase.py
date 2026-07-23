@@ -70,6 +70,7 @@ class xAppBase(object):
         self.my_subscriptions = {}
         self._subscription_lock = threading.Lock()
         self._pending_event_instance_ids = {}
+        self._unexpected_subscription_ids = set()
 
         # helper variables
         self.running = False
@@ -155,7 +156,9 @@ class xAppBase(object):
     def _subscription_response_callback(self, name, path, data, ctype):
         data = json.loads(data)
         SubscriptionId = data['SubscriptionId']
-        E2EventInstanceId = data['SubscriptionInstances'][0]["E2EventInstanceId"]  # subscription ID used in RIC indication
+        E2EventInstanceId = self._normalize_subscription_id(
+            data['SubscriptionInstances'][0]["E2EventInstanceId"]
+        )  # subscription ID used in RIC indication
         print("Received Subscription ID to E2EventInstanceId mapping: {} -> {}".format(SubscriptionId, E2EventInstanceId))
         with self._subscription_lock:
             if SubscriptionId in self.my_subscriptions:
@@ -170,6 +173,14 @@ class xAppBase(object):
         response = self._create_http_response()
         response['payload'] = ("{}")
         return response
+
+    @staticmethod
+    def _normalize_subscription_id(subscription_id):
+        """Use one key type for IDs received from REST JSON and RMR."""
+        try:
+            return int(subscription_id)
+        except (TypeError, ValueError):
+            return subscription_id
 
     def subscribe(self, e2_node_id, ran_function_id, event_trigger_def, action_def, indication_callback, e2sm_type=e2sm_types.E2SM_UNKNOWN):
         action_id = 1 # Now only 1 action in a Subscription Request
@@ -242,11 +253,35 @@ class xAppBase(object):
                     e2_agent_id = str(summary['meid'].decode('utf-8'))
                     data = rmr.get_payload(sbuf)
                     try:
-                        E2EventInstanceId = summary['subscription id']
+                        E2EventInstanceId = self._normalize_subscription_id(
+                            summary['subscription id']
+                        )
                         ric_indication = IndicationMsg()
                         ric_indication.decode(data)
-                        subscriptionObj = self.my_subscriptions.get(E2EventInstanceId, None)
+                        with self._subscription_lock:
+                            subscriptionObj = self.my_subscriptions.get(E2EventInstanceId)
+                            # Some E2Term/RMR combinations deliver a usable
+                            # indication with sub_id=-1 or a differently typed
+                            # ID. A single-subscription xApp can safely dispatch
+                            # that message to its only registered callback.
+                            if subscriptionObj is None:
+                                subscriptions = {
+                                    id(value): value
+                                    for value in self.my_subscriptions.values()
+                                }
+                                if len(subscriptions) == 1:
+                                    subscriptionObj = next(iter(subscriptions.values()))
+
                         if subscriptionObj is None:
+                            if E2EventInstanceId not in self._unexpected_subscription_ids:
+                                self._unexpected_subscription_ids.add(E2EventInstanceId)
+                                print(
+                                    "Dropping RIC indication for unknown subscription ID: {}; "
+                                    "known IDs: {}".format(
+                                        E2EventInstanceId,
+                                        list(self.my_subscriptions.keys()),
+                                    )
+                                )
                             rmr.rmr_free_msg(sbuf)
                             continue
 

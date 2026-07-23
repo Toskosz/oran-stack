@@ -1,5 +1,5 @@
 # ============================================================================
-# srsRAN CU (Central Unit) Configuration
+# OCUDU CU (Central Unit) Configuration
 # ============================================================================
 # Based on 3GPP Option 2 split (PDCP/RLC boundary).
 #
@@ -40,5 +40,5 @@ cu_up:
       - bind_addr: 172.20.0.50        # CU's core-network interface (NG-U)
 
 log:
-  filename: /mnt/srsran/logs/cu.log
+  filename: /mnt/ocudu/logs/cu.log
   all_level: info
