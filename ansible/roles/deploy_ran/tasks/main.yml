@@ -4,7 +4,8 @@
 #   1. Create namespace with privileged pod-security label
 #   2. Create imagePullSecret
 #   3. helm upgrade --install ran
-#   4. Wait for Deployments
+#   4. Prune obsolete Deployments from older chart revisions
+#   5. Wait for ocudu-cu + ocudu-du Available (live status, fail-fast)
 # ============================================================================
 ---
 
@@ -101,26 +102,64 @@
           e2termIP:  "{{ secondary_networks.e2.e2term_ip }}"
   register: helm_ran
 
-- name: Wait for ran Helm release with live status output
+# Orphan Deployments (e.g. standalone srsue from older chart revisions) make
+# `kubectl wait --all` hang forever. Prune known obsolete names before waiting.
+- name: Remove obsolete ran Deployments left from older chart revisions
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: absent
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ item }}"
+    namespace: "{{ namespaces.ran }}"
+    wait: false
+  loop:
+    - srsue
+    - srs-cu
+    - srs-du
+  failed_when: false
+
+- name: Wait for ran Deployments with live status output
   ansible.builtin.shell: |
     set +e
+    K="kubectl --kubeconfig={{ _kubeconfig }}"
+    NS="{{ namespaces.ran }}"
+
     echo "=== $(date -u +%H:%M:%S) ran namespace ==="
-    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" -o wide
+    $K get pods -n "$NS" -o wide 2>&1
     echo "--- deployments ---"
-    kubectl --kubeconfig="{{ _kubeconfig }}" get deploy -n "{{ namespaces.ran }}" \
-      -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas,DESIRED:.spec.replicas'
+    $K get deploy -n "$NS" \
+      -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas,DESIRED:.spec.replicas' 2>&1
     echo "--- helm ---"
-    helm --kubeconfig="{{ _kubeconfig }}" status "{{ helm_releases.ran }}" -n "{{ namespaces.ran }}" 2>&1 | head -5
-    echo "--- not ready ---"
-    kubectl --kubeconfig="{{ _kubeconfig }}" get pods -n "{{ namespaces.ran }}" \
-      --field-selector=status.phase!=Running 2>/dev/null
-    kubectl --kubeconfig="{{ _kubeconfig }}" wait --for=condition=available deployment --all \
-      -n "{{ namespaces.ran }}" --timeout=10s >/dev/null 2>&1
+    helm --kubeconfig="{{ _kubeconfig }}" status "{{ helm_releases.ran }}" -n "$NS" 2>&1 | head -5
+    echo "--- not ready / waiting ---"
+    $K get pods -n "$NS" --field-selector=status.phase!=Running 2>/dev/null
+    $K get pods -n "$NS" -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.phase}{"\t"}{range .status.initContainerStatuses[*]}{.name}:{.state.waiting.reason}{.state.terminated.reason}{" "}{end}{range .status.containerStatuses[*]}{.name}:{.state.waiting.reason}{.state.terminated.reason}{" "}{end}{"\n"}{end}' 2>/dev/null
+    echo
+
+    # Fail-fast: image/config errors will never self-heal within the wait budget.
+    TERMINAL="$($K get pods -n "$NS" -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.state.waiting.reason}{"\n"}{end}{range .status.initContainerStatuses[*]}{.state.waiting.reason}{"\n"}{end}{end}' 2>/dev/null)"
+    if echo "$TERMINAL" | grep -Eq '^(ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerConfigError)$'; then
+      echo "ERROR: terminal pod error — aborting wait early"
+      echo "$TERMINAL" | grep -E 'ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerConfigError' | sort -u
+      $K describe pods -n "$NS" 2>&1 | tail -60
+      exit 42
+    fi
+
+    # Wait only for chart Deployments (never --all: orphans block forever).
+    $K wait --for=condition=available deployment/ocudu-cu deployment/ocudu-du \
+      -n "$NS" --timeout=20s >/dev/null 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      echo "ocudu-cu and ocudu-du are Available"
+    fi
+    exit "$rc"
   register: _ran_wait
-  until: _ran_wait.rc == 0
-  retries: "{{ (helm_timeout | regex_replace('s$', '') | int // 10) | int }}"
-  delay: 10
+  until: _ran_wait.rc in [0, 42]
+  retries: "{{ ((helm_timeout | regex_replace('s$', '') | int) // 20) | int }}"
+  delay: 15
   changed_when: false
+  failed_when: _ran_wait.rc != 0
 
 - name: Show final ran pod status
   ansible.builtin.debug:
