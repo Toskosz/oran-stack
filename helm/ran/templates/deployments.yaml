@@ -20,6 +20,9 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  # DU holds off {{ .Values.duF1SetupHoldOffSec }}s after CU; CU may poll e2mgr.
+  # Raise past the default 600s so ProgressDeadlineExceeded cannot race rollout.
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
   strategy:
     type: {{ .Values.deploymentStrategy }}
   selector:
@@ -79,12 +82,25 @@ spec:
             - sh
             - -c
             - |
-              # Static secondary IPs are injected as env vars by the Downward API
-              # equivalent: we pass them directly from Helm values via env vars.
-              # envsubst replaces ${N2_IP}, ${F1C_IP}, ${E2_IP} in the template.
-              apk add --no-cache gettext > /dev/null 2>&1
-              envsubst < /mnt/ocudu/templates/cu.yml.tpl > /mnt/ocudu/configs/cu.yml
-              echo "Rendered cu.yml: N2_IP=${N2_IP} F1C_IP=${F1C_IP} E2_IP=${E2_IP}"
+              # Offline sed substitution — never apk add gettext (F9: Alpine
+              # mirrors are unreachable on some clusters; silent apk failure
+              # left literal ${VAR} placeholders and broke CU startup).
+              set -eu
+              : "${POD_IP:?}" "${N2_IP:?}" "${F1C_IP:?}" "${E2_IP:?}" "${AMF_IP:?}" "${E2TERM_IP:?}"
+              sed \
+                -e "s|\${POD_IP}|${POD_IP}|g" \
+                -e "s|\${N2_IP}|${N2_IP}|g" \
+                -e "s|\${F1C_IP}|${F1C_IP}|g" \
+                -e "s|\${E2_IP}|${E2_IP}|g" \
+                -e "s|\${AMF_IP}|${AMF_IP}|g" \
+                -e "s|\${E2TERM_IP}|${E2TERM_IP}|g" \
+                < /mnt/ocudu/templates/cu.yml.tpl > /mnt/ocudu/configs/cu.yml
+              if grep -q '\${' /mnt/ocudu/configs/cu.yml; then
+                echo "ERROR: unsubstituted placeholders remain in cu.yml:" >&2
+                grep '\${' /mnt/ocudu/configs/cu.yml >&2
+                exit 1
+              fi
+              echo "Rendered cu.yml: N2_IP=${N2_IP} F1C_IP=${F1C_IP} E2_IP=${E2_IP} POD_IP=${POD_IP}"
           env:
             - name: POD_IP
               valueFrom:
@@ -136,18 +152,21 @@ spec:
               mountPath: /mnt/ocudu/logs
           stdin: true
           tty: true
+          # CU exposes only SCTP/UDP — use process check (not tcpSocket).
+          # `pgrep -x` alone; avoid `kill -0 $(pgrep …)` which misbehaves
+          # when pgrep returns empty and flaps Available.
           readinessProbe:
             exec:
-              command: ["sh", "-c", "kill -0 $(pgrep -x ocu) 2>/dev/null"]
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
             initialDelaySeconds: 15
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["sh", "-c", "kill -0 $(pgrep -x ocu) 2>/dev/null"]
-            initialDelaySeconds: 30
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
+            initialDelaySeconds: 45
             periodSeconds: 10
-            failureThreshold: 5
+            failureThreshold: 6
           resources:
             requests:
               cpu: 500m
@@ -190,6 +209,7 @@ metadata:
     app.kubernetes.io/part-of: oran-stack
 spec:
   replicas: 1
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
   strategy:
     type: {{ .Values.deploymentStrategy }}
   selector:
@@ -232,13 +252,25 @@ spec:
               # Algorithm: treat the last two octets of POD_IP as a 16-bit
               # number (octet3*256 + octet4). This gives values 0–65535,
               # well within the gnb_du_id range of 0–68719476735.
+              set -eu
+              : "${POD_IP:?}" "${F1C_IP:?}" "${CU_F1C_IP:?}" "${E2_IP:?}" "${E2TERM_IP:?}"
               OCT3=$(echo "${POD_IP}" | cut -d. -f3)
               OCT4=$(echo "${POD_IP}" | cut -d. -f4)
-              export GNB_DU_ID=$(( OCT3 * 256 + OCT4 ))
-              # envsubst replaces ${POD_IP}, ${GNB_DU_ID}, ${F1C_IP}, ${CU_F1C_IP},
-              # ${E2_IP}, ${E2TERM_IP} in the template.
-              apk add --no-cache gettext > /dev/null 2>&1
-              envsubst < /mnt/ocudu/templates/du.yml.tpl > /mnt/ocudu/configs/du.yml
+              GNB_DU_ID=$(( OCT3 * 256 + OCT4 ))
+              # Offline sed — same F9 rationale as the CU render-config.
+              sed \
+                -e "s|\${POD_IP}|${POD_IP}|g" \
+                -e "s|\${GNB_DU_ID}|${GNB_DU_ID}|g" \
+                -e "s|\${F1C_IP}|${F1C_IP}|g" \
+                -e "s|\${CU_F1C_IP}|${CU_F1C_IP}|g" \
+                -e "s|\${E2_IP}|${E2_IP}|g" \
+                -e "s|\${E2TERM_IP}|${E2TERM_IP}|g" \
+                < /mnt/ocudu/templates/du.yml.tpl > /mnt/ocudu/configs/du.yml
+              if grep -q '\${' /mnt/ocudu/configs/du.yml; then
+                echo "ERROR: unsubstituted placeholders remain in du.yml:" >&2
+                grep '\${' /mnt/ocudu/configs/du.yml >&2
+                exit 1
+              fi
               echo "Rendered du.yml: POD_IP=${POD_IP} GNB_DU_ID=${GNB_DU_ID} F1C_IP=${F1C_IP}"
           env:
             - name: POD_IP
@@ -337,6 +369,41 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
+{{- if .Values.deployUE }}
+        # srsUE sidecar — must share the DU netns so ZMQ can use 127.0.0.1.
+        # Cross-pod ZMQ via ClusterIP deadlocks after the TCP handshake.
+        - name: srsue
+          image: {{ .Values.images.srsue.repository }}:{{ .Values.images.srsue.tag }}
+          imagePullPolicy: {{ .Values.images.srsue.pullPolicy }}
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "waiting for local DU ZMQ on 127.0.0.1:{{ .Values.zmq.duTxPort }}..."
+              until timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/{{ .Values.zmq.duTxPort }}" 2>/dev/null; do
+                sleep 2
+              done
+              echo "DU ZMQ up — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
+              sleep {{ .Values.ueStartDelaySec }}
+              exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          volumeMounts:
+            - name: ocudu-templates
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsue-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+{{- end }}
       volumes:
         - name: ocudu-templates
           configMap:
@@ -345,8 +412,12 @@ spec:
           emptyDir: {}
         - name: ocudu-logs
           emptyDir: {}
+{{- if .Values.deployUE }}
+        - name: srsue-logs
+          emptyDir: {}
+{{- end }}
 ---
-# ClusterIP for DU — UE uses 'ocudu-du' as the ZMQ rx_port peer (in ue.conf).
+# ClusterIP for DU (F1-U probe target for other charts; ZMQ is localhost-only).
 apiVersion: v1
 kind: Service
 metadata:
@@ -366,89 +437,3 @@ spec:
       port: {{ .Values.zmq.duRxPort }}
       targetPort: {{ .Values.zmq.duRxPort }}
       protocol: TCP
----
-# --- UE (User Equipment Simulator) -------------------------------------------
-{{- if .Values.deployUE }}
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: srsue
-  namespace: {{ .Values.namespace }}
-  labels:
-    app: srsue
-    app.kubernetes.io/part-of: oran-stack
-spec:
-  replicas: 1
-  strategy:
-    type: {{ .Values.deploymentStrategy }}
-  selector:
-    matchLabels:
-      app: srsue
-  template:
-    metadata:
-      labels:
-        app: srsue
-    spec:
-      imagePullSecrets:
-        - name: {{ .Values.imagePullSecretName }}
-      initContainers:
-        - name: wait-for-du
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              until nc -z ocudu-du {{ .Values.zmq.duTxPort }}; do
-                echo "waiting for DU ZMQ port..."
-                sleep 3
-              done
-              echo "DU ZMQ port open — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
-              sleep {{ .Values.ueStartDelaySec }}
-      containers:
-        - name: srsue
-          image: {{ .Values.images.srsue.repository }}:{{ .Values.images.srsue.tag }}
-          imagePullPolicy: {{ .Values.images.srsue.pullPolicy }}
-          command: ["/usr/local/bin/srsue", "/mnt/srsran/configs/ue.conf"]
-          securityContext:
-            privileged: true
-            capabilities:
-              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
-          ports:
-            - containerPort: {{ .Values.zmq.duRxPort }}
-              name: zmq-ul
-              protocol: TCP
-          volumeMounts:
-            - name: ocudu-templates
-              mountPath: /mnt/srsran/configs
-              readOnly: true
-            - name: srsue-logs
-              mountPath: /mnt/srsran/logs
-          stdin: true
-          tty: true
-          resources:
-            requests:
-              cpu: 250m
-              memory: 256Mi
-      volumes:
-        - name: ocudu-templates
-          configMap:
-            name: ocudu-configs
-        - name: srsue-logs
-          emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: srsue
-  namespace: {{ .Values.namespace }}
-  labels:
-    app: srsue
-spec:
-  selector:
-    app: srsue
-  ports:
-    - name: zmq-ul
-      port: {{ .Values.zmq.duRxPort }}
-      targetPort: {{ .Values.zmq.duRxPort }}
-      protocol: TCP
-{{- end }}

@@ -37,7 +37,7 @@ e2:
 # Virtual radio (ZMQ) - RU functionality embedded in DU
 ru_sdr:
   device_driver: zmq
-  device_args: tx_port=tcp://172.21.0.51:2000,rx_port=tcp://172.21.0.34:2001,base_srate=23.04e6
+  device_args: tx_port=tcp://127.0.0.1:2000,rx_port=tcp://127.0.0.1:2001,base_srate=23.04e6
   srate: 23.04
   tx_gain: 75
   rx_gain: 75
@@ -57,7 +57,7 @@ cell_cfg:
       dci_format_0_1_and_1_1: false
     common:
       ss0_index: 0
-      coreset0_index: 13
+      coreset0_index: 12
   pdsch:
     mcs_table: qam64
   pusch:

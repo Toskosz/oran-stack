@@ -73,7 +73,10 @@ data:
       e2sm_rc_enabled: true
     ru_sdr:
       device_driver: zmq
-      device_args: tx_port=tcp://0.0.0.0:{{ .Values.zmq.duTxPort }},rx_port=tcp://srsue:{{ .Values.zmq.duRxPort }},base_srate={{ .Values.radio.srate }}
+      # Localhost ZMQ: srsUE runs as a sidecar in the DU pod (same netns).
+      # Cross-pod ClusterIP ZMQ only completes the TCP/ZMTP handshake (~100 B)
+      # and never streams IQ — UE stays at NAS "Switching on" with no PRACH.
+      device_args: tx_port=tcp://127.0.0.1:{{ .Values.zmq.duTxPort }},rx_port=tcp://127.0.0.1:{{ .Values.zmq.duRxPort }},base_srate={{ .Values.radio.srate }}
       srate: 23.04
       tx_gain: 75
       rx_gain: 75
@@ -91,7 +94,8 @@ data:
           dci_format_0_1_and_1_1: false
         common:
           ss0_index: 0
-          coreset0_index: 13
+          # 12 matches srsUE capabilities (srsRAN Project + srsUE tutorial)
+          coreset0_index: 12
       pdsch:
         mcs_table: qam64
       pusch:
@@ -111,7 +115,7 @@ data:
     nof_antennas = 1
 
     device_name = zmq
-    device_args = tx_port=tcp://0.0.0.0:{{ .Values.zmq.duRxPort }},rx_port=tcp://ocudu-du:{{ .Values.zmq.duTxPort }},base_srate={{ .Values.radio.srate }}
+    device_args = tx_port=tcp://127.0.0.1:{{ .Values.zmq.duRxPort }},rx_port=tcp://127.0.0.1:{{ .Values.zmq.duTxPort }},base_srate={{ .Values.radio.srate }}
 
     [rat.eutra]
     dl_earfcn = 2850
@@ -120,6 +124,9 @@ data:
     [rat.nr]
     bands = {{ .Values.radio.band }}
     nof_carriers = 1
+    # PRB count must match channel_bandwidth_MHz (20 MHz = 106)
+    max_nof_prb = 106
+    nof_prb = 106
 
     [pcap]
     enable = none

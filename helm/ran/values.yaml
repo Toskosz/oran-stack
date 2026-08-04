@@ -88,19 +88,24 @@ f1uPort: 2153
 # entirely (P4). Re-validate this timing against OCUDU.
 duF1SetupHoldOffSec: 30
 
-# ZMQ ports (DU <-> UE virtual radio)
+# ZMQ ports (DU <-> UE virtual radio). UE is a sidecar in the DU pod and both
+# sides bind/connect on 127.0.0.1 — required for IQ sample streaming.
 zmq:
   duTxPort: 2000
   duRxPort: 2001
 
-# How long (seconds) the UE initContainer waits after the DU ZMQ port opens
-# before starting srsUE. Must exceed duF1SetupHoldOffSec so the cell is active.
+# How long (seconds) the UE sidecar waits after the local DU ZMQ port opens
+# before starting srsUE. Must cover F1 setup so the cell is already active.
 ueStartDelaySec: 40
 
-# Enable/disable the UE simulator
+# Enable/disable the UE simulator (sidecar in ocudu-du when true)
 deployUE: true
 
 # RollingUpdate needs spare CPU for old+new pods on a single worker; Recreate
 # avoids Pending pods when the worker is near its CPU request limit.
 # Also required for Multus static IPs (CU/DU) which cannot surge.
 deploymentStrategy: Recreate
+
+# Cover CU e2mgr poll + DU F1 hold-off + probe delays. Default k8s value
+# (600s) races ProgressDeadlineExceeded when e2term registration is slow.
+progressDeadlineSeconds: 900
