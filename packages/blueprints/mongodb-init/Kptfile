@@ -5,6 +5,4 @@ metadata:
   annotations:
     config.kubernetes.io/local-config: "true"
 info:
-  description: >
-    Idempotent Job to initialize Open5GS MongoDB replica set and seed the lab subscriber (IMSI 001010000000001). Deploy after 5g-core mongodb-0 is Ready.
-
+  description: "Idempotent Job to initialize Open5GS MongoDB replica set and seed the lab subscriber (IMSI 001010000000001). Deploy after 5g-core mongodb-0 is Ready.\n"
