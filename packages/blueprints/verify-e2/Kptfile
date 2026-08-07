@@ -5,6 +5,4 @@ metadata:
   annotations:
     config.kubernetes.io/local-config: "true"
 info:
-  description: >
-    Gate Job: wait until e2mgr reports the expected gNB CONNECTED (default gnbc_001_001_00019b_0). Deploy after the ran package.
-
+  description: "Gate Job: wait until e2mgr reports the expected gNB CONNECTED (default gnbc_001_001_00019b_0). Deploy after the ran package.\n"
