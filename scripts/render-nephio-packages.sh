@@ -60,11 +60,15 @@ render_chart() {
   mkdir -p "${dest}"
   echo "==> Rendering ${name} from ${chart}"
 
-  # shellcheck disable=SC2086
+  # Pin .Values.namespace after --values so it wins over any shared file.
+  # helm --namespace only sets .Release.Namespace; these charts use
+  # .Values.namespace, so a leaked top-level namespace: in lab-defaults
+  # would otherwise rewrite every package.
   helm template "${release}" "${ROOT}/${chart}" \
     --namespace "${namespace}" \
     --values "${VALUES}" \
     "${extra_args[@]}" \
+    --set "namespace=${namespace}" \
     > "${dest}/resources.yaml"
 
   # Strip helm-managed labels that confuse Config Sync ownership if re-applied

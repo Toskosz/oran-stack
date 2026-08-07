@@ -18,7 +18,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongodb-init-scripts
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -105,7 +105,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: open5gs-nf-configs
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -542,7 +542,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: amf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
 spec:
@@ -562,7 +562,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: amf-ngap
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
 spec:
@@ -581,7 +581,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nrf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: nrf
 spec:
@@ -597,7 +597,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ausf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: ausf }
 spec:
   selector: { app: ausf }
@@ -608,7 +608,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: udm
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: udm }
 spec:
   selector: { app: udm }
@@ -619,7 +619,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pcf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: pcf }
 spec:
   selector: { app: pcf }
@@ -632,7 +632,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nssf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: nssf }
 spec:
   selector: { app: nssf }
@@ -643,7 +643,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: bsf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: bsf }
 spec:
   selector: { app: bsf }
@@ -654,7 +654,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: udr
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: udr }
 spec:
   selector: { app: udr }
@@ -665,7 +665,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: scp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: scp
 spec:
@@ -681,7 +681,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: sepp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sepp
 spec:
@@ -697,7 +697,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: smf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: smf
 spec:
@@ -722,7 +722,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: upf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: upf
 spec:
@@ -746,7 +746,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: webui
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: webui
 spec:
@@ -767,7 +767,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongodb
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: mongodb
     app.kubernetes.io/part-of: oran-stack
@@ -802,7 +802,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: sctp-init
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sctp-init
     app.kubernetes.io/part-of: oran-stack
@@ -902,7 +902,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: amf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
     app.kubernetes.io/part-of: oran-stack
@@ -1096,7 +1096,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nrf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: nrf
     app.kubernetes.io/part-of: oran-stack
@@ -1281,7 +1281,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ausf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: ausf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -1433,7 +1433,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: udm
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: udm, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -1585,7 +1585,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pcf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: pcf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -1737,7 +1737,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nssf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: nssf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -1889,7 +1889,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bsf
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: bsf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -2041,7 +2041,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: udr
-  namespace: monitoring
+  namespace: 5g-core
   labels: { app: udr, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
@@ -2195,7 +2195,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: scp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: scp
     app.kubernetes.io/part-of: oran-stack
@@ -2361,7 +2361,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sepp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sepp
     app.kubernetes.io/part-of: oran-stack
@@ -2527,7 +2527,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: smf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: smf
     app.kubernetes.io/part-of: oran-stack
@@ -2717,7 +2717,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: upf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: upf
     app.kubernetes.io/part-of: oran-stack
@@ -2892,7 +2892,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: webui
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: webui
     app.kubernetes.io/part-of: oran-stack
@@ -2971,7 +2971,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: mongodb
     app.kubernetes.io/part-of: oran-stack

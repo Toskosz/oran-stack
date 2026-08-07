@@ -12,7 +12,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
 ---
 # Source: near-rt-ric/templates/configmaps.yaml
 # ============================================================================
@@ -32,7 +32,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: e2mgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -98,7 +98,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: e2term-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -149,7 +149,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rtmgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -305,7 +305,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: submgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -365,7 +365,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: appmgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -404,7 +404,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: a1mediator-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -423,7 +423,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ric-e2term-pod-reader
-  namespace: monitoring
+  namespace: near-rt-ric
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -434,7 +434,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ric-e2term-pod-reader
-  namespace: monitoring
+  namespace: near-rt-ric
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -442,14 +442,14 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ric-e2term
-    namespace: monitoring
+    namespace: near-rt-ric
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-dbaas
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-dbaas
 spec:
@@ -465,7 +465,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-e2mgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2mgr
 spec:
@@ -487,7 +487,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-appmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-appmgr
 spec:
@@ -503,7 +503,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-submgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-submgr
 spec:
@@ -528,7 +528,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-rtmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-rtmgr
 spec:
@@ -555,7 +555,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
 spec:
@@ -584,7 +584,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
 spec:
@@ -602,7 +602,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-a1mediator
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-a1mediator
 spec:
@@ -639,7 +639,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-dbaas
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-dbaas
     app.kubernetes.io/part-of: oran-stack
@@ -694,7 +694,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-e2mgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2mgr
     app.kubernetes.io/part-of: oran-stack
@@ -783,7 +783,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-appmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-appmgr
     app.kubernetes.io/part-of: oran-stack
@@ -839,7 +839,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-submgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-submgr
     app.kubernetes.io/part-of: oran-stack
@@ -921,7 +921,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-rtmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-rtmgr
     app.kubernetes.io/part-of: oran-stack
@@ -987,7 +987,7 @@ spec:
             # e2term/e2mgr then try to resolve the pod name to ACK route
             # updates, which fails. Force the stable service name instead.
             - name: RMR_SRC_ID
-              value: ric-rtmgr.monitoring
+              value: ric-rtmgr.near-rt-ric
             - name: CFGFILE
               value: /cfg/rtmgr-config.yaml
             - name: RTFILE
@@ -1038,7 +1038,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
     app.kubernetes.io/part-of: oran-stack
@@ -1060,7 +1060,7 @@ spec:
           [
             {
               "name": "e2br-net",
-              "namespace": "monitoring",
+              "namespace": "near-rt-ric",
               "ips": ["10.200.3.4/24"]
             }
           ]
@@ -1191,7 +1191,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-a1mediator
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-a1mediator
     app.kubernetes.io/part-of: oran-stack

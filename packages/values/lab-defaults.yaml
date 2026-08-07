@@ -87,5 +87,6 @@ xapp:
   e2NodeId: "gnbc_001_001_00019b_0"
   ranFuncId: "2"
 
-# --- monitoring ---
-namespace: monitoring
+# Do NOT set a top-level `namespace:` here — this file is shared across all
+# Helm renders. Each chart's values.yaml (and render-nephio-packages.sh
+# --set namespace=...) owns the package namespace.

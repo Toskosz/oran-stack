@@ -15,7 +15,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ocudu-configs
-  namespace: monitoring
+  namespace: ran
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -172,7 +172,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ocudu-cu
-  namespace: monitoring
+  namespace: ran
   labels:
     app: ocudu-cu
 spec:
@@ -190,7 +190,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ocudu-du
-  namespace: monitoring
+  namespace: ran
   labels:
     app: ocudu-du
 spec:
@@ -223,7 +223,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ocudu-cu
-  namespace: monitoring
+  namespace: ran
   labels:
     app: ocudu-cu
     app.kubernetes.io/part-of: oran-stack
@@ -247,17 +247,17 @@ spec:
           [
             {
               "name": "n2br-net",
-              "namespace": "monitoring",
+              "namespace": "ran",
               "ips": ["10.200.1.3/24"]
             },
             {
               "name": "f1cbr-net",
-              "namespace": "monitoring",
+              "namespace": "ran",
               "ips": ["10.200.2.2/24"]
             },
             {
               "name": "e2br-net",
-              "namespace": "monitoring",
+              "namespace": "ran",
               "ips": ["10.200.3.2/24"]
             }
           ]
@@ -395,7 +395,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ocudu-du
-  namespace: monitoring
+  namespace: ran
   labels:
     app: ocudu-du
     app.kubernetes.io/part-of: oran-stack
@@ -417,12 +417,12 @@ spec:
           [
             {
               "name": "f1cbr-net",
-              "namespace": "monitoring",
+              "namespace": "ran",
               "ips": ["10.200.2.3/24"]
             },
             {
               "name": "e2br-net",
-              "namespace": "monitoring",
+              "namespace": "ran",
               "ips": ["10.200.3.3/24"]
             }
           ]
