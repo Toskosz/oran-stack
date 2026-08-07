@@ -1,4 +1,3 @@
----
 # Source: monitoring/charts/kube-prometheus-stack/charts/grafana/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -16,7 +15,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -50,7 +49,6 @@ metadata:
   name: monitoring-kube-prometheus-operator
   namespace: monitoring
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -72,7 +70,6 @@ metadata:
     app: kube-prometheus-stack-prometheus
     app.kubernetes.io/name: kube-prometheus-stack-prometheus
     app.kubernetes.io/component: prometheus
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -94,7 +91,6 @@ metadata:
     app.kubernetes.io/version: "10.4.1"
 type: Opaque
 data:
-  
   admin-user: "YWRtaW4="
   admin-password: "b3Jhbi1sYWI="
   ldap-toml: ""
@@ -137,7 +133,6 @@ metadata:
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "10.4.1"
 data:
-  
   grafana.ini: |
     [analytics]
     check_for_updates = true
@@ -165,7 +160,6 @@ metadata:
   labels:
     grafana_datasource: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -200,12 +194,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-alertmanager-overview
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -222,12 +213,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-apiserver
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -244,12 +232,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-cluster-total
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -266,12 +251,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-grafana-overview
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -288,12 +270,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-coredns
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -310,12 +289,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-cluster
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -332,12 +308,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-multicluster
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -354,12 +327,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-namespace
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -376,12 +346,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-node
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -398,12 +365,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-pod
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -420,12 +384,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-workload
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -442,12 +403,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-k8s-resources-workloads-namespace
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -464,12 +422,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-kubelet
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -486,12 +441,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-namespace-by-pod
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -508,12 +460,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-namespace-by-workload
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -530,12 +479,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-node-cluster-rsrc-use
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -552,12 +498,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-node-rsrc-use
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -574,12 +517,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-nodes-darwin
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -596,12 +536,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-nodes
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -618,12 +555,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-persistentvolumesusage
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -640,12 +574,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-pod-total
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -662,12 +593,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-prometheus
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -684,12 +612,9 @@ kind: ConfigMap
 metadata:
   namespace: monitoring
   name: monitoring-kube-prometheus-workload-total
-  annotations:
-    {}
   labels:
     grafana_dashboard: "1"
     app: kube-prometheus-stack-grafana
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1025,15 +950,15 @@ metadata:
     app.kubernetes.io/version: "10.4.1"
   name: monitoring-grafana-clusterrole
 rules:
-  - apiGroups: [""] # "" indicates the core API group
-    resources: ["configmaps", "secrets"]
-    verbs: ["get", "watch", "list"]
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "watch", "list"]
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -1043,145 +968,117 @@ metadata:
     release: monitoring
   name: monitoring-kube-state-metrics
 rules:
-
 - apiGroups: ["certificates.k8s.io"]
   resources:
   - certificatesigningrequests
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - configmaps
   verbs: ["list", "watch"]
-
 - apiGroups: ["batch"]
   resources:
   - cronjobs
   verbs: ["list", "watch"]
-
 - apiGroups: ["extensions", "apps"]
   resources:
   - daemonsets
   verbs: ["list", "watch"]
-
 - apiGroups: ["extensions", "apps"]
   resources:
   - deployments
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - endpoints
   verbs: ["list", "watch"]
-
 - apiGroups: ["autoscaling"]
   resources:
   - horizontalpodautoscalers
   verbs: ["list", "watch"]
-
 - apiGroups: ["extensions", "networking.k8s.io"]
   resources:
   - ingresses
   verbs: ["list", "watch"]
-
 - apiGroups: ["batch"]
   resources:
   - jobs
   verbs: ["list", "watch"]
-
 - apiGroups: ["coordination.k8s.io"]
   resources:
   - leases
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - limitranges
   verbs: ["list", "watch"]
-
 - apiGroups: ["admissionregistration.k8s.io"]
   resources:
-    - mutatingwebhookconfigurations
+  - mutatingwebhookconfigurations
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - namespaces
   verbs: ["list", "watch"]
-
 - apiGroups: ["networking.k8s.io"]
   resources:
   - networkpolicies
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - nodes
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - persistentvolumeclaims
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - persistentvolumes
   verbs: ["list", "watch"]
-
 - apiGroups: ["policy"]
   resources:
-    - poddisruptionbudgets
+  - poddisruptionbudgets
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - pods
   verbs: ["list", "watch"]
-
 - apiGroups: ["extensions", "apps"]
   resources:
   - replicasets
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - replicationcontrollers
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - resourcequotas
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - secrets
   verbs: ["list", "watch"]
-
 - apiGroups: [""]
   resources:
   - services
   verbs: ["list", "watch"]
-
 - apiGroups: ["apps"]
   resources:
   - statefulsets
   verbs: ["list", "watch"]
-
 - apiGroups: ["storage.k8s.io"]
   resources:
-    - storageclasses
+  - storageclasses
   verbs: ["list", "watch"]
-
 - apiGroups: ["admissionregistration.k8s.io"]
   resources:
-    - validatingwebhookconfigurations
+  - validatingwebhookconfigurations
   verbs: ["list", "watch"]
-
 - apiGroups: ["storage.k8s.io"]
   resources:
-    - volumeattachments
+  - volumeattachments
   verbs: ["list", "watch"]
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/clusterrole.yaml
@@ -1190,7 +1087,6 @@ kind: ClusterRole
 metadata:
   name: monitoring-kube-prometheus-operator
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1299,7 +1195,6 @@ metadata:
   name: monitoring-kube-prometheus-prometheus
   labels:
     app: kube-prometheus-stack-prometheus
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1336,9 +1231,9 @@ metadata:
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "10.4.1"
 subjects:
-  - kind: ServiceAccount
-    name: monitoring-grafana
-    namespace: monitoring
+- kind: ServiceAccount
+  name: monitoring-grafana
+  namespace: monitoring
 roleRef:
   kind: ClusterRole
   name: monitoring-grafana-clusterrole
@@ -1348,7 +1243,7 @@ roleRef:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -1372,7 +1267,6 @@ kind: ClusterRoleBinding
 metadata:
   name: monitoring-kube-prometheus-operator
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1398,7 +1292,6 @@ metadata:
   name: monitoring-kube-prometheus-prometheus
   labels:
     app: kube-prometheus-stack-prometheus
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1410,9 +1303,9 @@ roleRef:
   kind: ClusterRole
   name: monitoring-kube-prometheus-prometheus
 subjects:
-  - kind: ServiceAccount
-    name: monitoring-kube-prometheus-prometheus
-    namespace: monitoring
+- kind: ServiceAccount
+  name: monitoring-kube-prometheus-prometheus
+  namespace: monitoring
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/grafana/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -1461,10 +1354,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http-web
-      port: 80
-      protocol: TCP
-      targetPort: 3000
+  - name: http-web
+    port: 80
+    protocol: TCP
+    targetPort: 3000
   selector:
     app.kubernetes.io/name: grafana
     app.kubernetes.io/instance: monitoring
@@ -1475,7 +1368,7 @@ kind: Service
 metadata:
   name: monitoring-kube-state-metrics
   namespace: monitoring
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -1492,8 +1385,7 @@ spec:
     protocol: TCP
     port: 8080
     targetPort: 8080
-  
-  selector:    
+  selector:
     app.kubernetes.io/name: kube-state-metrics
     app.kubernetes.io/instance: monitoring
 ---
@@ -1517,10 +1409,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 9100
-      targetPort: 9100
-      protocol: TCP
-      name: http-metrics
+  - port: 9100
+    targetPort: 9100
+    protocol: TCP
+    name: http-metrics
   selector:
     app.kubernetes.io/name: prometheus-node-exporter
     app.kubernetes.io/instance: monitoring
@@ -1533,7 +1425,6 @@ metadata:
   labels:
     app: kube-prometheus-stack-coredns
     jobLabel: coredns
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1544,10 +1435,10 @@ metadata:
 spec:
   clusterIP: None
   ports:
-    - name: http-metrics
-      port: 9153
-      protocol: TCP
-      targetPort: 9153
+  - name: http-metrics
+    port: 9153
+    protocol: TCP
+    targetPort: 9153
   selector:
     k8s-app: kube-dns
 ---
@@ -1558,7 +1449,6 @@ metadata:
   name: monitoring-kube-prometheus-operator
   namespace: monitoring
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1587,7 +1477,6 @@ metadata:
   labels:
     app: kube-prometheus-stack-prometheus
     self-monitor: "true"
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -1657,76 +1546,76 @@ spec:
         runAsUser: 65534
       serviceAccountName: monitoring-prometheus-node-exporter
       containers:
-        - name: node-exporter
-          image: quay.io/prometheus/node-exporter:v1.8.0
-          imagePullPolicy: IfNotPresent
-          args:
-            - --path.procfs=/host/proc
-            - --path.sysfs=/host/sys
-            - --path.rootfs=/host/root
-            - --path.udev.data=/host/root/run/udev/data
-            - --web.listen-address=[$(HOST_IP)]:9100
-            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
-            - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
-          securityContext:
-            readOnlyRootFilesystem: true
-          env:
-            - name: HOST_IP
-              value: 0.0.0.0
-          ports:
-            - name: http-metrics
-              containerPort: 9100
-              protocol: TCP
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              httpHeaders:
-              path: /
-              port: 9100
-              scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              httpHeaders:
-              path: /
-              port: 9100
-              scheme: HTTP
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            successThreshold: 1
-            timeoutSeconds: 1
-          volumeMounts:
-            - name: proc
-              mountPath: /host/proc
-              readOnly:  true
-            - name: sys
-              mountPath: /host/sys
-              readOnly: true
-            - name: root
-              mountPath: /host/root
-              mountPropagation: HostToContainer
-              readOnly: true
+      - name: node-exporter
+        image: quay.io/prometheus/node-exporter:v1.8.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - --path.procfs=/host/proc
+        - --path.sysfs=/host/sys
+        - --path.rootfs=/host/root
+        - --path.udev.data=/host/root/run/udev/data
+        - --web.listen-address=[$(HOST_IP)]:9100
+        - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+        - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+        securityContext:
+          readOnlyRootFilesystem: true
+        env:
+        - name: HOST_IP
+          value: 0.0.0.0
+        ports:
+        - name: http-metrics
+          containerPort: 9100
+          protocol: TCP
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            httpHeaders:
+            path: /
+            port: 9100
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            httpHeaders:
+            path: /
+            port: 9100
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        volumeMounts:
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: root
+          mountPath: /host/root
+          mountPropagation: HostToContainer
+          readOnly: true
       hostNetwork: true
       hostPID: true
       nodeSelector:
         kubernetes.io/os: linux
       tolerations:
-        - effect: NoSchedule
-          operator: Exists
+      - effect: NoSchedule
+        operator: Exists
       volumes:
-        - name: proc
-          hostPath:
-            path: /proc
-        - name: sys
-          hostPath:
-            path: /sys
-        - name: root
-          hostPath:
-            path: /
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      - name: root
+        hostPath:
+          path: /
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/grafana/templates/deployment.yaml
 apiVersion: apps/v1
@@ -1759,7 +1648,6 @@ spec:
         checksum/secret: 422946f66b7b7fbcb21deb7a3d90f2a36a753e637e27e25ff57ade8b19b968e5
         kubectl.kubernetes.io/default-container: grafana
     spec:
-      
       serviceAccountName: monitoring-grafana
       automountServiceAccountToken: true
       securityContext:
@@ -1769,170 +1657,168 @@ spec:
         runAsUser: 472
       enableServiceLinks: true
       containers:
-        - name: grafana-sc-dashboard
-          image: "quay.io/kiwigrid/k8s-sidecar:1.26.1"
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: METHOD
-              value: WATCH
-            - name: LABEL
-              value: "grafana_dashboard"
-            - name: LABEL_VALUE
-              value: "1"
-            - name: FOLDER
-              value: "/tmp/dashboards"
-            - name: RESOURCE
-              value: "both"
-            - name: NAMESPACE
-              value: "ALL"
-            - name: REQ_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-user
-            - name: REQ_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-password
-            - name: REQ_URL
-              value: http://localhost:3000/api/admin/provisioning/dashboards/reload
-            - name: REQ_METHOD
-              value: POST
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: sc-dashboard-volume
-              mountPath: "/tmp/dashboards"
-        - name: grafana-sc-datasources
-          image: "quay.io/kiwigrid/k8s-sidecar:1.26.1"
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: METHOD
-              value: WATCH
-            - name: LABEL
-              value: "grafana_datasource"
-            - name: LABEL_VALUE
-              value: "1"
-            - name: FOLDER
-              value: "/etc/grafana/provisioning/datasources"
-            - name: RESOURCE
-              value: "both"
-            - name: REQ_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-user
-            - name: REQ_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-password
-            - name: REQ_URL
-              value: http://localhost:3000/api/admin/provisioning/datasources/reload
-            - name: REQ_METHOD
-              value: POST
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: sc-datasources-volume
-              mountPath: "/etc/grafana/provisioning/datasources"
-        - name: grafana
-          image: "docker.io/grafana/grafana:10.4.1"
-          imagePullPolicy: IfNotPresent
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: config
-              mountPath: "/etc/grafana/grafana.ini"
-              subPath: grafana.ini
-            - name: storage
-              mountPath: "/var/lib/grafana"
-            - name: sc-dashboard-volume
-              mountPath: "/tmp/dashboards"
-            - name: sc-dashboard-provider
-              mountPath: "/etc/grafana/provisioning/dashboards/sc-dashboardproviders.yaml"
-              subPath: provider.yaml
-            - name: sc-datasources-volume
-              mountPath: "/etc/grafana/provisioning/datasources"
-          ports:
-            - name: grafana
-              containerPort: 3000
-              protocol: TCP
-            - name: gossip-tcp
-              containerPort: 9094
-              protocol: TCP
-            - name: gossip-udp
-              containerPort: 9094
-              protocol: UDP
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: GF_SECURITY_ADMIN_USER
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-user
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monitoring-grafana
-                  key: admin-password
-            - name: GF_PATHS_DATA
-              value: /var/lib/grafana/
-            - name: GF_PATHS_LOGS
-              value: /var/log/grafana
-            - name: GF_PATHS_PLUGINS
-              value: /var/lib/grafana/plugins
-            - name: GF_PATHS_PROVISIONING
-              value: /etc/grafana/provisioning
-          livenessProbe:
-            failureThreshold: 10
-            httpGet:
-              path: /api/health
-              port: 3000
-            initialDelaySeconds: 60
-            timeoutSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /api/health
-              port: 3000
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-      volumes:
-        - name: config
-          configMap:
-            name: monitoring-grafana
-        - name: storage
-          emptyDir: {}
+      - name: grafana-sc-dashboard
+        image: "quay.io/kiwigrid/k8s-sidecar:1.26.1"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: METHOD
+          value: WATCH
+        - name: LABEL
+          value: "grafana_dashboard"
+        - name: LABEL_VALUE
+          value: "1"
+        - name: FOLDER
+          value: "/tmp/dashboards"
+        - name: RESOURCE
+          value: "both"
+        - name: NAMESPACE
+          value: "ALL"
+        - name: REQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-user
+        - name: REQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-password
+        - name: REQ_URL
+          value: http://localhost:3000/api/admin/provisioning/dashboards/reload
+        - name: REQ_METHOD
+          value: POST
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
         - name: sc-dashboard-volume
-          emptyDir:
-            {}
-        - name: sc-dashboard-provider
-          configMap:
-            name: monitoring-grafana-config-dashboards
+          mountPath: "/tmp/dashboards"
+      - name: grafana-sc-datasources
+        image: "quay.io/kiwigrid/k8s-sidecar:1.26.1"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: METHOD
+          value: WATCH
+        - name: LABEL
+          value: "grafana_datasource"
+        - name: LABEL_VALUE
+          value: "1"
+        - name: FOLDER
+          value: "/etc/grafana/provisioning/datasources"
+        - name: RESOURCE
+          value: "both"
+        - name: REQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-user
+        - name: REQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-password
+        - name: REQ_URL
+          value: http://localhost:3000/api/admin/provisioning/datasources/reload
+        - name: REQ_METHOD
+          value: POST
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
         - name: sc-datasources-volume
-          emptyDir:
-            {}
+          mountPath: "/etc/grafana/provisioning/datasources"
+      - name: grafana
+        image: "docker.io/grafana/grafana:10.4.1"
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: config
+          mountPath: "/etc/grafana/grafana.ini"
+          subPath: grafana.ini
+        - name: storage
+          mountPath: "/var/lib/grafana"
+        - name: sc-dashboard-volume
+          mountPath: "/tmp/dashboards"
+        - name: sc-dashboard-provider
+          mountPath: "/etc/grafana/provisioning/dashboards/sc-dashboardproviders.yaml"
+          subPath: provider.yaml
+        - name: sc-datasources-volume
+          mountPath: "/etc/grafana/provisioning/datasources"
+        ports:
+        - name: grafana
+          containerPort: 3000
+          protocol: TCP
+        - name: gossip-tcp
+          containerPort: 9094
+          protocol: TCP
+        - name: gossip-udp
+          containerPort: 9094
+          protocol: UDP
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GF_SECURITY_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-user
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-grafana
+              key: admin-password
+        - name: GF_PATHS_DATA
+          value: /var/lib/grafana/
+        - name: GF_PATHS_LOGS
+          value: /var/log/grafana
+        - name: GF_PATHS_PLUGINS
+          value: /var/lib/grafana/plugins
+        - name: GF_PATHS_PROVISIONING
+          value: /etc/grafana/provisioning
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /api/health
+            port: 3000
+          initialDelaySeconds: 60
+          timeoutSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      volumes:
+      - name: config
+        configMap:
+          name: monitoring-grafana
+      - name: storage
+        emptyDir: {}
+      - name: sc-dashboard-volume
+        emptyDir: {}
+      - name: sc-dashboard-provider
+        configMap:
+          name: monitoring-grafana-config-dashboards
+      - name: sc-datasources-volume
+        emptyDir: {}
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
@@ -1940,7 +1826,7 @@ kind: Deployment
 metadata:
   name: monitoring-kube-state-metrics
   namespace: monitoring
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -1950,7 +1836,7 @@ metadata:
     release: monitoring
 spec:
   selector:
-    matchLabels:      
+    matchLabels:
       app.kubernetes.io/name: kube-state-metrics
       app.kubernetes.io/instance: monitoring
   replicas: 1
@@ -1959,7 +1845,7 @@ spec:
   revisionHistoryLimit: 10
   template:
     metadata:
-      labels:        
+      labels:
         helm.sh/chart: kube-state-metrics-5.19.1
         app.kubernetes.io/component: metrics
         app.kubernetes.io/part-of: kube-state-metrics
@@ -2023,7 +1909,6 @@ metadata:
   name: monitoring-kube-prometheus-operator
   namespace: monitoring
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2043,7 +1928,6 @@ spec:
   template:
     metadata:
       labels:
-        
         app.kubernetes.io/instance: monitoring
         app.kubernetes.io/version: "59.1.0"
         app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2055,47 +1939,46 @@ spec:
         app.kubernetes.io/component: prometheus-operator
     spec:
       containers:
-        - name: kube-prometheus-stack
-          image: "quay.io/prometheus-operator/prometheus-operator:v0.74.0"
-          imagePullPolicy: "IfNotPresent"
-          args:
-            - --kubelet-service=kube-system/monitoring-kube-prometheus-kubelet
-            - --localhost=127.0.0.1
-            - --prometheus-config-reloader=quay.io/prometheus-operator/prometheus-config-reloader:v0.74.0
-            - --config-reloader-cpu-request=0
-            - --config-reloader-cpu-limit=0
-            - --config-reloader-memory-request=0
-            - --config-reloader-memory-limit=0
-            - --thanos-default-base-image=quay.io/thanos/thanos:v0.35.0
-            - --secret-field-selector=type!=kubernetes.io/dockercfg,type!=kubernetes.io/service-account-token,type!=helm.sh/release.v1
-            - --web.enable-tls=true
-            - --web.cert-file=/cert/cert
-            - --web.key-file=/cert/key
-            - --web.listen-address=:10250
-            - --web.tls-min-version=VersionTLS13
-          ports:
-            - containerPort: 10250
-              name: https
-          env:
-          - name: GOGC
-            value: "30"
-          resources:
-            {}
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          volumeMounts:
-            - name: tls-secret
-              mountPath: /cert
-              readOnly: true
-      volumes:
+      - name: kube-prometheus-stack
+        image: "quay.io/prometheus-operator/prometheus-operator:v0.74.0"
+        imagePullPolicy: "IfNotPresent"
+        args:
+        - --kubelet-service=kube-system/monitoring-kube-prometheus-kubelet
+        - --localhost=127.0.0.1
+        - --prometheus-config-reloader=quay.io/prometheus-operator/prometheus-config-reloader:v0.74.0
+        - --config-reloader-cpu-request=0
+        - --config-reloader-cpu-limit=0
+        - --config-reloader-memory-request=0
+        - --config-reloader-memory-limit=0
+        - --thanos-default-base-image=quay.io/thanos/thanos:v0.35.0
+        - --secret-field-selector=type!=kubernetes.io/dockercfg,type!=kubernetes.io/service-account-token,type!=helm.sh/release.v1
+        - --web.enable-tls=true
+        - --web.cert-file=/cert/cert
+        - --web.key-file=/cert/key
+        - --web.listen-address=:10250
+        - --web.tls-min-version=VersionTLS13
+        ports:
+        - containerPort: 10250
+          name: https
+        env:
+        - name: GOGC
+          value: "30"
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
         - name: tls-secret
-          secret:
-            defaultMode: 420
-            secretName: monitoring-kube-prometheus-admission
+          mountPath: /cert
+          readOnly: true
+      volumes:
+      - name: tls-secret
+        secret:
+          defaultMode: 420
+          secretName: monitoring-kube-prometheus-admission
       securityContext:
         fsGroup: 65534
         runAsGroup: 65534
@@ -2110,10 +1993,9 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2123,26 +2005,26 @@ metadata:
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
 webhooks:
-  - name: prometheusrulemutate.monitoring.coreos.com
-    failurePolicy: Ignore
-    rules:
-      - apiGroups:
-          - monitoring.coreos.com
-        apiVersions:
-          - "*"
-        resources:
-          - prometheusrules
-        operations:
-          - CREATE
-          - UPDATE
-    clientConfig:
-      service:
-        namespace: monitoring
-        name: monitoring-kube-prometheus-operator
-        path: /admission-prometheusrules/mutate
-    timeoutSeconds: 10
-    admissionReviewVersions: ["v1", "v1beta1"]
-    sideEffects: None
+- name: prometheusrulemutate.monitoring.coreos.com
+  failurePolicy: Ignore
+  rules:
+  - apiGroups:
+    - monitoring.coreos.com
+    apiVersions:
+    - "*"
+    resources:
+    - prometheusrules
+    operations:
+    - CREATE
+    - UPDATE
+  clientConfig:
+    service:
+      namespace: monitoring
+      name: monitoring-kube-prometheus-operator
+      path: /admission-prometheusrules/mutate
+  timeoutSeconds: 10
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus/prometheus.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -2152,7 +2034,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack-prometheus
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2166,8 +2047,8 @@ spec:
   paused: false
   replicas: 1
   shards: 1
-  logLevel:  info
-  logFormat:  logfmt
+  logLevel: info
+  logFormat: logfmt
   listenLocal: false
   enableAdminAPI: false
   scrapeInterval: 15s
@@ -2185,17 +2066,14 @@ spec:
   serviceMonitorSelector:
     matchLabels:
       release: "monitoring"
-
   serviceMonitorNamespaceSelector: {}
   podMonitorSelector:
     matchLabels:
       release: "monitoring"
-
   podMonitorNamespaceSelector: {}
   probeSelector:
     matchLabels:
       release: "monitoring"
-
   probeNamespaceSelector: {}
   securityContext:
     fsGroup: 2000
@@ -2208,11 +2086,9 @@ spec:
   ruleSelector:
     matchLabels:
       release: "monitoring"
-
   scrapeConfigSelector:
     matchLabels:
       release: "monitoring"
-
   scrapeConfigNamespaceSelector: {}
   portName: http-web
   hostNetwork: false
@@ -2225,7 +2101,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2367,7 +2242,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2398,7 +2272,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2430,7 +2303,7 @@ spec:
 
           "DeadMansSnitch" integration in PagerDuty.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/general/watchdog
         summary: An alert that should always be firing to certify that Alertmanager is working properly.
       expr: vector(1)
@@ -2450,7 +2323,7 @@ spec:
 
           This alert should be routed to a null receiver and configured to inhibit alerts with severity="info".
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/general/infoinhibitor
         summary: Info-level alert inhibition.
       expr: ALERTS{severity = "info"} == 1 unless on (namespace) ALERTS{alertname != "InfoInhibitor", severity =~ "warning|critical", alertstate="firing"} == 1
@@ -2465,7 +2338,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2492,7 +2364,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2518,7 +2389,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2544,7 +2414,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2570,7 +2439,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2596,7 +2464,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2684,7 +2551,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2751,7 +2617,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -2880,7 +2745,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3201,7 +3065,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3231,7 +3094,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3307,7 +3169,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3331,7 +3192,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3363,7 +3223,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3431,7 +3290,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3463,7 +3321,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3721,7 +3578,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3843,7 +3699,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -3956,7 +3811,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4029,7 +3883,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4169,7 +4022,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4211,7 +4063,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4293,7 +4144,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4535,7 +4385,7 @@ spec:
       annotations:
         description: 'CPU usage at {{ $labels.instance }} has been above 90% for the last 15 minutes, is currently at {{ printf "%.2f" $value }}%.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodecpuhighusage
         summary: High CPU usage.
       expr: sum without(mode) (avg without (cpu) (rate(node_cpu_seconds_total{job="node-exporter", mode!="idle"}[2m]))) * 100 > 90
@@ -4548,7 +4398,7 @@ spec:
 
           This might indicate this instance resources saturation and can cause it becoming unresponsive.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodesystemsaturation
         summary: System saturated, load per core is very high.
       expr: |-
@@ -4563,7 +4413,7 @@ spec:
 
           Please check that there is enough memory available at this instance.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodememorymajorpagesfaults
         summary: Memory major page faults are occurring at very high rate.
       expr: rate(node_vmstat_pgmajfault{job="node-exporter"}[5m]) > 500
@@ -4574,7 +4424,7 @@ spec:
       annotations:
         description: 'Memory is filling up at {{ $labels.instance }}, has been above 90% for the last 15 minutes, is currently at {{ printf "%.2f" $value }}%.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodememoryhighutilization
         summary: Host is running out of memory.
       expr: 100 - (node_memory_MemAvailable_bytes{job="node-exporter"} / node_memory_MemTotal_bytes{job="node-exporter"} * 100) > 90
@@ -4587,7 +4437,7 @@ spec:
 
           This symptom might indicate disk saturation.
 
-          '
+'
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodediskiosaturation
         summary: Disk IO queue is high.
       expr: rate(node_disk_io_time_weighted_seconds_total{job="node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
@@ -4621,7 +4471,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4650,7 +4499,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4706,7 +4554,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -4798,7 +4645,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5095,7 +4941,7 @@ spec:
       app.kubernetes.io/instance: monitoring
   namespaceSelector:
     matchNames:
-      - monitoring
+    - monitoring
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -5103,7 +4949,7 @@ kind: ServiceMonitor
 metadata:
   name: monitoring-kube-state-metrics
   namespace: monitoring
-  labels:    
+  labels:
     helm.sh/chart: kube-state-metrics-5.19.1
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
@@ -5112,14 +4958,14 @@ metadata:
     app.kubernetes.io/version: "2.12.0"
     release: monitoring
 spec:
-  jobLabel: app.kubernetes.io/name  
+  jobLabel: app.kubernetes.io/name
   selector:
-    matchLabels:      
+    matchLabels:
       app.kubernetes.io/name: kube-state-metrics
       app.kubernetes.io/instance: monitoring
   endpoints:
-    - port: http
-      honorLabels: true
+  - port: http
+    honorLabels: true
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/prometheus-node-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -5138,7 +4984,6 @@ metadata:
     release: monitoring
 spec:
   jobLabel: jobLabel
-  
   selector:
     matchLabels:
       app.kubernetes.io/name: prometheus-node-exporter
@@ -5146,8 +4991,8 @@ spec:
   attachMetadata:
     node: false
   endpoints:
-    - port: http-metrics
-      scheme: http
+  - port: http-metrics
+    scheme: http
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/exporters/core-dns/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -5157,7 +5002,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack-coredns
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5166,14 +5010,13 @@ metadata:
     heritage: "Helm"
 spec:
   jobLabel: jobLabel
-  
   selector:
     matchLabels:
       app: kube-prometheus-stack-coredns
       release: "monitoring"
   namespaceSelector:
     matchNames:
-      - "kube-system"
+    - "kube-system"
   endpoints:
   - port: http-metrics
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -5186,7 +5029,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack-apiserver
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5194,17 +5036,16 @@ metadata:
     release: "monitoring"
     heritage: "Helm"
 spec:
-  
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     port: https
     scheme: https
     metricRelabelings:
-      - action: drop
-        regex: apiserver_request_duration_seconds_bucket;(0.15|0.2|0.3|0.35|0.4|0.45|0.6|0.7|0.8|0.9|1.25|1.5|1.75|2|3|3.5|4|4.5|6|7|8|9|15|25|40|50)
-        sourceLabels:
-        - __name__
-        - le
+    - action: drop
+      regex: apiserver_request_duration_seconds_bucket;(0.15|0.2|0.3|0.35|0.4|0.45|0.6|0.7|0.8|0.9|1.25|1.5|1.75|2|3|3.5|4|4.5|6|7|8|9|15|25|40|50)
+      sourceLabels:
+      - __name__
+      - le
     tlsConfig:
       caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
       serverName: kubernetes
@@ -5225,7 +5066,7 @@ metadata:
   name: monitoring-kube-prometheus-kubelet
   namespace: monitoring
   labels:
-    app: kube-prometheus-stack-kubelet    
+    app: kube-prometheus-stack-kubelet
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5233,7 +5074,6 @@ metadata:
     release: "monitoring"
     heritage: "Helm"
 spec:
-  
   attachMetadata:
     node: false
   endpoints:
@@ -5320,7 +5160,6 @@ metadata:
   name: monitoring-kube-prometheus-operator
   namespace: monitoring
   labels:
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5331,7 +5170,6 @@ metadata:
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator
 spec:
-  
   endpoints:
   - port: https
     scheme: https
@@ -5349,7 +5187,7 @@ spec:
       release: "monitoring"
   namespaceSelector:
     matchNames:
-      - "monitoring"
+    - "monitoring"
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -5359,7 +5197,6 @@ metadata:
   namespace: monitoring
   labels:
     app: kube-prometheus-stack-prometheus
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5367,7 +5204,6 @@ metadata:
     release: "monitoring"
     heritage: "Helm"
 spec:
-  
   selector:
     matchLabels:
       app: kube-prometheus-stack-prometheus
@@ -5375,7 +5211,7 @@ spec:
       self-monitor: "true"
   namespaceSelector:
     matchNames:
-      - "monitoring"
+    - "monitoring"
   endpoints:
   - port: http-web
     path: "/metrics"
@@ -5407,14 +5243,14 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - 5g-core
+    - 5g-core
   selector:
     matchLabels:
       app: amf
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/templates/servicemonitors.yaml
 # --- Open5GS SMF -------------------------------------------------------------
@@ -5428,14 +5264,14 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - 5g-core
+    - 5g-core
   selector:
     matchLabels:
       app: smf
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/templates/servicemonitors.yaml
 # --- Open5GS UPF -------------------------------------------------------------
@@ -5449,14 +5285,14 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - 5g-core
+    - 5g-core
   selector:
     matchLabels:
       app: upf
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/templates/servicemonitors.yaml
 # --- Open5GS PCF -------------------------------------------------------------
@@ -5470,14 +5306,14 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - 5g-core
+    - 5g-core
   selector:
     matchLabels:
       app: pcf
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/templates/servicemonitors.yaml
 # --- Near-RT RIC e2term -------------------------------------------------------
@@ -5491,14 +5327,14 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - near-rt-ric
+    - near-rt-ric
   selector:
     matchLabels:
       app: ric-e2term
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/templates/servicemonitors.yaml
 # --- Near-RT RIC submgr -------------------------------------------------------
@@ -5512,23 +5348,22 @@ metadata:
 spec:
   namespaceSelector:
     matchNames:
-      - near-rt-ric
+    - near-rt-ric
   selector:
     matchLabels:
       app: ric-submgr
   endpoints:
-    - port: metrics
-      path: /metrics
-      interval: 15s
+  - port: metrics
+    path: /metrics
+    interval: 15s
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/admission-webhooks/validatingWebhookConfiguration.yaml
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5538,26 +5373,26 @@ metadata:
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
 webhooks:
-  - name: prometheusrulemutate.monitoring.coreos.com
-    failurePolicy: Ignore
-    rules:
-      - apiGroups:
-          - monitoring.coreos.com
-        apiVersions:
-          - "*"
-        resources:
-          - prometheusrules
-        operations:
-          - CREATE
-          - UPDATE
-    clientConfig:
-      service:
-        namespace: monitoring
-        name: monitoring-kube-prometheus-operator
-        path: /admission-prometheusrules/validate
-    timeoutSeconds: 10
-    admissionReviewVersions: ["v1", "v1beta1"]
-    sideEffects: None
+- name: prometheusrulemutate.monitoring.coreos.com
+  failurePolicy: Ignore
+  rules:
+  - apiGroups:
+    - monitoring.coreos.com
+    apiVersions:
+    - "*"
+    resources:
+    - prometheusrules
+    operations:
+    - CREATE
+    - UPDATE
+  clientConfig:
+    service:
+      namespace: monitoring
+      name: monitoring-kube-prometheus-operator
+      path: /admission-prometheusrules/validate
+  timeoutSeconds: 10
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/grafana/templates/tests/test-serviceaccount.yaml
 apiVersion: v1
@@ -5578,14 +5413,13 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   namespace: monitoring
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5623,13 +5457,12 @@ data:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5639,26 +5472,25 @@ metadata:
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
 rules:
-  - apiGroups:
-      - admissionregistration.k8s.io
-    resources:
-      - validatingwebhookconfigurations
-      - mutatingwebhookconfigurations
-    verbs:
-      - get
-      - update
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  - mutatingwebhookconfigurations
+  verbs:
+  - get
+  - update
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/admission-webhooks/job-patch/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5672,22 +5504,21 @@ roleRef:
   kind: ClusterRole
   name: monitoring-kube-prometheus-admission
 subjects:
-  - kind: ServiceAccount
-    name: monitoring-kube-prometheus-admission
-    namespace: monitoring
+- kind: ServiceAccount
+  name: monitoring-kube-prometheus-admission
+  namespace: monitoring
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/admission-webhooks/job-patch/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   namespace: monitoring
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5697,26 +5528,25 @@ metadata:
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - get
-      - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/admission-webhooks/job-patch/rolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name:  monitoring-kube-prometheus-admission
+  name: monitoring-kube-prometheus-admission
   namespace: monitoring
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5730,9 +5560,9 @@ roleRef:
   kind: Role
   name: monitoring-kube-prometheus-admission
 subjects:
-  - kind: ServiceAccount
-    name: monitoring-kube-prometheus-admission
-    namespace: monitoring
+- kind: ServiceAccount
+  name: monitoring-kube-prometheus-admission
+  namespace: monitoring
 ---
 # Source: monitoring/charts/kube-prometheus-stack/charts/grafana/templates/tests/test.yaml
 apiVersion: v1
@@ -5751,32 +5581,31 @@ metadata:
 spec:
   serviceAccountName: monitoring-grafana-test
   containers:
-    - name: monitoring-test
-      image: "docker.io/bats/bats:v1.4.1"
-      imagePullPolicy: "IfNotPresent"
-      command: ["/opt/bats/bin/bats", "-t", "/tests/run.sh"]
-      volumeMounts:
-        - mountPath: /tests
-          name: tests
-          readOnly: true
+  - name: monitoring-test
+    image: "docker.io/bats/bats:v1.4.1"
+    imagePullPolicy: "IfNotPresent"
+    command: ["/opt/bats/bin/bats", "-t", "/tests/run.sh"]
+    volumeMounts:
+    - mountPath: /tests
+      name: tests
+      readOnly: true
   volumes:
-    - name: tests
-      configMap:
-        name: monitoring-grafana-test
+  - name: tests
+    configMap:
+      name: monitoring-grafana-test
   restartPolicy: Never
 ---
 # Source: monitoring/charts/kube-prometheus-stack/templates/prometheus-operator/admission-webhooks/job-patch/job-createSecret.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name:  monitoring-kube-prometheus-admission-create
+  name: monitoring-kube-prometheus-admission-create
   namespace: monitoring
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission-create
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5789,10 +5618,9 @@ spec:
   ttlSecondsAfterFinished: 60
   template:
     metadata:
-      name:  monitoring-kube-prometheus-admission-create
+      name: monitoring-kube-prometheus-admission-create
       labels:
         app: kube-prometheus-stack-admission-create
-        
         app.kubernetes.io/instance: monitoring
         app.kubernetes.io/version: "59.1.0"
         app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5803,23 +5631,21 @@ spec:
         app.kubernetes.io/component: prometheus-operator-webhook
     spec:
       containers:
-        - name: create
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20221220-controller-v1.5.1-58-g787ea74b6
-          imagePullPolicy: IfNotPresent
-          args:
-            - create
-            - --host=monitoring-kube-prometheus-operator,monitoring-kube-prometheus-operator.monitoring.svc
-            - --namespace=monitoring
-            - --secret-name=monitoring-kube-prometheus-admission
-          securityContext:
-          
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          resources:
-            {}
+      - name: create
+        image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20221220-controller-v1.5.1-58-g787ea74b6
+        imagePullPolicy: IfNotPresent
+        args:
+        - create
+        - --host=monitoring-kube-prometheus-operator,monitoring-kube-prometheus-operator.monitoring.svc
+        - --namespace=monitoring
+        - --secret-name=monitoring-kube-prometheus-admission
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        resources: {}
       restartPolicy: OnFailure
       serviceAccountName: monitoring-kube-prometheus-admission
       securityContext:
@@ -5833,14 +5659,13 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name:  monitoring-kube-prometheus-admission-patch
+  name: monitoring-kube-prometheus-admission-patch
   namespace: monitoring
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
     app: kube-prometheus-stack-admission-patch
-    
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/version: "59.1.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5853,10 +5678,9 @@ spec:
   ttlSecondsAfterFinished: 60
   template:
     metadata:
-      name:  monitoring-kube-prometheus-admission-patch
+      name: monitoring-kube-prometheus-admission-patch
       labels:
         app: kube-prometheus-stack-admission-patch
-        
         app.kubernetes.io/instance: monitoring
         app.kubernetes.io/version: "59.1.0"
         app.kubernetes.io/part-of: kube-prometheus-stack
@@ -5867,24 +5691,22 @@ spec:
         app.kubernetes.io/component: prometheus-operator-webhook
     spec:
       containers:
-        - name: patch
-          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20221220-controller-v1.5.1-58-g787ea74b6
-          imagePullPolicy: IfNotPresent
-          args:
-            - patch
-            - --webhook-name=monitoring-kube-prometheus-admission
-            - --namespace=monitoring
-            - --secret-name=monitoring-kube-prometheus-admission
-            - --patch-failure-policy=
-          securityContext:
-          
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-          resources:
-            {}
+      - name: patch
+        image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20221220-controller-v1.5.1-58-g787ea74b6
+        imagePullPolicy: IfNotPresent
+        args:
+        - patch
+        - --webhook-name=monitoring-kube-prometheus-admission
+        - --namespace=monitoring
+        - --secret-name=monitoring-kube-prometheus-admission
+        - --patch-failure-policy=
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        resources: {}
       restartPolicy: OnFailure
       serviceAccountName: monitoring-kube-prometheus-admission
       securityContext:
