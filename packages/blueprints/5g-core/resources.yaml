@@ -17,7 +17,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mongodb-init-scripts
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -103,7 +103,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: open5gs-nf-configs
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -524,19 +524,19 @@ apiVersion: v1
 kind: Service
 metadata:
   name: amf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
 spec:
   selector:
     app: amf
   ports:
-    - name: sbi
-      port: 7777
-      targetPort: 7777
-    - name: metrics
-      port: 9090
-      targetPort: 9090
+  - name: sbi
+    port: 7777
+    targetPort: 7777
+  - name: metrics
+    port: 9090
+    targetPort: 9090
 ---
 # Source: 5g-core/templates/deployment-amf.yaml
 # External SCTP service for N2/NGAP — for real gNBs outside the cluster.
@@ -544,7 +544,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: amf-ngap
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
 spec:
@@ -553,33 +553,33 @@ spec:
   selector:
     app: amf
   ports:
-    - name: ngap
-      port: 38412
-      targetPort: 38412
-      protocol: SCTP
+  - name: ngap
+    port: 38412
+    targetPort: 38412
+    protocol: SCTP
 ---
 # Source: 5g-core/templates/deployment-nrf.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: nrf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: nrf
 spec:
   selector:
     app: nrf
   ports:
-    - name: sbi
-      port: 7777
-      targetPort: 7777
+  - name: sbi
+    port: 7777
+    targetPort: 7777
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ausf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: ausf}
 spec:
   selector: {app: ausf}
@@ -590,7 +590,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: udm
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: udm}
 spec:
   selector: {app: udm}
@@ -601,20 +601,20 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pcf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: pcf}
 spec:
   selector: {app: pcf}
   ports:
-    - {name: sbi, port: 7777, targetPort: 7777}
-    - {name: metrics, port: 9090, targetPort: 9090}
+  - {name: sbi, port: 7777, targetPort: 7777}
+  - {name: metrics, port: 9090, targetPort: 9090}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: nssf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: nssf}
 spec:
   selector: {app: nssf}
@@ -625,7 +625,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: bsf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: bsf}
 spec:
   selector: {app: bsf}
@@ -636,7 +636,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: udr
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: udr}
 spec:
   selector: {app: udr}
@@ -647,55 +647,55 @@ apiVersion: v1
 kind: Service
 metadata:
   name: scp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: scp
 spec:
   selector:
     app: scp
   ports:
-    - name: sbi
-      port: 7777
-      targetPort: 7777
+  - name: sbi
+    port: 7777
+    targetPort: 7777
 ---
 # Source: 5g-core/templates/deployment-sepp.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: sepp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sepp
 spec:
   selector:
     app: sepp
   ports:
-    - name: sbi
-      port: 7777
-      targetPort: 7777
+  - name: sbi
+    port: 7777
+    targetPort: 7777
 ---
 # Source: 5g-core/templates/deployment-smf.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: smf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: smf
 spec:
   selector:
     app: smf
   ports:
-    - name: sbi
-      port: 7777
-      targetPort: 7777
-    - name: pfcp
-      port: 8805
-      targetPort: 8805
-      protocol: UDP
-    - name: metrics
-      port: 9090
-      targetPort: 9090
+  - name: sbi
+    port: 7777
+    targetPort: 7777
+  - name: pfcp
+    port: 8805
+    targetPort: 8805
+    protocol: UDP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
 ---
 # Source: 5g-core/templates/deployment-upf.yaml
 # ClusterIP Service for UPF — used by SMF for PFCP signalling.
@@ -704,31 +704,31 @@ apiVersion: v1
 kind: Service
 metadata:
   name: upf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: upf
 spec:
   selector:
     app: upf
   ports:
-    - name: pfcp
-      port: 8805
-      targetPort: 8805
-      protocol: UDP
-    - name: gtpu
-      port: 2152
-      targetPort: 2152
-      protocol: UDP
-    - name: metrics
-      port: 9090
-      targetPort: 9090
+  - name: pfcp
+    port: 8805
+    targetPort: 8805
+    protocol: UDP
+  - name: gtpu
+    port: 2152
+    targetPort: 2152
+    protocol: UDP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
 ---
 # Source: 5g-core/templates/deployment-webui.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: webui
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: webui
 spec:
@@ -736,9 +736,9 @@ spec:
   selector:
     app: webui
   ports:
-    - name: http
-      port: 9999
-      targetPort: 9999
+  - name: http
+    port: 9999
+    targetPort: 9999
 ---
 # Source: 5g-core/templates/statefulset-mongodb.yaml
 # Headless ClusterIP Service for MongoDB.
@@ -749,7 +749,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongodb
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: mongodb
     app.kubernetes.io/part-of: oran-stack
@@ -758,9 +758,9 @@ spec:
   selector:
     app: mongodb
   ports:
-    - name: mongo
-      port: 27017
-      targetPort: 27017
+  - name: mongo
+    port: 27017
+    targetPort: 27017
 ---
 # Source: 5g-core/templates/daemonset-sctp-init.yaml
 # ============================================================================
@@ -784,7 +784,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: sctp-init
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sctp-init
     app.kubernetes.io/part-of: oran-stack
@@ -801,68 +801,68 @@ spec:
       # and run modprobe in the host kernel context (not just the container).
       hostPID: true
       tolerations:
-        - operator: Exists # Run on all nodes including tainted ones.
+      - operator: Exists # Run on all nodes including tainted ones.
       initContainers:
-        - name: load-sctp
-          image: alpine:3.19
-          securityContext:
-            privileged: true
-          # nsenter -t 1 -m -u -i -n: enter the host's mount/uts/ipc/net
-          # namespaces via PID 1 (init). This makes modprobe run against
-          # the host kernel's module tree, not the container's.
-          #
-          # On GKE COS kernels >= 6.12, SCTP is compiled in (not a .ko module),
-          # so modprobe exits 1 with "Module not found" even though SCTP works.
-          # We verify SCTP availability by attempting to open an SCTP socket
-          # directly, which works regardless of whether SCTP is a module or
-          # built-in (it will not appear in /proc/modules when built-in).
-          command:
-            - nsenter
-            - "-t"
-            - "1"
-            - "-m"
-            - "-u"
-            - "-i"
-            - "-n"
-            - "--"
-            - sh
-            - "-c"
-            - |
-              # ── Step 1: ensure SCTP is available ───────────────────────────
-              if modprobe sctp 2>/dev/null; then
-                echo "sctp module loaded"
-              elif [ -d /proc/net/sctp ]; then
-                echo "sctp built-in and available"
-              else
-                echo "ERROR: SCTP not available" >&2
-                exit 1
-              fi
+      - name: load-sctp
+        image: alpine:3.19
+        securityContext:
+          privileged: true
+        # nsenter -t 1 -m -u -i -n: enter the host's mount/uts/ipc/net
+        # namespaces via PID 1 (init). This makes modprobe run against
+        # the host kernel's module tree, not the container's.
+        #
+        # On GKE COS kernels >= 6.12, SCTP is compiled in (not a .ko module),
+        # so modprobe exits 1 with "Module not found" even though SCTP works.
+        # We verify SCTP availability by attempting to open an SCTP socket
+        # directly, which works regardless of whether SCTP is a module or
+        # built-in (it will not appear in /proc/modules when built-in).
+        command:
+        - nsenter
+        - "-t"
+        - "1"
+        - "-m"
+        - "-u"
+        - "-i"
+        - "-n"
+        - "--"
+        - sh
+        - "-c"
+        - |
+          # ── Step 1: ensure SCTP is available ───────────────────────────
+          if modprobe sctp 2>/dev/null; then
+            echo "sctp module loaded"
+          elif [ -d /proc/net/sctp ]; then
+            echo "sctp built-in and available"
+          else
+            echo "ERROR: SCTP not available" >&2
+            exit 1
+          fi
 
-              # ── Step 2: SCTP sysctl tuning ─────────────────────────────────
-              # SCTP traffic uses dedicated OVS L2 secondary interfaces (via
-              # Multus), so there is no overlay encapsulation or ARP convergence
-              # delay. We apply modest tuning to speed up dead association
-              # detection without being overly aggressive.
-              #
-              # rto_max (ms): cap the maximum retransmission timeout so that a
-              #   dead peer is detected in ~30 s rather than the default ~60 s.
-              sysctl -w net.sctp.rto_max=10000
-              #
-              # max_retrans_association: reduce from 10 to 5 to clear ghost
-              #   associations faster after a pod restart.
-              sysctl -w net.sctp.max_retrans_association=5
-              #
-              # addip_enable: keep disabled — single secondary IP per interface.
-              sysctl -w net.sctp.addip_enable=0
-              #
-              echo "SCTP sysctl tuning applied"
+          # ── Step 2: SCTP sysctl tuning ─────────────────────────────────
+          # SCTP traffic uses dedicated OVS L2 secondary interfaces (via
+          # Multus), so there is no overlay encapsulation or ARP convergence
+          # delay. We apply modest tuning to speed up dead association
+          # detection without being overly aggressive.
+          #
+          # rto_max (ms): cap the maximum retransmission timeout so that a
+          #   dead peer is detected in ~30 s rather than the default ~60 s.
+          sysctl -w net.sctp.rto_max=10000
+          #
+          # max_retrans_association: reduce from 10 to 5 to clear ghost
+          #   associations faster after a pod restart.
+          sysctl -w net.sctp.max_retrans_association=5
+          #
+          # addip_enable: keep disabled — single secondary IP per interface.
+          sysctl -w net.sctp.addip_enable=0
+          #
+          echo "SCTP sysctl tuning applied"
       containers:
-        - name: pause
-          image: registry.k8s.io/pause:3.9
-          resources:
-            requests:
-              cpu: 1m
-              memory: 1Mi
+      - name: pause
+        image: registry.k8s.io/pause:3.9
+        resources:
+          requests:
+            cpu: 1m
+            memory: 1Mi
 ---
 # Source: 5g-core/templates/deployment-amf.yaml
 # ============================================================================
@@ -884,7 +884,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: amf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: amf
     app.kubernetes.io/part-of: oran-stack
@@ -905,164 +905,164 @@ spec:
         k8s.v1.cni.cncf.io/networks: '[{"name":"n2br-net","ips":["10.200.1.2"]}]'
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: amf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-            # AMF_IP is the secondary OVS interface IP so SCTP binds only to
-            # the dedicated N2 bridge interface, not the primary Flannel eth0
-            # or the UPF ogstun. This keeps N2/NGAP on the OVS L2 domain.
-            - name: AMF_IP
-              value: "10.200.1.2"
-          ports:
-            - containerPort: 7777
-              name: sbi
-            - containerPort: 38412
-              name: ngap
-              protocol: SCTP
-            - containerPort: 9090
-              name: metrics
-          readinessProbe:
-            tcpSocket:
-              port: 7777
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 6
-          livenessProbe:
-            tcpSocket:
-              port: 7777
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 5
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 200m
-              memory: 256Mi
-      volumes:
+      - name: amf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-amfd", "-c", "/open5gs/install/etc/open5gs/amf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        # AMF_IP is the secondary OVS interface IP so SCTP binds only to
+        # the dedicated N2 bridge interface, not the primary Flannel eth0
+        # or the UPF ogstun. This keeps N2/NGAP on the OVS L2 domain.
+        - name: AMF_IP
+          value: "10.200.1.2"
+        ports:
+        - containerPort: 7777
+          name: sbi
+        - containerPort: 38412
+          name: ngap
+          protocol: SCTP
+        - containerPort: 9090
+          name: metrics
+        readinessProbe:
+          tcpSocket:
+            port: 7777
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          tcpSocket:
+            port: 7777
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 5
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-nrf.yaml
 # ============================================================================
@@ -1074,7 +1074,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nrf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: nrf
     app.kubernetes.io/part-of: oran-stack
@@ -1091,152 +1091,152 @@ spec:
         app: nrf
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       initContainers:
-        - name: wait-for-mongodb
-          image: mongo:7.0
-          command:
-            - sh
-            - -c
-            - |
-              until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
-                echo "Waiting for MongoDB..."; sleep 5;
-              done
+      - name: wait-for-mongodb
+        image: mongo:7.0
+        command:
+        - sh
+        - -c
+        - |
+          until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
+            echo "Waiting for MongoDB..."; sleep 5;
+          done
       containers:
-        - name: nrf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-nrfd", "-c", "/open5gs/install/etc/open5gs/nrf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports:
-            - containerPort: 7777
-              name: sbi
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: nrf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-nrfd", "-c", "/open5gs/install/etc/open5gs/nrf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 7777
+          name: sbi
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # ============================================================================
@@ -1255,7 +1255,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ausf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: ausf, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -1268,137 +1268,137 @@ spec:
       labels: {app: ausf}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: ausf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-ausfd", "-c", "/open5gs/install/etc/open5gs/ausf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: ausf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-ausfd", "-c", "/open5gs/install/etc/open5gs/ausf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # --- UDM (Unified Data Management) ------------------------------------------
@@ -1406,7 +1406,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: udm
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: udm, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -1419,137 +1419,137 @@ spec:
       labels: {app: udm}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: udm
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-udmd", "-c", "/open5gs/install/etc/open5gs/udm.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: udm
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-udmd", "-c", "/open5gs/install/etc/open5gs/udm.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # --- PCF (Policy Control Function) ------------------------------------------
@@ -1557,7 +1557,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pcf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: pcf, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -1570,137 +1570,137 @@ spec:
       labels: {app: pcf}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: pcf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-pcfd", "-c", "/open5gs/install/etc/open5gs/pcf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}, {containerPort: 9090, name: metrics}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: pcf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-pcfd", "-c", "/open5gs/install/etc/open5gs/pcf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}, {containerPort: 9090, name: metrics}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # --- NSSF (Network Slice Selection Function) ---------------------------------
@@ -1708,7 +1708,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nssf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: nssf, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -1721,137 +1721,137 @@ spec:
       labels: {app: nssf}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: nssf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-nssfd", "-c", "/open5gs/install/etc/open5gs/nssf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: nssf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-nssfd", "-c", "/open5gs/install/etc/open5gs/nssf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # --- BSF (Binding Support Function) -----------------------------------------
@@ -1859,7 +1859,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bsf
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: bsf, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -1872,137 +1872,137 @@ spec:
       labels: {app: bsf}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: bsf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-bsfd", "-c", "/open5gs/install/etc/open5gs/bsf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: bsf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-bsfd", "-c", "/open5gs/install/etc/open5gs/bsf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sbi-nfs.yaml
 # --- UDR (Unified Data Repository) ------------------------------------------
@@ -2010,7 +2010,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: udr
-  namespace: monitoring
+  namespace: 5g-core
   labels: {app: udr, app.kubernetes.io/part-of: oran-stack}
 spec:
   replicas: 1
@@ -2023,137 +2023,137 @@ spec:
       labels: {app: udr}
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: udr
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-udrd", "-c", "/open5gs/install/etc/open5gs/udr.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports: [{containerPort: 7777, name: sbi}]
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources: {requests: {cpu: 100m, memory: 128Mi}}
-      volumes:
+      - name: udr
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-udrd", "-c", "/open5gs/install/etc/open5gs/udr.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports: [{containerPort: 7777, name: sbi}]
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources: {requests: {cpu: 100m, memory: 128Mi}}
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-scp.yaml
 # ============================================================================
@@ -2163,7 +2163,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: scp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: scp
     app.kubernetes.io/part-of: oran-stack
@@ -2180,142 +2180,142 @@ spec:
         app: scp
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: scp
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-scpd", "-c", "/open5gs/install/etc/open5gs/scp.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports:
-            - containerPort: 7777
-              name: sbi
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: scp
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-scpd", "-c", "/open5gs/install/etc/open5gs/scp.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 7777
+          name: sbi
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-sepp.yaml
 # ============================================================================
@@ -2325,7 +2325,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sepp
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: sepp
     app.kubernetes.io/part-of: oran-stack
@@ -2342,142 +2342,142 @@ spec:
         app: sepp
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: sepp
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-seppd", "-c", "/open5gs/install/etc/open5gs/sepp1.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports:
-            - containerPort: 7777
-              name: sbi
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: sepp
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-seppd", "-c", "/open5gs/install/etc/open5gs/sepp1.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 7777
+          name: sbi
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-smf.yaml
 # ============================================================================
@@ -2487,7 +2487,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: smf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: smf
     app.kubernetes.io/part-of: oran-stack
@@ -2504,150 +2504,150 @@ spec:
         app: smf
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: smf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-smfd", "-c", "/open5gs/install/etc/open5gs/smf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports:
-            - containerPort: 7777
-              name: sbi
-            - containerPort: 8805
-              name: pfcp
-              protocol: UDP
-            - containerPort: 2123
-              name: gtpc
-              protocol: UDP
-            - containerPort: 9090
-              name: metrics
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 150m
-              memory: 192Mi
-      volumes:
+      - name: smf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-smfd", "-c", "/open5gs/install/etc/open5gs/smf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 7777
+          name: sbi
+        - containerPort: 8805
+          name: pfcp
+          protocol: UDP
+        - containerPort: 2123
+          name: gtpc
+          protocol: UDP
+        - containerPort: 9090
+          name: metrics
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 150m
+            memory: 192Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-upf.yaml
 # ============================================================================
@@ -2673,7 +2673,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: upf
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: upf
     app.kubernetes.io/part-of: oran-stack
@@ -2690,150 +2690,150 @@ spec:
         app: upf
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet # Required when hostNetwork:true to still use cluster DNS.
       containers:
-        - name: upf
-          image: x0tok/oran-5gcore:latest
-          imagePullPolicy: IfNotPresent
-          command: ["/entrypoint.sh", "./install/bin/open5gs-upfd", "-c", "/open5gs/install/etc/open5gs/upf.yaml"]
-          workingDir: /open5gs
-          env:
-            - name: SKIP_MONGODB
-              value: "true"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MCC
-              value: "001"
-            - name: MNC
-              value: "01"
-            - name: TAC
-              value: "1"
-            - name: AMF_REGION
-              value: "2"
-            - name: AMF_SET
-              value: "1"
-            - name: AMF_SBI_PORT
-              value: "7777"
-            - name: AMF_NGAP_PORT
-              value: "38412"
-            - name: AMF_METRICS_PORT
-              value: "9090"
-            - name: NRF_IP
-              value: "nrf"
-            - name: NRF_SBI_PORT
-              value: "7777"
-            - name: SCP_IP
-              value: "scp"
-            - name: SCP_SBI_PORT
-              value: "7777"
-            - name: SEPP_IP
-              value: "sepp"
-            - name: SEPP_SBI_PORT
-              value: "7777"
-            - name: SMF_IP
-              value: "0.0.0.0"
-            - name: SMF_SBI_PORT
-              value: "7777"
-            - name: SMF_GTP_C_PORT
-              value: "2123"
-            - name: SMF_GTP_U_PORT
-              value: "2152"
-            - name: SMF_PFCP_PORT
-              value: "8805"
-            - name: SMF_METRICS_PORT
-              value: "9090"
-            - name: SMF_SUBNET4
-              value: "10.45.0.0/16"
-            - name: SMF_SUBNET6
-              value: "2001:db8:cafe::/48"
-            - name: UPF_IP
-              value: "upf"
-            - name: UPF_GTP_U_PORT
-              value: "2152"
-            - name: UPF_PFCP_PORT
-              value: "8805"
-            - name: UPF_METRICS_PORT
-              value: "9090"
-            - name: AUSF_IP
-              value: "0.0.0.0"
-            - name: AUSF_SBI_PORT
-              value: "7777"
-            - name: UDM_IP
-              value: "0.0.0.0"
-            - name: UDM_SBI_PORT
-              value: "7777"
-            - name: PCF_IP
-              value: "0.0.0.0"
-            - name: PCF_SBI_PORT
-              value: "7777"
-            - name: PCF_METRICS_PORT
-              value: "9090"
-            - name: NSSF_IP
-              value: "0.0.0.0"
-            - name: NSSF_SBI_PORT
-              value: "7777"
-            - name: BSF_IP
-              value: "0.0.0.0"
-            - name: BSF_SBI_PORT
-              value: "7777"
-            - name: UDR_IP
-              value: "0.0.0.0"
-            - name: UDR_SBI_PORT
-              value: "7777"
-            - name: MME_GID
-              value: "2"
-            - name: MME_CODE
-              value: "1"
-            - name: MME_S1AP_PORT
-              value: "36412"
-            - name: MME_GTP_PORT
-              value: "2123"
-            - name: MME_METRICS_PORT
-              value: "9090"
-            - name: SGWC_GTP_PORT
-              value: "2123"
-            - name: SGWC_PFCP_PORT
-              value: "8805"
-            - name: SGWU_GTP_U_PORT
-              value: "2152"
-            - name: SGWU_PFCP_PORT
-              value: "8805"
-            - name: LOG_LEVEL
-              value: "info"
-          ports:
-            - containerPort: 8805
-              name: pfcp
-              protocol: UDP
-            - containerPort: 2152
-              name: gtpu
-              protocol: UDP
-            - containerPort: 9090
-              name: metrics
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - NET_RAW
-          volumeMounts:
-            - name: nf-configs
-              mountPath: /open5gs/configs
-              readOnly: true
-            - name: open5gs-logs
-              mountPath: /var/log/open5gs
-          resources:
-            requests:
-              cpu: 200m
-              memory: 256Mi
-      volumes:
+      - name: upf
+        image: x0tok/oran-5gcore:latest
+        imagePullPolicy: IfNotPresent
+        command: ["/entrypoint.sh", "./install/bin/open5gs-upfd", "-c", "/open5gs/install/etc/open5gs/upf.yaml"]
+        workingDir: /open5gs
+        env:
+        - name: SKIP_MONGODB
+          value: "true"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MCC
+          value: "001"
+        - name: MNC
+          value: "01"
+        - name: TAC
+          value: "1"
+        - name: AMF_REGION
+          value: "2"
+        - name: AMF_SET
+          value: "1"
+        - name: AMF_SBI_PORT
+          value: "7777"
+        - name: AMF_NGAP_PORT
+          value: "38412"
+        - name: AMF_METRICS_PORT
+          value: "9090"
+        - name: NRF_IP
+          value: "nrf"
+        - name: NRF_SBI_PORT
+          value: "7777"
+        - name: SCP_IP
+          value: "scp"
+        - name: SCP_SBI_PORT
+          value: "7777"
+        - name: SEPP_IP
+          value: "sepp"
+        - name: SEPP_SBI_PORT
+          value: "7777"
+        - name: SMF_IP
+          value: "0.0.0.0"
+        - name: SMF_SBI_PORT
+          value: "7777"
+        - name: SMF_GTP_C_PORT
+          value: "2123"
+        - name: SMF_GTP_U_PORT
+          value: "2152"
+        - name: SMF_PFCP_PORT
+          value: "8805"
+        - name: SMF_METRICS_PORT
+          value: "9090"
+        - name: SMF_SUBNET4
+          value: "10.45.0.0/16"
+        - name: SMF_SUBNET6
+          value: "2001:db8:cafe::/48"
+        - name: UPF_IP
+          value: "upf"
+        - name: UPF_GTP_U_PORT
+          value: "2152"
+        - name: UPF_PFCP_PORT
+          value: "8805"
+        - name: UPF_METRICS_PORT
+          value: "9090"
+        - name: AUSF_IP
+          value: "0.0.0.0"
+        - name: AUSF_SBI_PORT
+          value: "7777"
+        - name: UDM_IP
+          value: "0.0.0.0"
+        - name: UDM_SBI_PORT
+          value: "7777"
+        - name: PCF_IP
+          value: "0.0.0.0"
+        - name: PCF_SBI_PORT
+          value: "7777"
+        - name: PCF_METRICS_PORT
+          value: "9090"
+        - name: NSSF_IP
+          value: "0.0.0.0"
+        - name: NSSF_SBI_PORT
+          value: "7777"
+        - name: BSF_IP
+          value: "0.0.0.0"
+        - name: BSF_SBI_PORT
+          value: "7777"
+        - name: UDR_IP
+          value: "0.0.0.0"
+        - name: UDR_SBI_PORT
+          value: "7777"
+        - name: MME_GID
+          value: "2"
+        - name: MME_CODE
+          value: "1"
+        - name: MME_S1AP_PORT
+          value: "36412"
+        - name: MME_GTP_PORT
+          value: "2123"
+        - name: MME_METRICS_PORT
+          value: "9090"
+        - name: SGWC_GTP_PORT
+          value: "2123"
+        - name: SGWC_PFCP_PORT
+          value: "8805"
+        - name: SGWU_GTP_U_PORT
+          value: "2152"
+        - name: SGWU_PFCP_PORT
+          value: "8805"
+        - name: LOG_LEVEL
+          value: "info"
+        ports:
+        - containerPort: 8805
+          name: pfcp
+          protocol: UDP
+        - containerPort: 2152
+          name: gtpu
+          protocol: UDP
+        - containerPort: 9090
+          name: metrics
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - NET_RAW
+        volumeMounts:
         - name: nf-configs
-          configMap:
-            name: open5gs-nf-configs
+          mountPath: /open5gs/configs
+          readOnly: true
         - name: open5gs-logs
-          emptyDir: {}
+          mountPath: /var/log/open5gs
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: nf-configs
+        configMap:
+          name: open5gs-nf-configs
+      - name: open5gs-logs
+        emptyDir: {}
 ---
 # Source: 5g-core/templates/deployment-webui.yaml
 # ============================================================================
@@ -2845,7 +2845,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: webui
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: webui
     app.kubernetes.io/part-of: oran-stack
@@ -2862,51 +2862,51 @@ spec:
         app: webui
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       initContainers:
-        - name: wait-for-mongodb
-          image: mongo:7.0
-          command:
-            - sh
-            - -c
-            - |
-              until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
-                echo "Waiting for MongoDB..."; sleep 5;
-              done
+      - name: wait-for-mongodb
+        image: mongo:7.0
+        command:
+        - sh
+        - -c
+        - |
+          until mongosh --host mongodb:27017 --eval "db.adminCommand('ping')" --quiet; do
+            echo "Waiting for MongoDB..."; sleep 5;
+          done
       containers:
-        - name: webui
-          image: x0tok/oran-webui:latest
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: DB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: MONGODB_URI
-              value: "mongodb://mongodb:27017/open5gs"
-            - name: NODE_ENV
-              value: production
-            - name: HOSTNAME
-              value: "0.0.0.0"
-            - name: PORT
-              value: "9999"
-          ports:
-            - containerPort: 9999
-              name: http
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 9999
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 9999
-            initialDelaySeconds: 15
-            periodSeconds: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
+      - name: webui
+        image: x0tok/oran-webui:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/open5gs"
+        - name: NODE_ENV
+          value: production
+        - name: HOSTNAME
+          value: "0.0.0.0"
+        - name: PORT
+          value: "9999"
+        ports:
+        - containerPort: 9999
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9999
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9999
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
 ---
 # Source: 5g-core/templates/statefulset-mongodb.yaml
 # ============================================================================
@@ -2924,7 +2924,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mongodb
-  namespace: monitoring
+  namespace: 5g-core
   labels:
     app: mongodb
     app.kubernetes.io/part-of: oran-stack
@@ -2940,67 +2940,67 @@ spec:
         app: mongodb
     spec:
       imagePullSecrets:
-        - name: dockerhub-secret
+      - name: dockerhub-secret
       containers:
-        - name: mongodb
-          image: mongo:7.0
-          # Use args (not command) so the official entrypoint runs init scripts
-          # in /docker-entrypoint-initdb.d/ on first startup with an empty PVC.
-          # deploy_5g_core also runs rs.initiate + seed idempotently after deploy.
-          args: ["--replSet", "rs0", "--bind_ip_all"]
-          ports:
-            - containerPort: 27017
-          env:
-            - name: MONGO_INITDB_DATABASE
-              value: open5gs
-          volumeMounts:
-            - name: mongodb-data
-              mountPath: /data/db
-            - name: mongodb-config
-              mountPath: /data/configdb
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
-          livenessProbe:
-            exec:
-              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
-          readinessProbe:
-            exec:
-              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 5
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              memory: 1Gi
-      volumes:
+      - name: mongodb
+        image: mongo:7.0
+        # Use args (not command) so the official entrypoint runs init scripts
+        # in /docker-entrypoint-initdb.d/ on first startup with an empty PVC.
+        # deploy_5g_core also runs rs.initiate + seed idempotently after deploy.
+        args: ["--replSet", "rs0", "--bind_ip_all"]
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: open5gs
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        - name: mongodb-config
+          mountPath: /data/configdb
         - name: init-scripts
-          configMap:
-            name: mongodb-init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        livenessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+      volumes:
+      - name: init-scripts
+        configMap:
+          name: mongodb-init-scripts
   # VolumeClaimTemplates create a PersistentVolumeClaim per replica.
   # GKE's standard-rwo StorageClass provisions a GCP Persistent Disk (pd-ssd)
   # automatically when the pod is first scheduled.
   volumeClaimTemplates:
-    - metadata:
-        name: mongodb-data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: "local-path"
-        resources:
-          requests:
-            storage: 20Gi
-    - metadata:
-        name: mongodb-config
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: "local-path"
-        resources:
-          requests:
-            storage: 1Gi
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "local-path"
+      resources:
+        requests:
+          storage: 20Gi
+  - metadata:
+      name: mongodb-config
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "local-path"
+      resources:
+        requests:
+          storage: 1Gi
