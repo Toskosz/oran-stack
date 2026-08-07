@@ -1,4 +1,3 @@
----
 # Source: near-rt-ric/templates/rbac.yaml
 # ============================================================================
 # RBAC for Near-RT RIC
@@ -61,14 +60,12 @@ data:
     rnibWriter:
       stateChangeMessageChannel: RAN_CONNECTION_STATUS_CHANGE
       ranManipulationMessageChannel: RAN_MANIPULATION
-
   # mdclog dynamic level file mounted at /etc/config/log-level.yaml.
   # e2mgr main.go passes -f to this file and UnmarshalKey("loglevel") as int:
   #   1=ERROR 2=WARNING 3=INFO 4=DEBUG. A string like "log-level: debug" leaves
   #   loglevel=0 and silences all Infof/Errorf after startup (hides Setup/12002).
   log-level.yaml: |
     loglevel: 4
-
   # Seed routes aligned with rtmgr messagetypes:
   #   1100=E2_TERM_INIT, 1101=KEEP_ALIVE_REQ, 1102=KEEP_ALIVE_RESP,
   #   12001=E2_SETUP_REQ, 12002=E2_SETUP_RESP, 12003=E2_SETUP_FAILURE
@@ -122,7 +119,6 @@ data:
     external-fqdn=ric-e2term
     pod_name=E2TERM_POD_NAME
     sctp-port=36421
-
   dockerRouter.txt: |
     newrt|start
     rte|1080|ric-e2mgr:3801
@@ -295,7 +291,6 @@ data:
       host: "ric-submgr"
       port: 8088
       timeout: 30
-
   rt.json: |
     {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801}]}
 ---
@@ -340,7 +335,6 @@ data:
       "dbTryCount": 200
       "dbRetryForever": "true"
       "checkE2IEOrder": 1
-
   submgr-uta-rtg.rt: |
     newrt|start
     rte|1080|ric-e2term:38000
@@ -391,7 +385,6 @@ data:
       "chartmuseumusername": ""
       "chartmuseumpassword": ""
       "caasIngress": ""
-
   appmgr.rt: |
     newrt|start
     rte|12010|ric-e2mgr:3801
