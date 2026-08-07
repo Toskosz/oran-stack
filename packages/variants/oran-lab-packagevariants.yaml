@@ -9,6 +9,7 @@
 #
 # Adjust repository names / package paths to match your Porch registration.
 # Use workspaceName (branch) for unpublished drafts, or revision: <int> for published vN tags.
+# Porch forbids '/' in branch/workspace names (K8s resource name constraint).
 apiVersion: config.porch.kpt.dev/v1alpha1
 kind: PackageVariant
 metadata:
@@ -18,7 +19,7 @@ spec:
   upstream:
     repo: blueprints
     package: ns-and-secrets
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: ns-and-secrets
@@ -34,7 +35,7 @@ spec:
   upstream:
     repo: blueprints
     package: 5g-core
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: 5g-core
@@ -50,7 +51,7 @@ spec:
   upstream:
     repo: blueprints
     package: mongodb-init
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: mongodb-init
@@ -66,7 +67,7 @@ spec:
   upstream:
     repo: blueprints
     package: near-rt-ric
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: near-rt-ric
@@ -82,7 +83,7 @@ spec:
   upstream:
     repo: blueprints
     package: ran
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: ran
@@ -105,7 +106,7 @@ spec:
   upstream:
     repo: blueprints
     package: verify-e2
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: verify-e2
@@ -121,7 +122,7 @@ spec:
   upstream:
     repo: blueprints
     package: xapp-simple-mon
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: xapp-simple-mon
@@ -137,7 +138,7 @@ spec:
   upstream:
     repo: blueprints
     package: verify-ue
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: verify-ue
@@ -153,7 +154,7 @@ spec:
   upstream:
     repo: blueprints
     package: monitoring
-    workspaceName: main
+    workspaceName: refactor-nephio
   downstream:
     repo: oran-lab
     package: monitoring

@@ -180,7 +180,13 @@ nephio_git_mgmt_url: ""
 nephio_git_oran_lab_url: ""
 nephio_git_username: ""
 nephio_git_token: ""
+# Deployment repos (oran-lab / mgmt) + RootSync default branch.
 nephio_git_branch: "main"
+
+# Blueprints Porch repo tracks this branch (source packages).
+# NOTE: Porch embeds the branch in PackageRevision names — no '/' allowed
+# (e.g. use refactor-nephio, not refactor/nephio).
+nephio_git_blueprints_branch: "refactor-nephio"
 
 # Blueprints path inside the blueprints git remote (monorepo layout).
 nephio_blueprints_directory: "packages/blueprints"

@@ -221,6 +221,8 @@
           porchctl repo register
           --namespace default
           --name blueprints
+          --directory={{ nephio_blueprints_directory }}
+          --branch={{ nephio_git_blueprints_branch }}
           --repo-basic-username={{ nephio_git_username }}
           --repo-basic-password={{ nephio_git_token }}
           --create-branch=true
