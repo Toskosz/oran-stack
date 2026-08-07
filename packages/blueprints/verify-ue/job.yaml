@@ -9,12 +9,12 @@ kind: ClusterRole
 metadata:
   name: oran-verify-ue
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "pods/log"]
-    verbs: ["get", "list"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -25,9 +25,9 @@ roleRef:
   kind: ClusterRole
   name: oran-verify-ue
 subjects:
-  - kind: ServiceAccount
-    name: verify-ue
-    namespace: oran-verify
+- kind: ServiceAccount
+  name: verify-ue
+  namespace: oran-verify
 ---
 apiVersion: batch/v1
 kind: Job
@@ -48,32 +48,32 @@ spec:
       serviceAccountName: verify-ue
       restartPolicy: Never
       containers:
-        - name: verify
-          image: bitnami/kubectl:1.30
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: RAN_NS
-              value: ran
-            - name: WAIT_RETRIES
-              value: "36"
-            - name: WAIT_DELAY
-              value: "10"
-          command:
-            - /bin/bash
-            - -c
-            - |
-              set -euo pipefail
-              echo "Waiting for srsUE RRC Connected + PDU Session Established..."
-              for i in $(seq 1 "${WAIT_RETRIES}"); do
-                LOGS=$(kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=200 2>/dev/null || true)
-                if echo "${LOGS}" | grep -q 'RRC Connected' \
-                   && echo "${LOGS}" | grep -q 'PDU Session Established'; then
-                  echo "UE OK — RRC Connected and PDU Session Established"
-                  exit 0
-                fi
-                echo "attempt ${i}/${WAIT_RETRIES}: UE not attached yet"
-                sleep "${WAIT_DELAY}"
-              done
-              echo "ERROR: UE attach not confirmed"
-              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=80 || true
-              exit 1
+      - name: verify
+        image: bitnamilegacy/kubectl:1.30
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RAN_NS
+          value: ran
+        - name: WAIT_RETRIES
+          value: "36"
+        - name: WAIT_DELAY
+          value: "10"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          echo "Waiting for srsUE RRC Connected + PDU Session Established..."
+          for i in $(seq 1 "${WAIT_RETRIES}"); do
+            LOGS=$(kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=200 2>/dev/null || true)
+            if echo "${LOGS}" | grep -q 'RRC Connected' \
+               && echo "${LOGS}" | grep -q 'PDU Session Established'; then
+              echo "UE OK — RRC Connected and PDU Session Established"
+              exit 0
+            fi
+            echo "attempt ${i}/${WAIT_RETRIES}: UE not attached yet"
+            sleep "${WAIT_DELAY}"
+          done
+          echo "ERROR: UE attach not confirmed"
+          kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=80 || true
+          exit 1

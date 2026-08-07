@@ -5,6 +5,4 @@ metadata:
   annotations:
     config.kubernetes.io/local-config: "true"
 info:
-  description: >
-    Gate Job: wait until srsUE sidecar logs show RRC Connected and PDU Session
-    Established. Deploy after ran (and preferably after xapp-simple-mon).
+  description: "Gate Job: wait until srsUE sidecar logs show RRC Connected and PDU Session Established. Deploy after ran (and preferably after xapp-simple-mon).\n"
