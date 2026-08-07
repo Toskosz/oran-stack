@@ -1,4 +1,3 @@
----
 # Source: ran/templates/configmap-ocudu-configs.yaml
 # ============================================================================
 # ConfigMap: OCUDU CU, DU, and srsUE configuration files
@@ -55,7 +54,6 @@ data:
       f1ap_level: debug
       f1ap_json_enabled: true
       ngap_level: info
-
   du.yml.tpl: |
     gnb_du_id: ${GNB_DU_ID}
     f1ap:
@@ -107,7 +105,6 @@ data:
     log:
       filename: /dev/stdout
       all_level: debug
-
   ue.conf: |
     [rf]
     freq_offset = 0
@@ -160,7 +157,7 @@ data:
     apn_protocol = ipv4
 
     [gw]
-    
+
 
     [gui]
     enable = false
@@ -265,7 +262,6 @@ spec:
       imagePullSecrets:
         - name: dockerhub-secret
       initContainers:
-        
         - name: wait-for-e2t
           image: alpine:3.19
           env:
@@ -284,7 +280,6 @@ spec:
                 sleep "${POLL_INTERVAL_SEC}"
               done
               echo "E2T endpoint ready: ${E2T_LIST}"
-        
         - name: render-config
           image: alpine:3.19
           command:
