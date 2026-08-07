@@ -159,6 +159,45 @@ xapp:
   e2_node_id: "gnbc_001_001_00019b_0"
 
 # ----------------------------------------------------------------------------
+# Nephio split-cluster management
+# ----------------------------------------------------------------------------
+# When true, provision skips Multus/OVS/NAD (management cluster only).
+nephio_mgmt_mode: false
+
+# Where Ansible fetches kubeconfig on the controller (workload vs mgmt).
+kubeconfig_local_path: "{{ playbook_dir }}/../../kubeconfig"
+
+# Nephio catalog pin (Porch / controllers / configsync / workload-crds).
+# Keep in sync with ansible/roles/nephio_bootstrap/defaults/main.yml.
+nephio_catalog_repo: "https://github.com/nephio-project/catalog.git"
+nephio_catalog_ref: "v5.0.0"
+
+nephio_work_dir: "{{ playbook_dir }}/../../.nephio-bootstrap"
+
+# Git repos registered with Porch (override on the command line).
+nephio_git_blueprints_url: ""
+nephio_git_mgmt_url: ""
+nephio_git_oran_lab_url: ""
+nephio_git_username: ""
+nephio_git_token: ""
+nephio_git_branch: "main"
+
+# Blueprints path inside the blueprints git remote (monorepo layout).
+nephio_blueprints_directory: "packages/blueprints"
+
+# Install optional Nephio WebUI on the management cluster.
+nephio_install_webui: true
+
+# Workload RootSync
+nephio_rootsync_name: "oran-lab"
+nephio_rootsync_namespace: "config-management-system"
+
+# GCP management VM defaults (see gcp-vm-create-mgmt.yml)
+gcp_mgmt_name: "oran-mgmt"
+gcp_mgmt_machine_type: "e2-standard-4"
+gcp_mgmt_disk_size_gb: 80
+
+# ----------------------------------------------------------------------------
 # Post-deploy verification — deterministic readiness gates (no restart loops)
 # ----------------------------------------------------------------------------
 verify_stack:

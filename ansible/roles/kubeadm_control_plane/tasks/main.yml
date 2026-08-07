@@ -180,9 +180,11 @@
   until: node_ready.stdout == "True"
   changed_when: false
 
-# ── Multus (meta-CNI) ──────────────────────────────────────────────────────────
+# ── Multus + OVS + NADs (workload cluster only) ───────────────────────────────
+# Nephio management clusters set nephio_mgmt_mode=true and skip Multus/OVS.
 
 - name: Apply Multus DaemonSet manifest
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: kubectl apply -f {{ multus_manifest_url }}
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
@@ -190,6 +192,7 @@
   changed_when: "'configured' in multus_apply.stdout or 'created' in multus_apply.stdout"
 
 - name: Wait for Multus pods to be Ready
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl wait pods -n kube-system -l app=multus
     --for condition=Ready --timeout=120s
@@ -197,16 +200,14 @@
     KUBECONFIG: /etc/kubernetes/admin.conf
   changed_when: false
 
-# ── OVS bridges ────────────────────────────────────────────────────────────────
-
 - name: Create OVS bridges
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: "ovs-vsctl --may-exist add-br {{ item.name }}"
   loop: "{{ ovs_bridges }}"
   changed_when: true
 
-# ── OVS-CNI (via cluster-network-addons-operator) ──────────────────────────────
-
 - name: Apply cluster-network-addons-operator namespace
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl apply -f
     https://github.com/kubevirt/cluster-network-addons-operator/releases/download/{{ cnao_version }}/namespace.yaml
@@ -216,6 +217,7 @@
   changed_when: "'configured' in cnao_ns.stdout or 'created' in cnao_ns.stdout"
 
 - name: Apply cluster-network-addons-operator CRD
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl apply -f
     https://github.com/kubevirt/cluster-network-addons-operator/releases/download/{{ cnao_version }}/network-addons-config.crd.yaml
@@ -225,6 +227,7 @@
   changed_when: "'configured' in cnao_crd.stdout or 'created' in cnao_crd.stdout"
 
 - name: Apply cluster-network-addons-operator
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl apply -f
     https://github.com/kubevirt/cluster-network-addons-operator/releases/download/{{ cnao_version }}/operator.yaml
@@ -234,6 +237,7 @@
   changed_when: "'configured' in cnao_operator.stdout or 'created' in cnao_operator.stdout"
 
 - name: Allow CNAO operator to schedule on control-plane nodes
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl patch deployment cluster-network-addons-operator
     -n cluster-network-addons --type=merge
@@ -245,6 +249,7 @@
   failed_when: _cnao_toleration_patch.rc != 0 and 'not patched' not in _cnao_toleration_patch.stdout
 
 - name: Wait for cluster-network-addons-operator deployment
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl rollout status deployment/cluster-network-addons-operator
     -n cluster-network-addons --timeout=180s
@@ -253,6 +258,7 @@
   changed_when: false
 
 - name: Apply NetworkAddonsConfig to enable OVS
+  when: not (nephio_mgmt_mode | default(false) | bool)
   shell: |
     kubectl apply -f - <<EOF
     apiVersion: networkaddonsoperator.network.kubevirt.io/v1
@@ -268,6 +274,7 @@
   changed_when: "'configured' in cnao_config.stdout or 'created' in cnao_config.stdout"
 
 - name: Wait for cluster-network-addons-operator to become available
+  when: not (nephio_mgmt_mode | default(false) | bool)
   command: >
     kubectl wait networkaddonsconfig cluster
     --for condition=Available --timeout=300s
@@ -279,9 +286,8 @@
   until: _cnao_available.rc == 0
   changed_when: false
 
-# ── NetworkAttachmentDefinitions ───────────────────────────────────────────────
-
 - name: Create namespaces for NADs
+  when: not (nephio_mgmt_mode | default(false) | bool)
   shell: kubectl create namespace {{ item }} --dry-run=client -o yaml | kubectl apply -f -
   loop: "{{ nad_namespaces }}"
   environment:
@@ -289,6 +295,7 @@
   changed_when: false
 
 - name: Create NetworkAttachmentDefinitions
+  when: not (nephio_mgmt_mode | default(false) | bool)
   shell: |
     kubectl apply -f - <<EOF
     apiVersion: k8s.cni.cncf.io/v1
@@ -355,14 +362,14 @@
 - name: Fetch kubeconfig to Ansible controller
   fetch:
     src: /etc/kubernetes/admin.conf
-    dest: "{{ playbook_dir }}/../../kubeconfig"
+    dest: "{{ kubeconfig_local_path | default(playbook_dir + '/../../kubeconfig') }}"
     flat: true
 
 - name: Patch kubeconfig server address to use control-plane external IP
   delegate_to: localhost
   become: false
   replace:
-    path: "{{ playbook_dir }}/../../kubeconfig"
+    path: "{{ kubeconfig_local_path | default(playbook_dir + '/../../kubeconfig') }}"
     regexp: 'server: https://.*:6443'
     # ansible_host = external/NAT IP (reachable from the controller).
     # Do not use _apiserver_advertise_address (control_plane_ip / VPC-internal).

@@ -5,6 +5,7 @@
 # Usage:
 #   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/hosts.ini
 #   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
+#   ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
 #
 # Pre-requisites:
 #   - Ansible Galaxy collections installed:
@@ -12,16 +13,17 @@
 #   - Inventory file configured with node IPs and SSH credentials
 #
 # What this playbook does:
-#   1. Prepares both nodes (swap, kernel modules, sysctl, OVS, containerd, kubeadm)
+#   1. Prepares cluster nodes (swap, kernel modules, sysctl, OVS, containerd, kubeadm)
 #   2. Initialises the control-plane with kubeadm init + Flannel + Multus + OVS-CNI
 #   3. Installs local-path-provisioner for MongoDB PVC storage
-#   4. Joins the worker node to the cluster
-#   5. Configures VXLAN tunnels between nodes for OVS bridges
-#   6. Fetches kubeconfig to the repo root as ./kubeconfig
+#   4. Joins worker nodes (skipped when [workers] is empty)
+#   5. Untaints the control-plane when there are no workers (single-node lab)
+#   6. Configures VXLAN tunnels between nodes for OVS bridges
+#   7. Fetches kubeconfig to the repo root as ./kubeconfig
 #
 # After this playbook:
 #   export KUBECONFIG=$(pwd)/kubeconfig
-#   kubectl get nodes        # should show cp1 + w1 Ready
+#   kubectl get nodes        # cp1 + w1 Ready, or single-node cp1 Ready
 # ============================================================================
 ---
 - name: Prepare all cluster nodes
@@ -47,6 +49,22 @@
 
   roles:
     - role: kubeadm_worker
+
+- name: Allow workloads on single-node control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Remove control-plane taint when no workers
+      when: groups['workers'] | default([]) | length == 0
+      command: >
+        kubectl taint nodes {{ inventory_hostname }}
+        node-role.kubernetes.io/control-plane:NoSchedule-
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: _untaint
+      failed_when: false
+      changed_when: _untaint.rc == 0
 
 - name: Configure VXLAN tunnels for OVS bridges
   hosts: k8s_cluster
