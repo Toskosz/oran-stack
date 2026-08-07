@@ -1,0 +1,59 @@
+# ============================================================================
+# Playbook: provision-mgmt.yml
+# Purpose:  Bootstrap a kubeadm cluster for Nephio management (no Multus/OVS).
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/provision-mgmt.yml \
+#     -i ansible/inventories/mgmt.ini
+#
+# Writes ./kubeconfig-mgmt (does not overwrite workload ./kubeconfig).
+# ============================================================================
+---
+- name: Prepare Nephio management nodes
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+  vars:
+    nephio_mgmt_mode: true
+
+  roles:
+    - role: kubeadm_prereqs
+
+- name: Initialise Nephio management control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  vars:
+    nephio_mgmt_mode: true
+    kubeconfig_local_path: "{{ playbook_dir }}/../../kubeconfig-mgmt"
+
+  roles:
+    - role: kubeadm_control_plane
+
+- name: Join management workers (optional — skipped when workers group is empty)
+  hosts: workers
+  become: true
+  gather_facts: false
+  vars:
+    nephio_mgmt_mode: true
+
+  roles:
+    - role: kubeadm_worker
+
+- name: Allow workloads on single-node management control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  vars:
+    nephio_mgmt_mode: true
+  tasks:
+    - name: Remove control-plane taint when no workers
+      when: groups['workers'] | default([]) | length == 0
+      command: >
+        kubectl taint nodes {{ inventory_hostname }}
+        node-role.kubernetes.io/control-plane:NoSchedule-
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: _untaint
+      failed_when: false
+      changed_when: _untaint.rc == 0

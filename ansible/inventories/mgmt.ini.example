@@ -1,0 +1,26 @@
+# ============================================================================
+# Nephio management cluster inventory template
+# ============================================================================
+# cp mgmt.ini.example mgmt.ini
+# Fill in the management control-plane host, then:
+#   ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+# ============================================================================
+
+[control_plane]
+# Single-node management cluster is enough for lab Porch + controllers.
+mgmt1  ansible_host=10.0.0.20  control_plane_ip=10.0.0.20  ansible_user=ubuntu
+
+# Optional second node (leave empty for single-node mgmt)
+[workers]
+
+[k8s_cluster:children]
+control_plane
+workers
+
+[k8s_cluster:vars]
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=auto_legacy_silent
+nephio_mgmt_mode=true
+
+[local]
+localhost ansible_connection=local
