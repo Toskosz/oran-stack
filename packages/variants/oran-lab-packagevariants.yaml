@@ -35,7 +35,7 @@ spec:
   upstream:
     repo: blueprints
     package: 5g-core
-    workspaceName: refactor-nephio
+    workspaceName: ns-fix
   downstream:
     repo: oran-lab
     package: 5g-core
@@ -67,7 +67,7 @@ spec:
   upstream:
     repo: blueprints
     package: near-rt-ric
-    workspaceName: refactor-nephio
+    workspaceName: ns-fix
   downstream:
     repo: oran-lab
     package: near-rt-ric
@@ -83,7 +83,7 @@ spec:
   upstream:
     repo: blueprints
     package: ran
-    workspaceName: refactor-nephio
+    workspaceName: ns-fix
   downstream:
     repo: oran-lab
     package: ran
@@ -122,7 +122,7 @@ spec:
   upstream:
     repo: blueprints
     package: xapp-simple-mon
-    workspaceName: refactor-nephio
+    workspaceName: ns-fix
   downstream:
     repo: oran-lab
     package: xapp-simple-mon
@@ -154,7 +154,7 @@ spec:
   upstream:
     repo: blueprints
     package: monitoring
-    workspaceName: refactor-nephio
+    workspaceName: ns-fix
   downstream:
     repo: oran-lab
     package: monitoring
