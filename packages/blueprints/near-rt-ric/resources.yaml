@@ -1,4 +1,3 @@
----
 # Source: near-rt-ric/templates/rbac.yaml
 # ============================================================================
 # RBAC for Near-RT RIC
@@ -12,7 +11,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
 ---
 # Source: near-rt-ric/templates/configmaps.yaml
 # ============================================================================
@@ -32,7 +31,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: e2mgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -61,14 +60,12 @@ data:
     rnibWriter:
       stateChangeMessageChannel: RAN_CONNECTION_STATUS_CHANGE
       ranManipulationMessageChannel: RAN_MANIPULATION
-
   # mdclog dynamic level file mounted at /etc/config/log-level.yaml.
   # e2mgr main.go passes -f to this file and UnmarshalKey("loglevel") as int:
   #   1=ERROR 2=WARNING 3=INFO 4=DEBUG. A string like "log-level: debug" leaves
   #   loglevel=0 and silences all Infof/Errorf after startup (hides Setup/12002).
   log-level.yaml: |
     loglevel: 4
-
   # Seed routes aligned with rtmgr messagetypes:
   #   1100=E2_TERM_INIT, 1101=KEEP_ALIVE_REQ, 1102=KEEP_ALIVE_RESP,
   #   12001=E2_SETUP_REQ, 12002=E2_SETUP_RESP, 12003=E2_SETUP_FAILURE
@@ -98,7 +95,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: e2term-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -122,7 +119,6 @@ data:
     external-fqdn=ric-e2term
     pod_name=E2TERM_POD_NAME
     sctp-port=36421
-
   dockerRouter.txt: |
     newrt|start
     rte|1080|ric-e2mgr:3801
@@ -149,7 +145,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: rtmgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -295,7 +291,6 @@ data:
       host: "ric-submgr"
       port: 8088
       timeout: 30
-
   rt.json: |
     {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801}]}
 ---
@@ -305,7 +300,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: submgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -340,7 +335,6 @@ data:
       "dbTryCount": 200
       "dbRetryForever": "true"
       "checkE2IEOrder": 1
-
   submgr-uta-rtg.rt: |
     newrt|start
     rte|1080|ric-e2term:38000
@@ -365,7 +359,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: appmgr-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -391,7 +385,6 @@ data:
       "chartmuseumusername": ""
       "chartmuseumpassword": ""
       "caasIngress": ""
-
   appmgr.rt: |
     newrt|start
     rte|12010|ric-e2mgr:3801
@@ -404,7 +397,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: a1mediator-config
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app.kubernetes.io/part-of: oran-stack
 data:
@@ -423,127 +416,127 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ric-e2term-pod-reader
-  namespace: monitoring
+  namespace: near-rt-ric
 rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
 ---
 # Source: near-rt-ric/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ric-e2term-pod-reader
-  namespace: monitoring
+  namespace: near-rt-ric
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: ric-e2term-pod-reader
 subjects:
-  - kind: ServiceAccount
-    name: ric-e2term
-    namespace: monitoring
+- kind: ServiceAccount
+  name: ric-e2term
+  namespace: near-rt-ric
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-dbaas
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-dbaas
 spec:
   selector:
     app: ric-dbaas
   ports:
-    - name: redis
-      port: 6379
-      targetPort: 6379
+  - name: redis
+    port: 6379
+    targetPort: 6379
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-e2mgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2mgr
 spec:
   selector:
     app: ric-e2mgr
   ports:
-    - name: http
-      port: 3800
-      targetPort: 3800
-    - name: rmr
-      port: 3801
-      targetPort: 3801
-    - name: rmr-mgmt
-      port: 4561
-      targetPort: 4561
+  - name: http
+    port: 3800
+    targetPort: 3800
+  - name: rmr
+    port: 3801
+    targetPort: 3801
+  - name: rmr-mgmt
+    port: 4561
+    targetPort: 4561
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-appmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-appmgr
 spec:
   selector:
     app: ric-appmgr
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
+  - name: http
+    port: 8080
+    targetPort: 8080
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-submgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-submgr
 spec:
   selector:
     app: ric-submgr
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
-    - name: rmr
-      port: 4560
-      targetPort: 4560
-    - name: metrics
-      port: 8088
-      targetPort: 8088
-    - name: rmr-mgmt
-      port: 4561
-      targetPort: 4561
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: rmr
+    port: 4560
+    targetPort: 4560
+  - name: metrics
+    port: 8088
+    targetPort: 8088
+  - name: rmr-mgmt
+    port: 4561
+    targetPort: 4561
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-rtmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-rtmgr
 spec:
   selector:
     app: ric-rtmgr
   ports:
-    - name: http
-      port: 3800
-      targetPort: 3800
-    - name: rmr
-      port: 4560
-      targetPort: 4560
-    - name: rmr-mgmt
-      port: 4561
-      targetPort: 4561
+  - name: http
+    port: 3800
+    targetPort: 3800
+  - name: rmr
+    port: 4560
+    targetPort: 4560
+  - name: rmr-mgmt
+    port: 4561
+    targetPort: 4561
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # Internal RMR service for e2term — used by other RIC components.
@@ -555,7 +548,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
 spec:
@@ -563,15 +556,15 @@ spec:
   selector:
     app: ric-e2term
   ports:
-    - name: rmr
-      port: 38000
-      targetPort: 38000
-    - name: metrics
-      port: 8088
-      targetPort: 8088
-    - name: rmr-mgmt
-      port: 4561
-      targetPort: 4561
+  - name: rmr
+    port: 38000
+    targetPort: 38000
+  - name: metrics
+    port: 8088
+    targetPort: 8088
+  - name: rmr-mgmt
+    port: 4561
+    targetPort: 4561
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # External SCTP service for E2 interface — DU connects here.
@@ -584,7 +577,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
 spec:
@@ -592,29 +585,29 @@ spec:
   selector:
     app: ric-e2term
   ports:
-    - name: e2-sctp
-      port: 36421
-      targetPort: 36421
-      protocol: SCTP
+  - name: e2-sctp
+    port: 36421
+    targetPort: 36421
+    protocol: SCTP
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: ric-a1mediator
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-a1mediator
 spec:
   selector:
     app: ric-a1mediator
   ports:
-    - name: http
-      port: 10000
-      targetPort: 10000
-    - name: rmr
-      port: 4562
-      targetPort: 4562
+  - name: http
+    port: 10000
+    targetPort: 10000
+  - name: rmr
+    port: 4562
+    targetPort: 4562
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # ============================================================================
@@ -639,7 +632,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-dbaas
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-dbaas
     app.kubernetes.io/part-of: oran-stack
@@ -656,37 +649,37 @@ spec:
         app: ric-dbaas
     spec:
       containers:
-        - name: redis
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-dbaas:0.6.5
-          imagePullPolicy: IfNotPresent
-          # SDL redismodule provides MSETMPUB required by e2mgr
-          # UpdateNodebInfoOnConnectionStatusInversion. Without it, CONNECTED
-          # status update fails and E2SetupResponse (12002) is never sent.
-          args:
-            - redis-server
-            - --loadmodule
-            - /usr/local/libexec/redismodule/libredismodule.so
-            - --save
-            - ""
-            - --appendonly
-            - "no"
-          ports:
-            - containerPort: 6379
-              name: redis
-          livenessProbe:
-            exec:
-              command: ["redis-cli", "ping"]
-            initialDelaySeconds: 10
-            periodSeconds: 5
-          readinessProbe:
-            exec:
-              command: ["redis-cli", "ping"]
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
+      - name: redis
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-dbaas:0.6.5
+        imagePullPolicy: IfNotPresent
+        # SDL redismodule provides MSETMPUB required by e2mgr
+        # UpdateNodebInfoOnConnectionStatusInversion. Without it, CONNECTED
+        # status update fails and E2SetupResponse (12002) is never sent.
+        args:
+        - redis-server
+        - --loadmodule
+        - /usr/local/libexec/redismodule/libredismodule.so
+        - --save
+        - ""
+        - --appendonly
+        - "no"
+        ports:
+        - containerPort: 6379
+          name: redis
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- E2MGR (E2 Manager) -------------------------------------------------------
@@ -694,7 +687,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-e2mgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2mgr
     app.kubernetes.io/part-of: oran-stack
@@ -711,71 +704,71 @@ spec:
         app: ric-e2mgr
     spec:
       initContainers:
-        - name: wait-for-dbaas
-          image: redis:6-alpine
-          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      - name: wait-for-dbaas
+        image: redis:6-alpine
+        command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
       containers:
-        - name: e2mgr
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2mgr:6.0.8
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: LD_LIBRARY_PATH
-              value: /usr/local/lib
-            - name: RMR_SEED_RT
-              value: /opt/E2Manager/router.txt
-            - name: RMR_VCTL_FILE
-              value: /tmp/rmr.verbose
-            - name: RMR_RTG_SVC
-              value: ric-rtmgr:4561
-            # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
-            # rtmgr pushes sender-qualified routes keyed on ric-e2mgr:3801
-            # (mse|1101|ric-e2mgr:3801|…|ric-e2term:38000). A pod-name src
-            # never matches, so keepalive and E2SetupResponse cannot leave
-            # e2mgr (RMR open=0/succ=0) and the CU aborts after 10 minutes.
-            - name: RMR_SRC_ID
-              value: ric-e2mgr
-            - name: port
-              value: "3800"
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-          ports:
-            - containerPort: 3800
-              name: http
-            - containerPort: 3801
-              name: rmr
-          livenessProbe:
-            httpGet:
-              path: /v1/health
-              port: 3800
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            failureThreshold: 10
-          readinessProbe:
-            httpGet:
-              path: /v1/health
-              port: 3800
-            initialDelaySeconds: 10
-            periodSeconds: 5
-          volumeMounts:
-            - name: e2mgr-config
-              mountPath: /opt/E2Manager/resources/configuration.yaml
-              subPath: configuration.yaml
-            - name: e2mgr-config
-              mountPath: /opt/E2Manager/router.txt
-              subPath: router.txt
-            - name: e2mgr-config
-              mountPath: /etc/config/log-level.yaml
-              subPath: log-level.yaml
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: e2mgr
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2mgr:6.0.8
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: LD_LIBRARY_PATH
+          value: /usr/local/lib
+        - name: RMR_SEED_RT
+          value: /opt/E2Manager/router.txt
+        - name: RMR_VCTL_FILE
+          value: /tmp/rmr.verbose
+        - name: RMR_RTG_SVC
+          value: ric-rtmgr:4561
+        # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
+        # rtmgr pushes sender-qualified routes keyed on ric-e2mgr:3801
+        # (mse|1101|ric-e2mgr:3801|…|ric-e2term:38000). A pod-name src
+        # never matches, so keepalive and E2SetupResponse cannot leave
+        # e2mgr (RMR open=0/succ=0) and the CU aborts after 10 minutes.
+        - name: RMR_SRC_ID
+          value: ric-e2mgr
+        - name: port
+          value: "3800"
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        ports:
+        - containerPort: 3800
+          name: http
+        - containerPort: 3801
+          name: rmr
+        livenessProbe:
+          httpGet:
+            path: /v1/health
+            port: 3800
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /v1/health
+            port: 3800
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        volumeMounts:
         - name: e2mgr-config
-          configMap:
-            name: e2mgr-config
+          mountPath: /opt/E2Manager/resources/configuration.yaml
+          subPath: configuration.yaml
+        - name: e2mgr-config
+          mountPath: /opt/E2Manager/router.txt
+          subPath: router.txt
+        - name: e2mgr-config
+          mountPath: /etc/config/log-level.yaml
+          subPath: log-level.yaml
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: e2mgr-config
+        configMap:
+          name: e2mgr-config
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- APPMGR (Application Manager) -------------------------------------------
@@ -783,7 +776,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-appmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-appmgr
     app.kubernetes.io/part-of: oran-stack
@@ -800,38 +793,38 @@ spec:
         app: ric-appmgr
     spec:
       initContainers:
-        - name: wait-for-dbaas
-          image: redis:6-alpine
-          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      - name: wait-for-dbaas
+        image: redis:6-alpine
+        command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
       containers:
-        - name: appmgr
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-appmgr:0.5.4
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-            - name: RMR_SEED_RT
-              value: /opt/ric/config/appmgr.rt
-          ports:
-            - containerPort: 8080
-              name: http
-          volumeMounts:
-            - name: appmgr-config
-              mountPath: /opt/ric/config/appmgr.yaml
-              subPath: appmgr.yaml
-            - name: appmgr-config
-              mountPath: /opt/ric/config/appmgr.rt
-              subPath: appmgr.rt
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: appmgr
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-appmgr:0.5.4
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        - name: RMR_SEED_RT
+          value: /opt/ric/config/appmgr.rt
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
         - name: appmgr-config
-          configMap:
-            name: appmgr-config
+          mountPath: /opt/ric/config/appmgr.yaml
+          subPath: appmgr.yaml
+        - name: appmgr-config
+          mountPath: /opt/ric/config/appmgr.rt
+          subPath: appmgr.rt
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: appmgr-config
+        configMap:
+          name: appmgr-config
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- SUBMGR (Subscription Manager) ------------------------------------------
@@ -839,7 +832,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-submgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-submgr
     app.kubernetes.io/part-of: oran-stack
@@ -856,49 +849,49 @@ spec:
         app: ric-submgr
     spec:
       initContainers:
-        - name: wait-for-dbaas
-          image: redis:6-alpine
-          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      - name: wait-for-dbaas
+        image: redis:6-alpine
+        command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
       containers:
-        - name: submgr
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-submgr:0.10.4
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: CFG_FILE
-              value: /opt/config/submgr-config.yaml
-            - name: RMR_SEED_RT
-              value: /opt/config/submgr-uta-rtg.rt
-            - name: RMR_RTG_SVC
-              value: ric-rtmgr:4561
-            # Match rtmgr sender-qualified routes (same rationale as e2mgr).
-            - name: RMR_SRC_ID
-              value: ric-submgr
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-          ports:
-            - containerPort: 8080
-              name: http
-            - containerPort: 4560
-              name: rmr
-            - containerPort: 8088
-              name: metrics
-          volumeMounts:
-            - name: submgr-config
-              mountPath: /opt/config/submgr-config.yaml
-              subPath: submgr-config.yaml
-            - name: submgr-config
-              mountPath: /opt/config/submgr-uta-rtg.rt
-              subPath: submgr-uta-rtg.rt
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: submgr
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-submgr:0.10.4
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CFG_FILE
+          value: /opt/config/submgr-config.yaml
+        - name: RMR_SEED_RT
+          value: /opt/config/submgr-uta-rtg.rt
+        - name: RMR_RTG_SVC
+          value: ric-rtmgr:4561
+        # Match rtmgr sender-qualified routes (same rationale as e2mgr).
+        - name: RMR_SRC_ID
+          value: ric-submgr
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 4560
+          name: rmr
+        - containerPort: 8088
+          name: metrics
+        volumeMounts:
         - name: submgr-config
-          configMap:
-            name: submgr-config
+          mountPath: /opt/config/submgr-config.yaml
+          subPath: submgr-config.yaml
+        - name: submgr-config
+          mountPath: /opt/config/submgr-uta-rtg.rt
+          subPath: submgr-uta-rtg.rt
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: submgr-config
+        configMap:
+          name: submgr-config
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- RTMGR (Routing Manager) -------------------------------------------------
@@ -921,7 +914,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-rtmgr
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-rtmgr
     app.kubernetes.io/part-of: oran-stack
@@ -938,92 +931,92 @@ spec:
         app: ric-rtmgr
     spec:
       hostAliases:
-        # rtmgr internally dials "rtmgr:4560" for its self-wormhole.
-        # Without this alias, DNS fails and rtmgr cannot build any routes.
-        - ip: "127.0.0.1"
-          hostnames:
-            - rtmgr
-            - routingmanager
+      # rtmgr internally dials "rtmgr:4560" for its self-wormhole.
+      # Without this alias, DNS fails and rtmgr cannot build any routes.
+      - ip: "127.0.0.1"
+        hostnames:
+        - rtmgr
+        - routingmanager
       initContainers:
-        - name: wait-for-e2mgr
-          image: alpine:3.19
-          command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
-        # Resolve the ric-submgr ClusterIP and write it to a shared volume.
-        # The main container's command patches /etc/hosts before starting rtmgr,
-        # injecting the alias that rtmgr hardcodes internally.
-        - name: resolve-submgr-ip
-          image: alpine:3.19
-          command:
-            - sh
-            - -c
-            - |
-              until getent hosts ric-submgr > /tmp/out; do
-                echo "waiting for ric-submgr DNS..."; sleep 2;
-              done
-              awk '{print $1}' /tmp/out > /shared/submgr-ip
-              echo "Resolved ric-submgr to: $(cat /shared/submgr-ip)"
-          volumeMounts:
-            - name: shared
-              mountPath: /shared
-      containers:
-        - name: rtmgr
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
-          imagePullPolicy: IfNotPresent
-          # Patch /etc/hosts with the submgr alias before exec'ing the real binary.
-          # This is the Kubernetes equivalent of Docker Compose extra_hosts.
-          command:
-            - sh
-            - -c
-            - |
-              SUBMGR_IP=$(cat /shared/submgr-ip)
-              echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
-              exec /run_rtmgr.sh
-          env:
-            - name: RMR_SEED_RT
-              value: /uta_rtg_ric.rt
-            - name: RMR_RTG_SVC
-              value: ric-rtmgr:4561
-            # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
-            # e2term/e2mgr then try to resolve the pod name to ACK route
-            # updates, which fails. Force the stable service name instead.
-            - name: RMR_SRC_ID
-              value: ric-rtmgr.monitoring
-            - name: CFGFILE
-              value: /cfg/rtmgr-config.yaml
-            - name: RTFILE
-              value: /db/rt.json
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-          ports:
-            - containerPort: 3800
-              name: http
-            - containerPort: 4560
-              name: rmr
-          volumeMounts:
-            - name: rtmgr-config
-              mountPath: /cfg/rtmgr-config.yaml
-              subPath: rtmgr-config.yaml
-            # /db/rt.json must be writable — rtmgr writes the computed route
-            # table here at runtime. Mount an emptyDir so the ConfigMap seed
-            # (read-only subPath) does not block writes.
-            - name: rtmgr-db
-              mountPath: /db
-            - name: shared
-              mountPath: /shared
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
-        - name: rtmgr-config
-          configMap:
-            name: rtmgr-config
-        - name: rtmgr-db
-          emptyDir: {}
+      - name: wait-for-e2mgr
+        image: alpine:3.19
+        command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+      # Resolve the ric-submgr ClusterIP and write it to a shared volume.
+      # The main container's command patches /etc/hosts before starting rtmgr,
+      # injecting the alias that rtmgr hardcodes internally.
+      - name: resolve-submgr-ip
+        image: alpine:3.19
+        command:
+        - sh
+        - -c
+        - |
+          until getent hosts ric-submgr > /tmp/out; do
+            echo "waiting for ric-submgr DNS..."; sleep 2;
+          done
+          awk '{print $1}' /tmp/out > /shared/submgr-ip
+          echo "Resolved ric-submgr to: $(cat /shared/submgr-ip)"
+        volumeMounts:
         - name: shared
-          emptyDir: {}
+          mountPath: /shared
+      containers:
+      - name: rtmgr
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
+        imagePullPolicy: IfNotPresent
+        # Patch /etc/hosts with the submgr alias before exec'ing the real binary.
+        # This is the Kubernetes equivalent of Docker Compose extra_hosts.
+        command:
+        - sh
+        - -c
+        - |
+          SUBMGR_IP=$(cat /shared/submgr-ip)
+          echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
+          exec /run_rtmgr.sh
+        env:
+        - name: RMR_SEED_RT
+          value: /uta_rtg_ric.rt
+        - name: RMR_RTG_SVC
+          value: ric-rtmgr:4561
+        # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
+        # e2term/e2mgr then try to resolve the pod name to ACK route
+        # updates, which fails. Force the stable service name instead.
+        - name: RMR_SRC_ID
+          value: ric-rtmgr.near-rt-ric
+        - name: CFGFILE
+          value: /cfg/rtmgr-config.yaml
+        - name: RTFILE
+          value: /db/rt.json
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        ports:
+        - containerPort: 3800
+          name: http
+        - containerPort: 4560
+          name: rmr
+        volumeMounts:
+        - name: rtmgr-config
+          mountPath: /cfg/rtmgr-config.yaml
+          subPath: rtmgr-config.yaml
+        # /db/rt.json must be writable — rtmgr writes the computed route
+        # table here at runtime. Mount an emptyDir so the ConfigMap seed
+        # (read-only subPath) does not block writes.
+        - name: rtmgr-db
+          mountPath: /db
+        - name: shared
+          mountPath: /shared
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: rtmgr-config
+        configMap:
+          name: rtmgr-config
+      - name: rtmgr-db
+        emptyDir: {}
+      - name: shared
+        emptyDir: {}
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- E2TERM (E2 Termination) --------------------------------------------------
@@ -1038,7 +1031,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-e2term
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-e2term
     app.kubernetes.io/part-of: oran-stack
@@ -1060,130 +1053,130 @@ spec:
           [
             {
               "name": "e2br-net",
-              "namespace": "monitoring",
+              "namespace": "near-rt-ric",
               "ips": ["10.200.3.4/24"]
             }
           ]
     spec:
       serviceAccountName: ric-e2term
       initContainers:
-        - name: wait-for-e2mgr
-          image: alpine:3.19
-          command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
-        # render-config: copy the read-only ConfigMap into an emptyDir so we can
-        # substitute runtime values. Doing it here (not just in startup.sh's sed)
-        # is robust and makes the rendered config visible in initContainer logs.
-        #
-        # Substitutions:
-        #   local-ip=POD_IP_PLACEHOLDER → primary pod IP (Downward API status.podIP)
-        #       This is the E2T/RMR endpoint e2mgr must reach. It MUST be the
-        #       Flannel eth0 IP, never the OVS secondary IP (e2mgr has no route
-        #       to the OVS bridge). SCTP E2AP still binds 0.0.0.0:36421.
-        #   external-fqdn=e2t.com       → ric-e2term (stable K8s service name)
-        #   pod_name=E2TERM_POD_NAME    → left as-is (env var pointer; e2term reads
-        #                                 the env var named by this field at runtime)
-        - name: render-config
-          image: busybox:1.36
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-          command:
-            - sh
-            - -c
-            - |
-              cp /config-ro/config.conf /config-rw/config.conf
-              cp /config-ro/dockerRouter.txt /config-rw/dockerRouter.txt
-              # E2T/RMR endpoint must be the primary (Flannel) pod IP so e2mgr
-              # can reach it for keepalive and E2SetupResponse routing.
-              sed -i "s|local-ip=.*|local-ip=${POD_IP}|" /config-rw/config.conf
-              # external-fqdn: stable K8s service name (default 'e2t.com' is
-              # not resolvable in-cluster).
-              sed -i "s|external-fqdn=.*|external-fqdn=ric-e2term|" /config-rw/config.conf
-              # pod_name is an ENV VAR POINTER, not a literal — keep as-is and
-              # set E2TERM_POD_NAME via Downward API on the main container.
-              echo "Rendered e2term config.conf:"
-              cat /config-rw/config.conf
-          volumeMounts:
-            - name: e2term-config-ro
-              mountPath: /config-ro
-            - name: e2term-config-rw
-              mountPath: /config-rw
-        # This sleep (30s) ensures e2mgr's RMR
-        # outbound connection to e2term is established before e2term opens the
-        # SCTP port. Without it, the first E2_TERM_KEEP_ALIVE_RESP can fail with
-        # RMR_ERR_NOENDPT and trigger the keep-alive death spiral.
-        # See docs/LEARNINGS.md for the full diagnosis.
-        - name: startup-delay
-          image: busybox:1.36
-          command: ["sleep", "30"]
-      containers:
-        - name: e2term
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2:6.0.8
-          imagePullPolicy: IfNotPresent
-          command: ["sh", "-c", "./startup.sh"]
-          securityContext:
-            privileged: true
-          env:
-            - name: RMR_SEED_RT
-              value: /opt/e2/config/dockerRouter.txt
-            - name: RMR_RTG_SVC
-              value: ric-rtmgr:4561
-            - name: RMR_SRC_ID
-              value: ric-e2term
-            - name: E2TERM_POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: LD_LIBRARY_PATH
-              value: /usr/local/lib
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-          ports:
-            - containerPort: 38000
-              name: rmr
-            - containerPort: 36421
-              name: e2-sctp
-              protocol: SCTP
-            - containerPort: 8088
-              name: metrics
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: 8088
-            initialDelaySeconds: 15
-            periodSeconds: 5
-            failureThreshold: 6
-          volumeMounts:
-            # Use the writable copy produced by the render-config initContainer.
-            - name: e2term-config-rw
-              mountPath: /opt/e2/config
-            # e2term writes all E2AP processing logs to /log/e2term.log.
-            # Without this volume, those logs are silently lost (the directory
-            # does not exist in the image) and E2 failures are invisible.
-            - name: e2term-log
-              mountPath: /log
-          resources:
-            requests:
-              cpu: 150m
-              memory: 192Mi
-      volumes:
+      - name: wait-for-e2mgr
+        image: alpine:3.19
+        command: ["sh", "-c", "until wget -qO- http://ric-e2mgr:3800/v1/health; do echo waiting for e2mgr; sleep 3; done"]
+      # render-config: copy the read-only ConfigMap into an emptyDir so we can
+      # substitute runtime values. Doing it here (not just in startup.sh's sed)
+      # is robust and makes the rendered config visible in initContainer logs.
+      #
+      # Substitutions:
+      #   local-ip=POD_IP_PLACEHOLDER → primary pod IP (Downward API status.podIP)
+      #       This is the E2T/RMR endpoint e2mgr must reach. It MUST be the
+      #       Flannel eth0 IP, never the OVS secondary IP (e2mgr has no route
+      #       to the OVS bridge). SCTP E2AP still binds 0.0.0.0:36421.
+      #   external-fqdn=e2t.com       → ric-e2term (stable K8s service name)
+      #   pod_name=E2TERM_POD_NAME    → left as-is (env var pointer; e2term reads
+      #                                 the env var named by this field at runtime)
+      - name: render-config
+        image: busybox:1.36
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        command:
+        - sh
+        - -c
+        - |
+          cp /config-ro/config.conf /config-rw/config.conf
+          cp /config-ro/dockerRouter.txt /config-rw/dockerRouter.txt
+          # E2T/RMR endpoint must be the primary (Flannel) pod IP so e2mgr
+          # can reach it for keepalive and E2SetupResponse routing.
+          sed -i "s|local-ip=.*|local-ip=${POD_IP}|" /config-rw/config.conf
+          # external-fqdn: stable K8s service name (default 'e2t.com' is
+          # not resolvable in-cluster).
+          sed -i "s|external-fqdn=.*|external-fqdn=ric-e2term|" /config-rw/config.conf
+          # pod_name is an ENV VAR POINTER, not a literal — keep as-is and
+          # set E2TERM_POD_NAME via Downward API on the main container.
+          echo "Rendered e2term config.conf:"
+          cat /config-rw/config.conf
+        volumeMounts:
         - name: e2term-config-ro
-          configMap:
-            name: e2term-config
+          mountPath: /config-ro
         - name: e2term-config-rw
-          emptyDir: {}
-        # Writable log directory for e2term's E2AP processing logs.
-        # Access via: kubectl exec -n near-rt-ric deploy/ric-e2term -- cat /log/e2term.log
+          mountPath: /config-rw
+      # This sleep (30s) ensures e2mgr's RMR
+      # outbound connection to e2term is established before e2term opens the
+      # SCTP port. Without it, the first E2_TERM_KEEP_ALIVE_RESP can fail with
+      # RMR_ERR_NOENDPT and trigger the keep-alive death spiral.
+      # See docs/LEARNINGS.md for the full diagnosis.
+      - name: startup-delay
+        image: busybox:1.36
+        command: ["sleep", "30"]
+      containers:
+      - name: e2term
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-e2:6.0.8
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "./startup.sh"]
+        securityContext:
+          privileged: true
+        env:
+        - name: RMR_SEED_RT
+          value: /opt/e2/config/dockerRouter.txt
+        - name: RMR_RTG_SVC
+          value: ric-rtmgr:4561
+        - name: RMR_SRC_ID
+          value: ric-e2term
+        - name: E2TERM_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LD_LIBRARY_PATH
+          value: /usr/local/lib
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        ports:
+        - containerPort: 38000
+          name: rmr
+        - containerPort: 36421
+          name: e2-sctp
+          protocol: SCTP
+        - containerPort: 8088
+          name: metrics
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 8088
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          failureThreshold: 6
+        volumeMounts:
+        # Use the writable copy produced by the render-config initContainer.
+        - name: e2term-config-rw
+          mountPath: /opt/e2/config
+        # e2term writes all E2AP processing logs to /log/e2term.log.
+        # Without this volume, those logs are silently lost (the directory
+        # does not exist in the image) and E2 failures are invisible.
         - name: e2term-log
-          emptyDir: {}
+          mountPath: /log
+        resources:
+          requests:
+            cpu: 150m
+            memory: 192Mi
+      volumes:
+      - name: e2term-config-ro
+        configMap:
+          name: e2term-config
+      - name: e2term-config-rw
+        emptyDir: {}
+      # Writable log directory for e2term's E2AP processing logs.
+      # Access via: kubectl exec -n near-rt-ric deploy/ric-e2term -- cat /log/e2term.log
+      - name: e2term-log
+        emptyDir: {}
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 # --- A1MEDIATOR (A1 Policy Interface) ----------------------------------------
@@ -1191,7 +1184,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ric-a1mediator
-  namespace: monitoring
+  namespace: near-rt-ric
   labels:
     app: ric-a1mediator
     app.kubernetes.io/part-of: oran-stack
@@ -1208,41 +1201,41 @@ spec:
         app: ric-a1mediator
     spec:
       initContainers:
-        - name: wait-for-dbaas
-          image: redis:6-alpine
-          command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
+      - name: wait-for-dbaas
+        image: redis:6-alpine
+        command: ["sh", "-c", "until redis-cli -h ric-dbaas ping; do echo waiting for dbaas; sleep 2; done"]
       containers:
-        - name: a1mediator
-          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-a1:3.2.2
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: CFG_FILE
-              value: /opt/a1-mediator/config.yaml
-            - name: A1_CONFIG_FILE
-              value: /opt/a1-mediator/config.yaml
-            - name: DBAAS_SERVICE_HOST
-              value: ric-dbaas
-            - name: DBAAS_SERVICE_PORT
-              value: "6379"
-            # Match rtmgr PlatformComponents fqdn so route ACKs resolve.
-            - name: RMR_SRC_ID
-              value: ric-a1mediator
-            - name: RMR_RTG_SVC
-              value: "ric-rtmgr:4561"
-          ports:
-            - containerPort: 10000
-              name: http
-            - containerPort: 4562
-              name: rmr
-          volumeMounts:
-            - name: a1mediator-config
-              mountPath: /opt/a1-mediator/config.yaml
-              subPath: config.yaml
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-      volumes:
+      - name: a1mediator
+        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-a1:3.2.2
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CFG_FILE
+          value: /opt/a1-mediator/config.yaml
+        - name: A1_CONFIG_FILE
+          value: /opt/a1-mediator/config.yaml
+        - name: DBAAS_SERVICE_HOST
+          value: ric-dbaas
+        - name: DBAAS_SERVICE_PORT
+          value: "6379"
+        # Match rtmgr PlatformComponents fqdn so route ACKs resolve.
+        - name: RMR_SRC_ID
+          value: ric-a1mediator
+        - name: RMR_RTG_SVC
+          value: "ric-rtmgr:4561"
+        ports:
+        - containerPort: 10000
+          name: http
+        - containerPort: 4562
+          name: rmr
+        volumeMounts:
         - name: a1mediator-config
-          configMap:
-            name: a1mediator-config
+          mountPath: /opt/a1-mediator/config.yaml
+          subPath: config.yaml
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: a1mediator-config
+        configMap:
+          name: a1mediator-config
