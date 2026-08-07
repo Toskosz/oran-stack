@@ -1,0 +1,280 @@
+# ============================================================================
+# Role: nephio_bootstrap
+# Install Nephio core components on the management cluster via kpt + catalog.
+# ============================================================================
+---
+
+- name: Assert management kubeconfig exists
+  ansible.builtin.stat:
+    path: "{{ _kubeconfig }}"
+  register: _mgmt_kc
+  failed_when: not _mgmt_kc.stat.exists
+
+- name: Ensure Nephio work directory exists
+  ansible.builtin.file:
+    path: "{{ nephio_work_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure local tool bin directory exists
+  ansible.builtin.file:
+    path: "{{ nephio_bin_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Resolve PATH including local tool bin
+  ansible.builtin.set_fact:
+    _nephio_path: "{{ nephio_bin_dir }}:{{ ansible_env.PATH }}"
+
+- name: Check for kpt
+  ansible.builtin.command: kpt version
+  environment:
+    PATH: "{{ _nephio_path }}"
+  register: _kpt_check
+  changed_when: false
+  failed_when: false
+
+- name: Install kpt on controller
+  when: _kpt_check.rc != 0
+  block:
+    - name: Download kpt
+      ansible.builtin.get_url:
+        url: "https://github.com/kptdev/kpt/releases/download/v{{ kpt_version }}/kpt_linux_amd64"
+        dest: "{{ nephio_bin_dir }}/kpt"
+        mode: "0755"
+
+- name: Check for porchctl
+  ansible.builtin.command: porchctl version
+  environment:
+    PATH: "{{ _nephio_path }}"
+  register: _porchctl_check
+  changed_when: false
+  failed_when: false
+
+- name: Install porchctl on controller
+  when: _porchctl_check.rc != 0
+  block:
+    - name: Download porchctl
+      ansible.builtin.get_url:
+        url: "https://github.com/nephio-project/porch/releases/download/{{ porchctl_version }}/porchctl_{{ porchctl_version | regex_replace('^v','') }}_linux_amd64.tar.gz"
+        dest: /tmp/porchctl.tar.gz
+        mode: "0644"
+      register: _porch_dl
+      failed_when: false
+
+    - name: Extract porchctl when tarball available
+      when: _porch_dl is succeeded
+      ansible.builtin.unarchive:
+        src: /tmp/porchctl.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: Install porchctl binary
+      when: _porch_dl is succeeded
+      ansible.builtin.copy:
+        src: /tmp/porchctl
+        dest: "{{ nephio_bin_dir }}/porchctl"
+        mode: "0755"
+        remote_src: true
+
+    - name: Warn if porchctl download failed
+      when: _porch_dl is failed
+      ansible.builtin.debug:
+        msg: >-
+          Could not download porchctl {{ porchctl_version }}. Install manually from
+          https://github.com/nephio-project/porch/releases then re-run repo registration.
+
+- name: Fetch and apply Nephio catalog packages
+  environment:
+    KUBECONFIG: "{{ _kubeconfig }}"
+    PATH: "{{ _nephio_path }}"
+  block:
+    - name: kpt pkg get catalog package
+      ansible.builtin.command:
+        cmd: >
+          kpt pkg get --for-deployment
+          {{ nephio_catalog_repo }}/{{ item.path }}@{{ nephio_catalog_ref }}
+          {{ nephio_work_dir }}/{{ item.name }}
+      args:
+        creates: "{{ nephio_work_dir }}/{{ item.name }}/Kptfile"
+      loop: "{{ nephio_bootstrap_packages }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: _pkg_get
+      failed_when: >
+        _pkg_get.rc != 0 and not (item.optional | default(false) | bool)
+
+    - name: Find YAML manifests under Nephio work dir
+      ansible.builtin.find:
+        paths: "{{ nephio_work_dir }}"
+        patterns: "*.yaml"
+        recurse: true
+      register: _nephio_yamls
+
+    - name: Rewrite kube-rbac-proxy image to quay.io/brancz
+      ansible.builtin.replace:
+        path: "{{ item.path }}"
+        regexp: 'gcr\.io/kubebuilder/kube-rbac-proxy:'
+        replace: "{{ nephio_kube_rbac_proxy_to }}"
+      loop: "{{ _nephio_yamls.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+    - name: kpt fn render catalog package
+      ansible.builtin.command:
+        cmd: kpt fn render {{ nephio_work_dir }}/{{ item.name }}
+      loop: "{{ nephio_bootstrap_packages }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: >
+        not (item.optional | default(false) | bool) or
+        (_pkg_get.results | selectattr('item.name', 'equalto', item.name) | map(attribute='rc') | first | default(1)) == 0
+      changed_when: true
+      failed_when: false
+
+    - name: kpt live init catalog package
+      ansible.builtin.command:
+        cmd: kpt live init {{ nephio_work_dir }}/{{ item.name }}
+      loop: "{{ nephio_bootstrap_packages }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: _live_init
+      failed_when: false
+      changed_when: _live_init.rc == 0
+
+    - name: kpt live apply catalog package
+      ansible.builtin.command:
+        cmd: >
+          kpt live apply {{ nephio_work_dir }}/{{ item.name }}
+          --reconcile-timeout=15m --output=table
+      loop: "{{ nephio_bootstrap_packages }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: >
+        not (item.optional | default(false) | bool) or
+        (_pkg_get.results | selectattr('item.name', 'equalto', item.name) | map(attribute='rc') | first | default(1)) == 0
+      register: _live_apply
+      failed_when: >
+        _live_apply.rc != 0 and not (item.optional | default(false) | bool)
+
+- name: Install Nephio WebUI
+  when: nephio_install_webui | bool
+  environment:
+    KUBECONFIG: "{{ _kubeconfig }}"
+    PATH: "{{ _nephio_path }}"
+  block:
+    - name: kpt pkg get webui
+      ansible.builtin.command:
+        cmd: >
+          kpt pkg get --for-deployment
+          {{ nephio_catalog_repo }}/{{ nephio_webui_package.path }}@{{ nephio_catalog_ref }}
+          {{ nephio_work_dir }}/{{ nephio_webui_package.name }}
+      args:
+        creates: "{{ nephio_work_dir }}/{{ nephio_webui_package.name }}/Kptfile"
+      failed_when: false
+      register: _webui_get
+
+    - name: Render / init / apply WebUI
+      when: _webui_get.rc == 0
+      ansible.builtin.shell: |
+        set -euo pipefail
+        PKG="{{ nephio_work_dir }}/{{ nephio_webui_package.name }}"
+        kpt fn render "$PKG" || true
+        kpt live init "$PKG" || true
+        kpt live apply "$PKG" --reconcile-timeout=15m --output=table
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG: "{{ _kubeconfig }}"
+        PATH: "{{ _nephio_path }}"
+
+- name: Register Porch Git repositories
+  when:
+    - nephio_git_username | length > 0
+    - nephio_git_token | length > 0
+  environment:
+    KUBECONFIG: "{{ _kubeconfig }}"
+    PATH: "{{ _nephio_path }}"
+  block:
+    - name: Wait for Porch API
+      ansible.builtin.command:
+        cmd: kubectl get crd repositories.config.porch.kpt.dev
+      register: _porch_crd
+      until: _porch_crd.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Wait for Porch aggregated API
+      ansible.builtin.command:
+        cmd: kubectl get packagerevisions.porch.kpt.dev
+      register: _porch_api
+      until: _porch_api.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Register blueprints repository
+      when: nephio_git_blueprints_url | length > 0
+      ansible.builtin.command:
+        cmd: >
+          porchctl repo register
+          --namespace default
+          --name blueprints
+          --repo-basic-username={{ nephio_git_username }}
+          --repo-basic-password={{ nephio_git_token }}
+          --create-branch=true
+          {{ nephio_git_blueprints_url }}
+      register: _reg_bp
+      failed_when: >
+        _reg_bp.rc != 0 and 'already' not in (_reg_bp.stderr | default('') + _reg_bp.stdout | default(''))
+      changed_when: _reg_bp.rc == 0
+
+    - name: Register mgmt deployment repository
+      when: nephio_git_mgmt_url | length > 0
+      ansible.builtin.command:
+        cmd: >
+          porchctl repo register
+          --namespace default
+          --name mgmt
+          --deployment=true
+          --repo-basic-username={{ nephio_git_username }}
+          --repo-basic-password={{ nephio_git_token }}
+          --create-branch=true
+          {{ nephio_git_mgmt_url }}
+      register: _reg_mgmt
+      failed_when: >
+        _reg_mgmt.rc != 0 and 'already' not in (_reg_mgmt.stderr | default('') + _reg_mgmt.stdout | default(''))
+      changed_when: _reg_mgmt.rc == 0
+
+    - name: Register oran-lab workload deployment repository
+      when: nephio_git_oran_lab_url | length > 0
+      ansible.builtin.command:
+        cmd: >
+          porchctl repo register
+          --namespace default
+          --name oran-lab
+          --deployment=true
+          --repo-basic-username={{ nephio_git_username }}
+          --repo-basic-password={{ nephio_git_token }}
+          --create-branch=true
+          {{ nephio_git_oran_lab_url }}
+      register: _reg_lab
+      failed_when: >
+        _reg_lab.rc != 0 and 'already' not in (_reg_lab.stderr | default('') + _reg_lab.stdout | default(''))
+      changed_when: _reg_lab.rc == 0
+
+- name: Skip repo registration when credentials missing
+  when: nephio_git_username | length == 0 or nephio_git_token | length == 0
+  ansible.builtin.debug:
+    msg: >-
+      Skipping porchctl repo register (set nephio_git_username / nephio_git_token).
+      Register manually per docs/NEPHIO.md.
+
+- name: Show bootstrap complete
+  ansible.builtin.debug:
+    msg: |
+      Nephio management bootstrap finished.
+      KUBECONFIG={{ _kubeconfig }}
+      Next: ansible-playbook ansible/playbooks/workload-gitops.yml --ask-vault-pass
+      Then apply packages/variants/oran-lab-packagevariants.yaml and approve revisions.

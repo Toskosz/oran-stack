@@ -1,0 +1,33 @@
+# ============================================================================
+# Playbook: verify-only.yml
+# Purpose:  Run E2 / xApp / UE readiness gates without deploying Helm charts.
+#           Useful during Nephio migration when NFs are applied by Config Sync.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/verify-only.yml \
+#     -i ansible/inventories/gcp.ini
+# ============================================================================
+---
+- name: Verify E2 readiness
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [verify_e2]
+
+  tasks:
+    - name: Run E2 verification stage
+      ansible.builtin.include_role:
+        name: verify_stack
+        tasks_from: verify_e2.yml
+
+- name: Verify xApp functional readiness and UE attach
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [verify_xapp, verify_ue]
+
+  tasks:
+    - name: Run post-xApp functional and UE verification stage
+      ansible.builtin.include_role:
+        name: verify_stack
+        tasks_from: verify_post_xapp.yml

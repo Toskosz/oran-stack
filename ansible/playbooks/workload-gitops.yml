@@ -1,0 +1,28 @@
+# ============================================================================
+# Playbook: workload-gitops.yml
+# Purpose:  Install Config Sync + RootSync + workload CRDs on the O-RAN lab
+#           (workload) cluster, and create Docker Hub imagePullSecrets.
+#
+# Prerequisites:
+#   - provision.yml completed (./kubeconfig)
+#   - oran-lab Git deployment repo exists
+#   - Ansible Vault with vault_dockerhub_password
+#
+# Usage (pass the same inventory as provision so group_vars + vault load):
+#   export KUBECONFIG=$(pwd)/kubeconfig
+#   ansible-playbook ansible/playbooks/workload-gitops.yml \
+#     -i ansible/inventories/gcp.ini --ask-vault-pass \
+#     -e nephio_git_oran_lab_url=https://github.com/Toskosz/oran-lab.git \
+#     -e nephio_git_username=Toskosz \
+#     -e nephio_git_token="$GITHUB_TOKEN"
+# ============================================================================
+---
+- name: Enable GitOps on O-RAN workload cluster
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+
+  roles:
+    - role: workload_gitops

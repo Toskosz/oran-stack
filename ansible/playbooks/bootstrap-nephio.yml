@@ -1,0 +1,29 @@
+# ============================================================================
+# Playbook: bootstrap-nephio.yml
+# Purpose:  Install Porch, Nephio controllers, Config Sync (and optional WebUI)
+#           on the management cluster; register Git repos with porchctl.
+#
+# Prerequisites:
+#   - provision-mgmt.yml completed (./kubeconfig-mgmt)
+#   - kpt available on the Ansible controller (role installs if missing)
+#   - Git repos created (blueprints, mgmt, oran-lab)
+#
+# Usage:
+#   export KUBECONFIG=$(pwd)/kubeconfig-mgmt
+#   ansible-playbook ansible/playbooks/bootstrap-nephio.yml \
+#     -e nephio_git_blueprints_url=https://github.com/Toskosz/oran-stack.git \
+#     -e nephio_git_mgmt_url=https://github.com/Toskosz/oran-mgmt.git \
+#     -e nephio_git_oran_lab_url=https://github.com/Toskosz/oran-lab.git \
+#     -e nephio_git_username=Toskosz \
+#     -e nephio_git_token="$GITHUB_TOKEN"
+# ============================================================================
+---
+- name: Bootstrap Nephio on management cluster
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig-mgmt"
+
+  roles:
+    - role: nephio_bootstrap

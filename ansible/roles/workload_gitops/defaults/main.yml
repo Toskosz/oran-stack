@@ -1,0 +1,27 @@
+---
+workload_gitops_work_dir: "{{ playbook_dir }}/../../.nephio-workload"
+
+# Nephio catalog pin (configsync / workload-crds).
+# Keep in sync with nephio_bootstrap defaults and inventories/group_vars/all/vars.yml.
+nephio_catalog_repo: "https://github.com/nephio-project/catalog.git"
+nephio_catalog_ref: "v5.0.0"
+
+# Git / RootSync (override on the command line).
+nephio_git_oran_lab_url: ""
+nephio_git_username: ""
+nephio_git_token: ""
+nephio_git_branch: "main"
+nephio_rootsync_name: "oran-lab"
+nephio_rootsync_namespace: "config-management-system"
+
+# NF namespaces + Docker Hub pull secrets (vault via inventory group_vars).
+namespaces:
+  core: "5g-core"
+  ric: "near-rt-ric"
+  ran: "ran"
+  monitoring: "monitoring"
+  xapp: "ricxapp"
+
+image_pull_secret_name: "dockerhub-secret"
+dockerhub_username: "x0tok"
+dockerhub_password: "{{ vault_dockerhub_password }}"

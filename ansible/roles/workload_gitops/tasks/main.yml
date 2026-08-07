@@ -1,0 +1,206 @@
+# ============================================================================
+# Role: workload_gitops
+# Install Config Sync, RootSync (→ oran-lab), workload-crds, imagePullSecrets.
+# ============================================================================
+---
+
+- name: Assert workload kubeconfig exists
+  ansible.builtin.stat:
+    path: "{{ _kubeconfig }}"
+  register: _wl_kc
+  failed_when: not _wl_kc.stat.exists
+
+- name: Assert oran-lab Git URL is set
+  ansible.builtin.assert:
+    that:
+      - nephio_git_oran_lab_url | length > 0
+    fail_msg: "Set nephio_git_oran_lab_url to the workload deployment Git repository URL."
+
+- name: Ensure workload GitOps work directory exists
+  ansible.builtin.file:
+    path: "{{ workload_gitops_work_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Check for kpt
+  ansible.builtin.command: kpt version
+  register: _kpt_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail when kpt is missing
+  ansible.builtin.assert:
+    that: _kpt_check.rc == 0
+    fail_msg: "kpt is required. Run bootstrap-nephio.yml first or install kpt manually."
+
+- name: Install Config Sync on workload cluster
+  environment:
+    KUBECONFIG: "{{ _kubeconfig }}"
+  block:
+    - name: kpt pkg get configsync
+      ansible.builtin.command:
+        cmd: >
+          kpt pkg get --for-deployment
+          {{ nephio_catalog_repo }}/nephio/core/configsync@{{ nephio_catalog_ref }}
+          {{ workload_gitops_work_dir }}/configsync
+      args:
+        creates: "{{ workload_gitops_work_dir }}/configsync/Kptfile"
+
+    - name: Render / init / apply configsync
+      ansible.builtin.shell: |
+        set -euo pipefail
+        PKG="{{ workload_gitops_work_dir }}/configsync"
+        kpt fn render "$PKG" || true
+        kpt live init "$PKG" || true
+        kpt live apply "$PKG" --reconcile-timeout=15m --output=table
+      args:
+        executable: /bin/bash
+
+- name: Install Nephio workload CRDs
+  environment:
+    KUBECONFIG: "{{ _kubeconfig }}"
+  block:
+    - name: kpt pkg get workload-crds
+      ansible.builtin.command:
+        cmd: >
+          kpt pkg get --for-deployment
+          {{ nephio_catalog_repo }}/nephio/core/workload-crds@{{ nephio_catalog_ref }}
+          {{ workload_gitops_work_dir }}/workload-crds
+      args:
+        creates: "{{ workload_gitops_work_dir }}/workload-crds/Kptfile"
+      failed_when: false
+      register: _crd_get
+
+    - name: Apply workload-crds
+      when: _crd_get.rc == 0
+      ansible.builtin.shell: |
+        set -euo pipefail
+        PKG="{{ workload_gitops_work_dir }}/workload-crds"
+        kpt live init "$PKG" || true
+        kpt live apply "$PKG" --reconcile-timeout=15m --output=table
+      args:
+        executable: /bin/bash
+
+- name: Ensure config-management-system namespace exists
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ nephio_rootsync_namespace }}"
+
+- name: Create Git credentials secret for RootSync
+  when:
+    - nephio_git_username | length > 0
+    - nephio_git_token | length > 0
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: git-creds
+        namespace: "{{ nephio_rootsync_namespace }}"
+      type: Opaque
+      stringData:
+        username: "{{ nephio_git_username }}"
+        token: "{{ nephio_git_token }}"
+  no_log: true
+
+- name: Apply RootSync for oran-lab deployment repo
+  when: nephio_git_token | length > 0
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: configsync.gke.io/v1beta1
+      kind: RootSync
+      metadata:
+        name: "{{ nephio_rootsync_name }}"
+        namespace: "{{ nephio_rootsync_namespace }}"
+      spec:
+        sourceFormat: unstructured
+        git:
+          repo: "{{ nephio_git_oran_lab_url }}"
+          branch: "{{ nephio_git_branch }}"
+          auth: token
+          secretRef:
+            name: git-creds
+
+- name: Apply RootSync without auth (public repo)
+  when: nephio_git_token | length == 0
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: configsync.gke.io/v1beta1
+      kind: RootSync
+      metadata:
+        name: "{{ nephio_rootsync_name }}"
+        namespace: "{{ nephio_rootsync_namespace }}"
+      spec:
+        sourceFormat: unstructured
+        git:
+          repo: "{{ nephio_git_oran_lab_url }}"
+          branch: "{{ nephio_git_branch }}"
+          auth: none
+
+- name: Create NF namespaces for imagePullSecrets
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ item }}"
+        labels:
+          pod-security.kubernetes.io/enforce: "{{ 'baseline' if item == 'monitoring' else 'privileged' }}"
+          pod-security.kubernetes.io/warn: "{{ 'baseline' if item == 'monitoring' else 'privileged' }}"
+          pod-security.kubernetes.io/audit: "{{ 'baseline' if item == 'monitoring' else 'privileged' }}"
+  loop:
+    - "{{ namespaces.core }}"
+    - "{{ namespaces.ric }}"
+    - "{{ namespaces.ran }}"
+    - "{{ namespaces.xapp }}"
+    - "{{ namespaces.monitoring }}"
+
+- name: Create Docker Hub imagePullSecrets in NF namespaces
+  kubernetes.core.k8s:
+    kubeconfig: "{{ _kubeconfig }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ image_pull_secret_name }}"
+        namespace: "{{ item }}"
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: >-
+          {{ ({
+            "auths": {
+              "https://index.docker.io/v1/": {
+                "username": dockerhub_username,
+                "password": dockerhub_password,
+                "auth": (dockerhub_username ~ ':' ~ dockerhub_password) | b64encode
+              }
+            }
+          }) | to_json | b64encode }}
+  loop:
+    - "{{ namespaces.core }}"
+    - "{{ namespaces.ric }}"
+    - "{{ namespaces.ran }}"
+    - "{{ namespaces.xapp }}"
+  no_log: true
+
+- name: Show workload GitOps status hint
+  ansible.builtin.debug:
+    msg: |
+      Workload GitOps configured.
+      Check: kubectl --kubeconfig={{ _kubeconfig }} get rootsyncs -A
+      Do NOT run deploy.yml — deploy via Porch PackageVariants on the management cluster.
+      See docs/NEPHIO.md and packages/variants/oran-lab-packagevariants.yaml

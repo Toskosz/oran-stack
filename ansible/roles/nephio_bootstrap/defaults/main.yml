@@ -1,0 +1,45 @@
+---
+# Catalog packages applied to the management cluster.
+nephio_bootstrap_packages:
+  - name: porch
+    path: nephio/core/porch
+  # resource-backend CRDs (IPAM etc.) must exist before nephio-operator starts.
+  - name: resource-backend
+    path: nephio/optional/resource-backend
+  - name: nephio-operator
+    path: nephio/core/nephio-operator
+  - name: configsync
+    path: nephio/core/configsync
+
+nephio_webui_package:
+  name: webui
+  path: nephio/optional/webui
+
+kpt_version: "1.0.0-beta.55"
+porchctl_version: "v1.5.6"
+
+# Local working directory for kpt packages (repo root relative to playbook).
+nephio_work_dir: "{{ playbook_dir }}/../../.nephio-bootstrap"
+
+# User-writable path for kpt / porchctl (no sudo required on the controller).
+nephio_bin_dir: "{{ ansible_env.HOME }}/.local/bin"
+
+# Nephio catalog pin (Porch / controllers / configsync).
+# Use a release tag — origin/main can skew porch :latest vs Deployment args.
+nephio_catalog_repo: "https://github.com/nephio-project/catalog.git"
+nephio_catalog_ref: "v5.0.0"
+
+# gcr.io/kubebuilder/kube-rbac-proxy was removed; rewrite to the brancz mirror.
+nephio_kube_rbac_proxy_from: "gcr.io/kubebuilder/kube-rbac-proxy:"
+nephio_kube_rbac_proxy_to: "quay.io/brancz/kube-rbac-proxy:"
+
+# Install optional Nephio WebUI on the management cluster.
+nephio_install_webui: true
+
+# Git repos registered with Porch (override on the command line).
+nephio_git_blueprints_url: ""
+nephio_git_mgmt_url: ""
+nephio_git_oran_lab_url: ""
+nephio_git_username: ""
+nephio_git_token: ""
+nephio_git_branch: "main"
