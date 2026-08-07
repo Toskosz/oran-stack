@@ -8,7 +8,8 @@
 # Then run playbooks with:
 #   ansible-playbook playbooks/provision.yml   -i inventories/hosts.ini
 #   ansible-playbook playbooks/build_images.yml -i inventories/hosts.ini --ask-vault-pass
-#   ansible-playbook playbooks/deploy.yml       -i inventories/hosts.ini --ask-vault-pass
+#   ansible-playbook playbooks/workload-gitops.yml -i inventories/hosts.ini --ask-vault-pass
+#   # NFs: see docs/NEPHIO.md (deploy.yml is deprecated)
 # ============================================================================
 
 [control_plane]

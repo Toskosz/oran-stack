@@ -1,27 +1,32 @@
 # ============================================================================
 # Playbook: deploy.yml
-# Purpose:  Deploy all Helm charts to the kubeadm cluster in dependency
-#           order: 5g-core → near-rt-ric → ran → E2 gate → xapp →
-#                  xApp/UE gates → monitoring.
+# Status:  DEPRECATED — use Nephio (Porch + Config Sync) instead.
 #
-# Usage:
-#   ansible-playbook ansible/playbooks/deploy.yml \
-#     --ask-vault-pass          # vault holds dockerhub_password
+# Primary path: docs/NEPHIO.md
+#   1. provision-mgmt.yml + bootstrap-nephio.yml  (management)
+#   2. provision.yml + workload-gitops.yml       (workload)
+#   3. packages/variants/oran-lab-packagevariants.yaml
 #
-# Pre-requisites:
-#   - provision.yml has been run (kubeadm cluster up, ./kubeconfig written)
-#   - build_images.yml has been run (images exist on Docker Hub)
+# This playbook remains for emergency / legacy Helm deploys only.
+# Prefer NOT to mix Helm releases with Config Sync ownership of the same
+# resources.
 #
-# Deployment order rationale:
-#   1. 5g-core     — MongoDB and NFs must be up before RIC or RAN connect
-#   2. near-rt-ric — e2term must be running before the DU sends E2 Setup
-#   3. ran         — CU/DU/UE Helm release (initContainers enforce ordering)
-#   4. E2 verify   — registration gate and one bounded recovery opportunity
-#   5. xapp        — simple-mon KPM xApp (initContainer waits for gNB)
-#   6. verify      — require xApp subscription/indication before checking UE
-#   7. monitoring  — deployed last so all ServiceMonitor targets are already up
+# Usage (legacy):
+#   ansible-playbook ansible/playbooks/deploy.yml --ask-vault-pass
 # ============================================================================
 ---
+- name: Warn that deploy.yml is deprecated
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Print deprecation notice
+      ansible.builtin.debug:
+        msg: >-
+          DEPRECATED: deploy.yml (Helm via Ansible) is replaced by Nephio
+          PackageVariants + Config Sync. See docs/NEPHIO.md. Continuing with
+          legacy Helm deploy...
+
 - name: Deploy 5G core (Open5GS NFs + MongoDB)
   hosts: localhost
   connection: local

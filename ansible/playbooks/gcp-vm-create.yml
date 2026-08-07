@@ -26,8 +26,8 @@
 # After this playbook:
 #   ansible-playbook ansible/playbooks/provision.yml \
 #     -i ansible/inventories/gcp.ini
-#   ansible-playbook ansible/playbooks/deploy.yml \
-#     -i ansible/inventories/gcp.ini --ask-vault-pass
+#   ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
+#   # Then Nephio: docs/NEPHIO.md (deploy.yml is deprecated)
 # =============================================================================
 ---
 - name: Provision GCP cluster VMs for O-RAN stack
