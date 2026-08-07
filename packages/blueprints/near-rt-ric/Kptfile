@@ -1,0 +1,8 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: near-rt-ric
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: O-RAN SC Near-RT RIC platform (e2term e2mgr rtmgr submgr appmgr a1mediator dbaas).

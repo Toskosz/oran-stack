@@ -1,0 +1,161 @@
+# Example PackageVariant manifests for deploying oran-stack blueprints
+# into the oran-lab workload deployment repository via Porch.
+#
+# Apply on the MANAGEMENT cluster after blueprints and oran-lab repos
+# are registered with Porch. Approve PackageRevisions in dependency order:
+#
+#   ns-and-secrets → 5g-core → mongodb-init → near-rt-ric → ran →
+#   verify-e2 → xapp-simple-mon → verify-ue → monitoring
+#
+# Adjust repository names / package paths to match your Porch registration.
+# Use workspaceName (branch) for unpublished drafts, or revision: <int> for published vN tags.
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-ns-and-secrets
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: ns-and-secrets
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: ns-and-secrets
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-5g-core
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: 5g-core
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: 5g-core
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-mongodb-init
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: mongodb-init
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: mongodb-init
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-near-rt-ric
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: near-rt-ric
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: near-rt-ric
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-ran
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: ran
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: ran
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+  # Optional pipeline mutations for Multus IPs / UE credentials / images:
+  # pipeline:
+  #   mutators:
+  #     - image: gcr.io/kpt-fn/apply-setters:v0.2.0
+  #       configMap:
+  #         images.ocudu.repository: x0tok/oran-ocudu
+  #         ue.imsi: "001010000000001"
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-verify-e2
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: verify-e2
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: verify-e2
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-xapp-simple-mon
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: xapp-simple-mon
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: xapp-simple-mon
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-verify-ue
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: verify-ue
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: verify-ue
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-monitoring
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: monitoring
+    workspaceName: main
+  downstream:
+    repo: oran-lab
+    package: monitoring
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete

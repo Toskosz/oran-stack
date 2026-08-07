@@ -1,0 +1,165 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mongodb-init
+  namespace: 5g-core
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mongodb-init
+  namespace: 5g-core
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mongodb-init
+  namespace: 5g-core
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mongodb-init
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-init
+    namespace: 5g-core
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-init-scripts
+  namespace: 5g-core
+data:
+  mongodb-init-rs.js: |
+    // Idempotent replica set initialization for Open5GS lab (single-member rs0).
+    try {
+      var status = rs.status();
+      if (status.ok === 1) {
+        print('already_initialized');
+        quit(0);
+      }
+    } catch (e) {}
+    try {
+      rs.initiate({
+        _id: 'rs0',
+        members: [{ _id: 0, host: 'mongodb:27017', priority: 1 }]
+      });
+      print('initialized');
+    } catch (e) {
+      print('init message: ' + e.message);
+    }
+  mongodb-seed.js: |
+    // Idempotent Open5GS admin + test subscriber seed.
+    db = db.getSiblingDB('admin');
+    try {
+      const adminResult = db.administrators.updateOne(
+        { username: 'admin' },
+        { $setOnInsert: {
+            username: 'admin',
+            password: '$2a$10$9D3nYrAb.tF.lL.hzjvJJOTxMTtDZdv/mUwvN8OJZBJLwYMrKvEOq',
+            created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print(adminResult.upsertedCount === 1 ? 'Admin user initialized' : 'Admin user already exists');
+    } catch (e) { print('Admin: ' + e.message); }
+
+    db = db.getSiblingDB('open5gs');
+    try {
+      db.subscribers.updateOne(
+        { imsi: '001010000000001' },
+        { $setOnInsert: {
+            imsi: '001010000000001', msisdn: '+82100000001',
+            subscriber_status: 0, network_access_mode: 0,
+            access_restriction_data: 32, subscribed_rau_tau_timer: 12,
+            pdn: [{ apn: 'internet', type: 2, dnn: 'internet', qci: 9,
+              arp: { priority_level: 8, pre_emption_capability: 0, pre_emption_vulnerability: 0 },
+              mbr: { downlink: 1024, uplink: 1024 },
+              ambr: { downlink: 1024000, uplink: 1024000 }
+            }],
+            ambr: { downlink: 1024000, uplink: 1024000 },
+            slice: [{ sst: 1, default: true }],
+            schema_version: 1, created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print('5G subscriber seeded: 001010000000001');
+    } catch (e) { print('5G subscriber: ' + e.message); }
+
+    try {
+      db.auths.updateOne(
+        { imsi: '001010000000001' },
+        { $setOnInsert: {
+            imsi: '001010000000001',
+            k: '465B5CE8B199B49FAA5F0A2EE238A6BC',
+            opc: 'E8ED289DEBA952E4283B54E88E6183CA',
+            amf: 32770, sqn: 0, ck: null, ik: null,
+            created_at: new Date(), updated_at: new Date()
+        }},
+        { upsert: true }
+      );
+      print('5G auth seeded');
+    } catch (e) { print('5G auth: ' + e.message); }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-init
+  namespace: 5g-core
+  labels:
+    app: mongodb-init
+    oran.stack/gate: mongodb
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: mongodb-init
+    spec:
+      serviceAccountName: mongodb-init
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: bitnami/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              NS=5g-core
+              echo "Waiting for mongodb-0 Ready..."
+              kubectl wait --for=condition=Ready pod/mongodb-0 -n "$NS" --timeout=300s
+              kubectl cp /scripts/mongodb-init-rs.js "$NS/mongodb-0:/tmp/mongodb-init-rs.js" -c mongodb
+              kubectl cp /scripts/mongodb-seed.js "$NS/mongodb-0:/tmp/mongodb-seed.js" -c mongodb
+              kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/?directConnection=true" \
+                --quiet --file /tmp/mongodb-init-rs.js
+              for i in $(seq 1 30); do
+                if kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                  mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval \
+                  "try { var s = rs.status(); quit(s.members[0].stateStr === 'PRIMARY' ? 0 : 1) } catch (e) { quit(1) }"; then
+                  break
+                fi
+                sleep 2
+              done
+              kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/?directConnection=true" \
+                --quiet --file /tmp/mongodb-seed.js
+              COUNT=$(kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh open5gs --quiet --eval 'db.subscribers.countDocuments({imsi:"001010000000001"})')
+              test "$COUNT" = "1"
+              echo "MongoDB init OK — subscriber present"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: mongodb-init-scripts

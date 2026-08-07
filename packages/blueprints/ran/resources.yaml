@@ -1,0 +1,606 @@
+---
+# Source: ran/templates/configmap-ocudu-configs.yaml
+# ============================================================================
+# ConfigMap: OCUDU CU, DU, and srsUE configuration files
+# ============================================================================
+# SCTP traffic (N2, F1-C, E2AP) uses dedicated secondary OVS interfaces
+# with static IPs assigned via Multus NetworkAttachmentDefinitions.
+# Templates use static env vars (N2_IP, F1C_IP, etc.) injected by the
+# render-config initContainer in deployments.yaml — no more ${POD_IP}
+# substitution for SCTP bind addresses.
+#
+# F1-U (GTP-U user plane) still binds to ${POD_IP} (primary Flannel IP)
+# because F1-U is UDP and does not suffer from the SCTP conntrack issue.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ocudu-configs
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: oran-stack
+data:
+  cu.yml.tpl: |
+    cu_cp:
+      amf:
+        addr: ${AMF_IP}
+        bind_addr: ${N2_IP}
+        supported_tracking_areas:
+          - tac: 1
+            plmn_list:
+              - plmn: "00101"
+                tai_slice_support_list:
+                  - sst: 1
+      f1ap:
+        bind_addr: ${F1C_IP}
+    cu_up:
+      f1u:
+        bind_port: 2153
+        peer_port: 2153
+        socket:
+          - bind_addr: ${POD_IP}
+      ngu:
+        socket:
+          - bind_addr: ${POD_IP}
+    e2:
+      enable_cu_cp_e2: false
+      enable_cu_up_e2: true
+      addr: ${E2TERM_IP}
+      port: 36421
+      bind_addr: ${E2_IP}
+      e2sm_kpm_enabled: true
+      e2sm_rc_enabled: true
+    log:
+      filename: /dev/stdout
+      all_level: debug
+      f1ap_level: debug
+      f1ap_json_enabled: true
+      ngap_level: info
+
+  du.yml.tpl: |
+    gnb_du_id: ${GNB_DU_ID}
+    f1ap:
+      cu_cp_addr: ${CU_F1C_IP}
+      bind_addr: ${F1C_IP}
+    f1u:
+      bind_port: 2153
+      peer_port: 2153
+      socket:
+        - bind_addr: ${POD_IP}
+    e2:
+      enable_du_e2: true
+      addr: ${E2TERM_IP}
+      port: 36421
+      bind_addr: ${E2_IP}
+      e2sm_kpm_enabled: true
+      e2sm_rc_enabled: true
+    ru_sdr:
+      device_driver: zmq
+      # Localhost ZMQ: srsUE runs as a sidecar in the DU pod (same netns).
+      # Cross-pod ClusterIP ZMQ only completes the TCP/ZMTP handshake (~100 B)
+      # and never streams IQ — UE stays at NAS "Switching on" with no PRACH.
+      device_args: tx_port=tcp://127.0.0.1:2000,rx_port=tcp://127.0.0.1:2001,base_srate=23.04e6
+      srate: 23.04
+      tx_gain: 75
+      rx_gain: 75
+    cell_cfg:
+      dl_arfcn: 368500
+      band: 3
+      channel_bandwidth_MHz: 20
+      common_scs: 15
+      plmn: "00101"
+      tac: 1
+      pci: 1
+      pdcch:
+        dedicated:
+          ss2_type: common
+          dci_format_0_1_and_1_1: false
+        common:
+          ss0_index: 0
+          # 12 matches srsUE capabilities (srsRAN Project + srsUE tutorial)
+          coreset0_index: 12
+      pdsch:
+        mcs_table: qam64
+      pusch:
+        mcs_table: qam64
+      prach:
+        prach_config_index: 1
+    log:
+      filename: /dev/stdout
+      all_level: debug
+
+  ue.conf: |
+    [rf]
+    freq_offset = 0
+    tx_gain = 80
+    rx_gain = 40
+    srate = 23.04e6
+    nof_antennas = 1
+
+    device_name = zmq
+    device_args = tx_port=tcp://127.0.0.1:2001,rx_port=tcp://127.0.0.1:2000,base_srate=23.04e6
+
+    [rat.eutra]
+    dl_earfcn = 2850
+    nof_carriers = 0
+
+    [rat.nr]
+    bands = 3
+    nof_carriers = 1
+    # PRB count must match channel_bandwidth_MHz (20 MHz = 106)
+    max_nof_prb = 106
+    nof_prb = 106
+
+    [pcap]
+    enable = none
+    mac_filename = /mnt/srsran/logs/ue_mac.pcap
+    mac_nr_filename = /mnt/srsran/logs/ue_mac_nr.pcap
+    nas_filename = /mnt/srsran/logs/ue_nas.pcap
+
+    [log]
+    all_level = info
+    phy_lib_level = none
+    all_hex_limit = 32
+    filename = /dev/stdout
+    file_max_size = -1
+
+    [usim]
+    mode = soft
+    algo = milenage
+    opc  = E8ED289DEBA952E4283B54E88E6183CA
+    k    = 465B5CE8B199B49FAA5F0A2EE238A6BC
+    imsi = 001010000000001
+    imei = 353490069873319
+
+    [rrc]
+    release = 15
+    ue_category = 4
+
+    [nas]
+    apn = internet
+    apn_protocol = ipv4
+
+    [gw]
+    
+
+    [gui]
+    enable = false
+---
+# Source: ran/templates/deployments.yaml
+# ClusterIP Service for CU — only used for F1-U (UDP) user-plane traffic.
+# F1-C (SCTP) uses the static secondary IP directly, bypassing kube-proxy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocudu-cu
+  namespace: monitoring
+  labels:
+    app: ocudu-cu
+spec:
+  selector:
+    app: ocudu-cu
+  ports:
+    - name: f1u
+      port: 2153
+      targetPort: 2153
+      protocol: UDP
+---
+# Source: ran/templates/deployments.yaml
+# ClusterIP for DU (F1-U probe target for other charts; ZMQ is localhost-only).
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocudu-du
+  namespace: monitoring
+  labels:
+    app: ocudu-du
+spec:
+  selector:
+    app: ocudu-du
+  ports:
+    - name: zmq-tx
+      port: 2000
+      targetPort: 2000
+      protocol: TCP
+    - name: zmq-rx
+      port: 2001
+      targetPort: 2001
+      protocol: TCP
+---
+# Source: ran/templates/deployments.yaml
+# ============================================================================
+# OCUDU CU, DU, and srsUE Deployments + Services
+# ============================================================================
+# Startup ordering: CU → DU → UE (mirrors depends_on in docker-compose.cudu.yml)
+# Implemented with initContainers that wait for the upstream pod's service.
+#
+# SCTP traffic (N2, F1-C, E2AP) uses dedicated OVS secondary interfaces
+# (via Multus) with static IPs, eliminating the conntrack/VXLAN flapping
+# that occurred when SCTP traversed the Flannel overlay network.
+# ============================================================================
+
+# --- CU (Central Unit) -------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocudu-cu
+  namespace: monitoring
+  labels:
+    app: ocudu-cu
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  # DU holds off 30s after CU; CU may poll e2mgr.
+  # Raise past the default 600s so ProgressDeadlineExceeded cannot race rollout.
+  progressDeadlineSeconds: 900
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ocudu-cu
+  template:
+    metadata:
+      labels:
+        app: ocudu-cu
+      annotations:
+        # Multus secondary networks: N2 (CU↔AMF), F1-C (CU↔DU), E2 (CU↔RIC)
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "n2br-net",
+              "namespace": "monitoring",
+              "ips": ["10.200.1.3/24"]
+            },
+            {
+              "name": "f1cbr-net",
+              "namespace": "monitoring",
+              "ips": ["10.200.2.2/24"]
+            },
+            {
+              "name": "e2br-net",
+              "namespace": "monitoring",
+              "ips": ["10.200.3.2/24"]
+            }
+          ]
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      initContainers:
+        
+        - name: wait-for-e2t
+          image: alpine:3.19
+          env:
+            - name: E2MGR_URL
+              value: "http://ric-e2mgr.near-rt-ric.svc.cluster.local:3800"
+            - name: POLL_INTERVAL_SEC
+              value: "5"
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for an E2T endpoint at ${E2MGR_URL}/v1/e2t/list..."
+              until E2T_LIST="$(wget -qO- "${E2MGR_URL}/v1/e2t/list" 2>/dev/null)" \
+                && echo "${E2T_LIST}" | grep -q '"e2tAddress"'; do
+                echo "e2mgr is unavailable or has no E2T endpoint; retrying in ${POLL_INTERVAL_SEC}s..."
+                sleep "${POLL_INTERVAL_SEC}"
+              done
+              echo "E2T endpoint ready: ${E2T_LIST}"
+        
+        - name: render-config
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              # Offline sed substitution — never apk add gettext (F9: Alpine
+              # mirrors are unreachable on some clusters; silent apk failure
+              # left literal ${VAR} placeholders and broke CU startup).
+              set -eu
+              : "${POD_IP:?}" "${N2_IP:?}" "${F1C_IP:?}" "${E2_IP:?}" "${AMF_IP:?}" "${E2TERM_IP:?}"
+              sed \
+                -e "s|\${POD_IP}|${POD_IP}|g" \
+                -e "s|\${N2_IP}|${N2_IP}|g" \
+                -e "s|\${F1C_IP}|${F1C_IP}|g" \
+                -e "s|\${E2_IP}|${E2_IP}|g" \
+                -e "s|\${AMF_IP}|${AMF_IP}|g" \
+                -e "s|\${E2TERM_IP}|${E2TERM_IP}|g" \
+                < /mnt/ocudu/templates/cu.yml.tpl > /mnt/ocudu/configs/cu.yml
+              if grep -q '\${' /mnt/ocudu/configs/cu.yml; then
+                echo "ERROR: unsubstituted placeholders remain in cu.yml:" >&2
+                grep '\${' /mnt/ocudu/configs/cu.yml >&2
+                exit 1
+              fi
+              echo "Rendered cu.yml: N2_IP=${N2_IP} F1C_IP=${F1C_IP} E2_IP=${E2_IP} POD_IP=${POD_IP}"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: N2_IP
+              value: "10.200.1.3"
+            - name: F1C_IP
+              value: "10.200.2.2"
+            - name: E2_IP
+              value: "10.200.3.2"
+            - name: AMF_IP
+              value: "10.200.1.2"
+            - name: E2TERM_IP
+              value: "10.200.3.4"
+          volumeMounts:
+            - name: ocudu-templates
+              mountPath: /mnt/ocudu/templates
+              readOnly: true
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+      containers:
+        - name: ocudu-cu
+          image: x0tok/oran-ocudu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/ocu", "-c", "/mnt/ocudu/configs/cu.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 38412
+              name: n2-sctp
+              protocol: SCTP
+            - containerPort: 38472
+              name: f1ap
+              protocol: SCTP
+            - containerPort: 2152
+              name: ngu-gtpu
+              protocol: UDP
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+          volumeMounts:
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+              readOnly: true
+            - name: ocudu-logs
+              mountPath: /mnt/ocudu/logs
+          stdin: true
+          tty: true
+          # CU exposes only SCTP/UDP — use process check (not tcpSocket).
+          # `pgrep -x` alone; avoid `kill -0 $(pgrep …)` which misbehaves
+          # when pgrep returns empty and flaps Available.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: ocudu-templates
+          configMap:
+            name: ocudu-configs
+        - name: ocudu-rendered
+          emptyDir: {}
+        - name: ocudu-logs
+          emptyDir: {}
+---
+# Source: ran/templates/deployments.yaml
+# --- DU (Distributed Unit) ---------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocudu-du
+  namespace: monitoring
+  labels:
+    app: ocudu-du
+    app.kubernetes.io/part-of: oran-stack
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 900
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ocudu-du
+  template:
+    metadata:
+      labels:
+        app: ocudu-du
+      annotations:
+        # Multus secondary networks: F1-C (DU↔CU), E2 (DU↔RIC)
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {
+              "name": "f1cbr-net",
+              "namespace": "monitoring",
+              "ips": ["10.200.2.3/24"]
+            },
+            {
+              "name": "e2br-net",
+              "namespace": "monitoring",
+              "ips": ["10.200.3.3/24"]
+            }
+          ]
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      initContainers:
+        - name: render-config
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              # Derive a unique gNB-DU-ID from the pod IP so that every new
+              # pod gets a fresh DU ID, eliminating the "Duplicate DU ID"
+              # F1SetupFailure that occurs when the CU still holds a stale
+              # entry for the previous pod.
+              #
+              # Algorithm: treat the last two octets of POD_IP as a 16-bit
+              # number (octet3*256 + octet4). This gives values 0–65535,
+              # well within the gnb_du_id range of 0–68719476735.
+              set -eu
+              : "${POD_IP:?}" "${F1C_IP:?}" "${CU_F1C_IP:?}" "${E2_IP:?}" "${E2TERM_IP:?}"
+              OCT3=$(echo "${POD_IP}" | cut -d. -f3)
+              OCT4=$(echo "${POD_IP}" | cut -d. -f4)
+              GNB_DU_ID=$(( OCT3 * 256 + OCT4 ))
+              # Offline sed — same F9 rationale as the CU render-config.
+              sed \
+                -e "s|\${POD_IP}|${POD_IP}|g" \
+                -e "s|\${GNB_DU_ID}|${GNB_DU_ID}|g" \
+                -e "s|\${F1C_IP}|${F1C_IP}|g" \
+                -e "s|\${CU_F1C_IP}|${CU_F1C_IP}|g" \
+                -e "s|\${E2_IP}|${E2_IP}|g" \
+                -e "s|\${E2TERM_IP}|${E2TERM_IP}|g" \
+                < /mnt/ocudu/templates/du.yml.tpl > /mnt/ocudu/configs/du.yml
+              if grep -q '\${' /mnt/ocudu/configs/du.yml; then
+                echo "ERROR: unsubstituted placeholders remain in du.yml:" >&2
+                grep '\${' /mnt/ocudu/configs/du.yml >&2
+                exit 1
+              fi
+              echo "Rendered du.yml: POD_IP=${POD_IP} GNB_DU_ID=${GNB_DU_ID} F1C_IP=${F1C_IP}"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: F1C_IP
+              value: "10.200.2.3"
+            - name: CU_F1C_IP
+              value: "10.200.2.2"
+            - name: E2_IP
+              value: "10.200.3.3"
+            - name: E2TERM_IP
+              value: "10.200.3.4"
+          volumeMounts:
+            - name: ocudu-templates
+              mountPath: /mnt/ocudu/templates
+              readOnly: true
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+        - name: wait-for-cu
+          image: alpine:3.19
+          env:
+            - name: HOLD_OFF_SEC
+              value: "30"
+          command:
+            - sh
+            - -c
+            - |
+              # Step 1 — wait for the CU F1-U UDP port via the ClusterIP service.
+              # F1-U binds to the primary pod IP (Flannel), not the F1-C secondary
+              # IP; probing the static F1-C address would never succeed.
+              # F1AP uses SCTP which alpine nc cannot probe; use the F1-U UDP
+              # port as a proxy — the CU process opens both listeners together.
+              # nc -zu sends a UDP probe and succeeds unless ICMP unreachable
+              # is received (i.e., the port is closed).
+              echo "Waiting for CU F1-U UDP port at ocudu-cu:2153..."
+              until nc -zuw1 ocudu-cu 2153 2>/dev/null; do
+                echo "waiting for CU F1-U UDP port 2153 at ocudu-cu..."
+                sleep 3
+              done
+              echo "CU process is up."
+              # Step 2 — P4 hold-off: the F1 setup retry count is hardcoded
+              # to 1. If the DU sends F1SetupRequest while the CU still holds a
+              # stale entry for a previous DU pod, the CU rejects with
+              # "Duplicate DU ID" and the DU gives up permanently. The CU purges
+              # stale entries ~23 s after SCTP COMM_LOST. We wait HOLD_OFF_SEC
+              # (default: 30 s) after the CU is reachable to guarantee the cleanup
+              # window has elapsed before the DU makes its single attempt.
+              echo "Holding off ${HOLD_OFF_SEC}s for CU stale-state cleanup (P4)..."
+              sleep "${HOLD_OFF_SEC}"
+              echo "Hold-off complete — starting DU."
+      containers:
+        - name: ocudu-du
+          image: x0tok/oran-ocudu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/odu", "-c", "/mnt/ocudu/configs/du.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+            - containerPort: 36421
+              name: e2-sctp
+              protocol: SCTP
+            - containerPort: 2000
+              name: zmq-tx
+              protocol: TCP
+            - containerPort: 2001
+              name: zmq-rx
+              protocol: TCP
+          volumeMounts:
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+              readOnly: true
+            - name: ocudu-logs
+              mountPath: /mnt/ocudu/logs
+          stdin: true
+          tty: true
+          readinessProbe:
+            tcpSocket:
+              port: 2000
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: 2000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+        # srsUE sidecar — must share the DU netns so ZMQ can use 127.0.0.1.
+        # Cross-pod ZMQ via ClusterIP deadlocks after the TCP handshake.
+        - name: srsue
+          image: x0tok/oran-srsue:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "waiting for local DU ZMQ on 127.0.0.1:2000..."
+              until timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/2000" 2>/dev/null; do
+                sleep 2
+              done
+              echo "DU ZMQ up — waiting 40s for cell to activate..."
+              sleep 40
+              exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          volumeMounts:
+            - name: ocudu-templates
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsue-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: ocudu-templates
+          configMap:
+            name: ocudu-configs
+        - name: ocudu-rendered
+          emptyDir: {}
+        - name: ocudu-logs
+          emptyDir: {}
+        - name: srsue-logs
+          emptyDir: {}

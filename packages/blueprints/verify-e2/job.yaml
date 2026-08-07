@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: verify-e2
+  namespace: oran-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oran-verify-e2
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log"]
+    verbs: ["get", "list", "create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oran-verify-e2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oran-verify-e2
+subjects:
+  - kind: ServiceAccount
+    name: verify-e2
+    namespace: oran-verify
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify-e2
+  namespace: oran-verify
+  labels:
+    app: verify-e2
+    oran.stack/gate: e2
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: verify-e2
+    spec:
+      serviceAccountName: verify-e2
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: bitnami/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: E2_NODE_ID
+              value: "gnbc_001_001_00019b_0"
+            - name: RIC_NS
+              value: near-rt-ric
+            - name: RAN_NS
+              value: ran
+            - name: WAIT_RETRIES
+              value: "30"
+            - name: WAIT_DELAY
+              value: "10"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for gNB ${E2_NODE_ID} in e2mgr..."
+              for i in $(seq 1 "${WAIT_RETRIES}"); do
+                STATES=$(kubectl exec -n "${RIC_NS}" deploy/ric-e2mgr -c e2mgr -- \
+                  curl -sf http://localhost:3800/v1/nodeb/states 2>/dev/null || true)
+                if echo "${STATES}" | grep -q "${E2_NODE_ID}"; then
+                  echo "E2 OK — ${E2_NODE_ID} registered"
+                  echo "${STATES}"
+                  exit 0
+                fi
+                echo "attempt ${i}/${WAIT_RETRIES}: not yet registered"
+                sleep "${WAIT_DELAY}"
+              done
+
+              # Single recovery: OCUDU does not retry E2 Setup after abort.
+              E2T=$(kubectl exec -n "${RIC_NS}" deploy/ric-e2mgr -c e2mgr -- \
+                curl -sf http://localhost:3800/v1/e2t/list 2>/dev/null || true)
+              if echo "${E2T}" | grep -q e2tAddress; then
+                echo "E2T present but gNB absent — restarting CU then DU once"
+                kubectl rollout restart deployment/ocudu-cu -n "${RAN_NS}"
+                kubectl rollout status deployment/ocudu-cu -n "${RAN_NS}" --timeout=300s
+                kubectl rollout restart deployment/ocudu-du -n "${RAN_NS}"
+                kubectl rollout status deployment/ocudu-du -n "${RAN_NS}" --timeout=300s
+                for i in $(seq 1 "${WAIT_RETRIES}"); do
+                  STATES=$(kubectl exec -n "${RIC_NS}" deploy/ric-e2mgr -c e2mgr -- \
+                    curl -sf http://localhost:3800/v1/nodeb/states 2>/dev/null || true)
+                  if echo "${STATES}" | grep -q "${E2_NODE_ID}"; then
+                    echo "E2 OK after recovery — ${E2_NODE_ID}"
+                    exit 0
+                  fi
+                  sleep "${WAIT_DELAY}"
+                done
+              fi
+              echo "ERROR: gNB ${E2_NODE_ID} never registered in e2mgr"
+              exit 1

@@ -1,0 +1,11 @@
+apiVersion: kpt.dev/v1
+kind: Kptfile
+metadata:
+  name: ns-and-secrets
+  annotations:
+    config.kubernetes.io/local-config: "true"
+info:
+  description: >
+    Namespaces for the O-RAN lab stack with privileged (or baseline) pod-security
+    labels. Docker Hub imagePullSecrets are created out-of-band by Ansible
+    workload-gitops (vault) — not committed here.
