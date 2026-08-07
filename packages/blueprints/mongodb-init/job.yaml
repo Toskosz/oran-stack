@@ -125,7 +125,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: init
-          image: bitnami/kubectl:1.30
+          image: bitnamilegacy/kubectl:1.30
           imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
@@ -135,11 +135,9 @@ spec:
               NS=5g-core
               echo "Waiting for mongodb-0 Ready..."
               kubectl wait --for=condition=Ready pod/mongodb-0 -n "$NS" --timeout=300s
-              kubectl cp /scripts/mongodb-init-rs.js "$NS/mongodb-0:/tmp/mongodb-init-rs.js" -c mongodb
-              kubectl cp /scripts/mongodb-seed.js "$NS/mongodb-0:/tmp/mongodb-seed.js" -c mongodb
-              kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-                mongosh "mongodb://localhost:27017/?directConnection=true" \
-                --quiet --file /tmp/mongodb-init-rs.js
+              echo "Initializing replica set..."
+              kubectl exec -i -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/?directConnection=true" --quiet < /scripts/mongodb-init-rs.js
               for i in $(seq 1 30); do
                 if kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
                   mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval \
@@ -148,9 +146,9 @@ spec:
                 fi
                 sleep 2
               done
-              kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-                mongosh "mongodb://localhost:27017/?directConnection=true" \
-                --quiet --file /tmp/mongodb-seed.js
+              echo "Seeding subscriber..."
+              kubectl exec -i -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/?directConnection=true" --quiet < /scripts/mongodb-seed.js
               COUNT=$(kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
                 mongosh open5gs --quiet --eval 'db.subscribers.countDocuments({imsi:"001010000000001"})')
               test "$COUNT" = "1"
