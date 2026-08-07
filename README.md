@@ -1,14 +1,21 @@
 # O-RAN Stack
 
-A Kubernetes-native O-RAN 5G Standalone network running on a kubeadm cluster provisioned with Ansible.
+A Kubernetes-native O-RAN 5G Standalone network. **Infra** (kubeadm, Multus/OVS,
+images) is provisioned with Ansible. **Network functions** (Open5GS, Near-RT RIC,
+OCUDU CU/DU + srsUE, xApp, monitoring) are deployed and managed with **Nephio**
+(Porch + Config Sync) from a dedicated management cluster. See [docs/NEPHIO.md](docs/NEPHIO.md).
 
-The RAN CU/DU is [OCUDU](https://ocudu.org/) (the Linux Foundation successor to srsRAN Project), pinned to the `release_26_04` tag. The UE simulator remains srsUE from srsRAN_4G, connected over ZMQ virtual radio.
+The RAN CU/DU is [OCUDU](https://ocudu.org/) (the Linux Foundation successor to srsRAN Project), pinned to the `release_26_04` tag. The UE simulator remains srsUE from srsRAN_4G, connected over ZMQ virtual radio (sidecar in the DU pod).
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  Kubernetes cluster (kubeadm + Flannel + Multus + OVS-CNI)          │
+┌─ Management cluster (Porch / Nephio / Config Sync) ─┐
+│  PackageVariants → Git (oran-lab deployment repo)   │
+└──────────────────────────┬──────────────────────────┘
+                           │ Config Sync
+┌──────────────────────────▼──────────────────────────┐
+│  Workload: kubeadm + Flannel + Multus + OVS-CNI     │
 │                                                                      │
 │  namespace: 5g-core          namespace: near-rt-ric                  │
 │  ┌──────────────────────┐    ┌─────────────────────┐                 │
@@ -23,7 +30,7 @@ The RAN CU/DU is [OCUDU](https://ocudu.org/) (the Linux Foundation successor to 
 │          │  n2br (10.200.1.0/24)      │  e2br (10.200.3.0/24)        │
 │  namespace: ran                        │                              │
 │  ┌─────────────────────────────────────┘──────────────────────────┐  │
-│  │ OCUDU (CU/DU) + srsUE                                          │  │
+│  │ OCUDU (CU/DU) + srsUE sidecar                                  │  │
 │  │  CU ──F1AP (f1cbr 10.200.2.0/24)──► DU ──ZMQ──► UE           │  │
 │  └────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────┘
@@ -49,9 +56,10 @@ SCTP traffic (N2/NGAP, F1-C, E2AP) is carried on dedicated OVS secondary interfa
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Ansible | ≥ 2.15 | Cluster provisioning and deployment |
+| Ansible | ≥ 2.15 | Cluster / Nephio bootstrap |
 | Docker | ≥ 24 | Building images |
-| Helm | ≥ 3.12 | Used via Ansible `kubernetes.core` collection |
+| Helm | ≥ 3.12 | Package render source (`scripts/render-nephio-packages.sh`) |
+| kpt | ≥ 1.0.0-beta | Nephio catalog apply (installed by bootstrap) |
 
 Install Ansible Galaxy collections:
 
@@ -84,62 +92,93 @@ chmod 600 ~/.oran_vault_pass
 
 ---
 
-## Quick start
+## Quick start (Nephio)
 
-### Option A: GCP VMs (recommended)
+Full detail: [docs/NEPHIO.md](docs/NEPHIO.md).
 
-#### 1. Provision the VMs
+Infra options for the **workload** cluster:
+
+| Option | Inventory | Doc |
+|--------|-----------|-----|
+| A — GCP (recommended) | `gcp.ini` | below |
+| B — BYO / home LAN (cp1 + w1) | `hosts.ini` | [docs/HOME_LAB_DHCP.md](docs/HOME_LAB_DHCP.md) |
+| C — Lab server (OpenVPN, single-node) | `lab.ini` | [docs/LAB_SERVER_VPN.md](docs/LAB_SERVER_VPN.md) |
+
+### 1. Workload cluster (infra)
+
+**Option A — GCP:**
 
 ```bash
 ansible-playbook ansible/playbooks/gcp-vm-create.yml
-```
-
-This creates two GCP VMs (`oran-cp1`, `oran-w1`) and writes `ansible/inventories/gcp.ini`.
-
-#### 2. Bootstrap the cluster
-
-```bash
-ansible-playbook ansible/playbooks/provision.yml \
-  -i ansible/inventories/gcp.ini
-```
-
-Installs containerd, kubeadm, Flannel CNI, Multus, OVS-CNI (via CNAO), OVS VXLAN tunnels between nodes, and local-path-provisioner. Writes `./kubeconfig`.
-
-#### 3. Build and push Docker images
-
-```bash
+ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
 ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
 ```
 
-#### 4. Deploy the stack
+**Option B — BYO / home LAN:** copy `ansible/inventories/hosts.ini.example` → `hosts.ini`, then:
 
 ```bash
-ansible-playbook ansible/playbooks/deploy.yml \
-  -i ansible/inventories/gcp.ini --ask-vault-pass
-```
-
-### Option B: Bring Your Own machines
-
-For a two-machine home lab, reserve fixed LAN IPs on your router first so
-`ansible_host` does not change after reboot. See
-[docs/HOME_LAB_DHCP.md](docs/HOME_LAB_DHCP.md) for a step-by-step guide.
-
-Copy and edit the inventory template:
-
-```bash
-cp ansible/inventories/hosts.ini.example ansible/inventories/hosts.ini
-# edit hosts.ini with your machine IPs and SSH user
-```
-
-Then run:
-
-```bash
-ansible-playbook ansible/playbooks/provision.yml \
-  -i ansible/inventories/hosts.ini
-
-ansible-playbook ansible/playbooks/deploy.yml \
+ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/hosts.ini
+ansible-playbook ansible/playbooks/build_images.yml \
   -i ansible/inventories/hosts.ini --ask-vault-pass
 ```
+
+**Option C — Lab server (OpenVPN, single-node):** connect VPN, copy
+`ansible/inventories/lab.ini.example` → `lab.ini`, then follow
+[docs/LAB_SERVER_VPN.md](docs/LAB_SERVER_VPN.md):
+
+```bash
+ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
+ansible-playbook ansible/playbooks/build_images.yml \
+  -i ansible/inventories/lab.ini --ask-vault-pass
+```
+
+### 2. Management cluster + Nephio
+
+```bash
+ansible-playbook ansible/playbooks/gcp-vm-create-mgmt.yml
+ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+
+export KUBECONFIG=$(pwd)/kubeconfig-mgmt
+# Set GITHUB_TOKEN to a fine-grained or classic PAT (do not commit tokens).
+ansible-playbook ansible/playbooks/bootstrap-nephio.yml \
+  -e nephio_git_blueprints_url=https://github.com/Toskosz/oran-stack.git \
+  -e nephio_git_mgmt_url=https://github.com/Toskosz/oran-mgmt.git \
+  -e nephio_git_oran_lab_url=https://github.com/Toskosz/oran-lab.git \
+  -e nephio_git_username=Toskosz \
+  -e nephio_git_token="$GITHUB_TOKEN"
+```
+
+### 3. Workload GitOps
+
+```bash
+export KUBECONFIG=$(pwd)/kubeconfig
+ansible-playbook ansible/playbooks/workload-gitops.yml \
+  -i ansible/inventories/gcp.ini --ask-vault-pass \
+  -e nephio_git_oran_lab_url=https://github.com/Toskosz/oran-lab.git \
+  -e nephio_git_username=Toskosz \
+  -e nephio_git_token="$GITHUB_TOKEN"
+```
+
+### 4. Deploy NFs via Porch
+
+```bash
+export KUBECONFIG=$(pwd)/kubeconfig-mgmt
+kubectl apply -f packages/variants/oran-lab-packagevariants.yaml
+# Approve PackageRevisions in order (ns → core → mongodb-init → ric → ran → …)
+```
+
+Package order includes **srsUE** inside the `ran` package (not a separate CNF).
+
+Re-render blueprints after Helm chart edits:
+
+```bash
+./scripts/render-nephio-packages.sh
+```
+
+### Legacy Helm deploy (deprecated)
+
+`ansible/playbooks/deploy.yml` still runs the old Ansible→Helm path but prints a
+deprecation warning. Prefer Nephio; do not mix ownership of the same objects.
 
 ---
 
@@ -148,15 +187,15 @@ ansible-playbook ansible/playbooks/deploy.yml \
 ```bash
 export KUBECONFIG=$(pwd)/kubeconfig
 
-# All pods running
 kubectl get pods -A
+kubectl get jobs -n oran-verify
 
-# UE attached to the 5G core
-kubectl logs -n ran deployment/srsue -f
+# UE sidecar in the DU pod
+kubectl logs -n ran deployment/ocudu-du -c srsue -f
 # Look for: RRC Connected  ->  PDU Session Established
 
-# OVS bridges on each node
-ssh <node> sudo ovs-vsctl show
+# Optional Ansible gates (Nephio migration fallback)
+ansible-playbook ansible/playbooks/verify-only.yml
 ```
 
 ---
@@ -164,7 +203,7 @@ ssh <node> sudo ovs-vsctl show
 ## Teardown
 
 ```bash
-# Remove all Helm releases and reset the kubeadm cluster
+# Reset the workload kubeadm cluster (and optional Helm leftovers)
 ansible-playbook ansible/playbooks/teardown.yml \
   -i ansible/inventories/gcp.ini --ask-vault-pass
 
@@ -226,46 +265,32 @@ ansible-playbook ansible/playbooks/gcp-vm-delete.yml
 
 ```
 oran-stack/
-├── entrypoint.sh                  # NF container entrypoint (envsubst + launch)
-├── init-mongodb.js                # MongoDB replica-set init
-├── init-webui-data.js             # MongoDB subscriber seed data
-├── configs/                       # Open5GS NF config templates (baked into image)
-├── dockerfiles/                   # Dockerfiles for the 4 custom images
-├── helm/
-│   ├── 5g-core/                   # Open5GS + MongoDB Helm chart
-│   ├── near-rt-ric/               # O-RAN SC Near-RT RIC Helm chart
-│   └── ran/                       # OCUDU CU/DU + srsUE Helm chart
+├── packages/
+│   ├── blueprints/                # kpt packages (Helm-rendered + hand-maintained)
+│   ├── values/lab-defaults.yaml   # Render defaults (images, Multus IPs, UE, e2NodeId)
+│   ├── variants/                  # PackageVariant examples for oran-lab
+│   └── examples/
+├── scripts/render-nephio-packages.sh
+├── docs/NEPHIO.md                 # Split-cluster Nephio guide
+├── docs/LAB_SERVER_VPN.md         # OpenVPN single-node lab path
+├── helm/                          # Chart sources (generator of truth for packages)
 ├── ansible/
-│   ├── ansible.cfg
-│   ├── requirements.yml
-│   ├── inventories/
-│   │   ├── hosts.ini.example      # BYO machine inventory template
-│   │   ├── gcp.ini                # GCP VM inventory (generated by gcp-vm-create.yml)
-│   │   └── group_vars/all/
-│   │       ├── vars.yml           # All non-secret variables
-│   │       └── vault.yml          # Encrypted secrets (dockerhub_password)
 │   ├── playbooks/
-│   │   ├── provision.yml          # kubeadm cluster bootstrap
-│   │   ├── build_images.yml       # Docker build + push
-│   │   ├── deploy.yml             # Helm deploy (core -> ric -> ran)
-│   │   ├── teardown.yml           # Helm uninstall + kubeadm reset
-│   │   ├── gcp-vm-create.yml      # Provision GCP cluster VMs
-│   │   └── gcp-vm-delete.yml      # Delete GCP cluster VMs
+│   │   ├── provision.yml          # Workload kubeadm + Multus/OVS
+│   │   ├── provision-mgmt.yml     # Management kubeadm (no Multus)
+│   │   ├── bootstrap-nephio.yml   # Porch + controllers + repo register
+│   │   ├── workload-gitops.yml    # Config Sync + RootSync + pull secrets
+│   │   ├── verify-only.yml        # E2/xApp/UE gates without Helm deploy
+│   │   ├── deploy.yml             # DEPRECATED legacy Helm path
+│   │   ├── build_images.yml
+│   │   ├── teardown.yml
+│   │   ├── gcp-vm-create.yml
+│   │   └── gcp-vm-create-mgmt.yml
 │   └── roles/
-│       ├── kubeadm_prereqs/       # OS prep (swap, modules, OVS, containerd, kubeadm)
-│       ├── kubeadm_control_plane/ # kubeadm init, Flannel, Multus, CNAO, NADs
-│       ├── kubeadm_worker/        # kubeadm join
-│       ├── kubeadm_teardown/      # kubeadm reset + OVS/iptables cleanup
-│       ├── ovs_vxlan/             # OVS bridge + VXLAN tunnel setup between nodes
-│       ├── gcp_vm/                # GCP VM create / delete (google.cloud collection)
-│       ├── container_images/      # Docker build + push
-│       ├── deploy_5g_core/        # Helm deploy for 5g-core
-│       ├── deploy_ric/            # Helm deploy for near-rt-ric
-│       └── deploy_ran/            # Helm deploy for ran
-└── docs/
-    ├── STATUS.md
-    ├── LEARNINGS.md
-    └── E2_STABILIZATION_PLAN.md
+│       ├── nephio_bootstrap/
+│       ├── workload_gitops/
+│       └── … (kubeadm, ovs, deploy_*, verify_stack, …)
+└── …
 ```
 
 ---
@@ -276,7 +301,7 @@ oran-stack/
 Check Flannel pods: `kubectl get pods -n kube-flannel`. Re-run `provision.yml` — all tasks are idempotent.
 
 **Images fail to pull**  
-Verify the imagePullSecret: `kubectl get secret dockerhub-secret -n 5g-core`. Re-run `deploy.yml` to recreate it.
+Verify the imagePullSecret: `kubectl get secret dockerhub-secret -n 5g-core`. Re-run `workload-gitops.yml` (or legacy `deploy.yml`) to recreate it.
 
 **UPF pod CrashLoops**  
 UPF uses `hostNetwork: true` and creates TUN interfaces. Confirm `net.ipv4.ip_forward=1` is set on the worker: `ssh <node> sysctl net.ipv4.ip_forward`. The `kubeadm_prereqs` role sets this.

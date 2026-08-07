@@ -1,0 +1,35 @@
+# ============================================================================
+# Lab server inventory (OpenVPN + SSH) — single-node workload
+# ============================================================================
+# Connect to the lab OpenVPN first, then copy and edit:
+#   cp lab.ini.example lab.ini
+#   edit lab.ini
+#
+# Use the OpenVPN-reachable address for both ansible_host and
+# control_plane_ip (same value when the VPN IP is the node's primary
+# address). Do not put a second kubeadm node on the same host OS.
+#
+# Then run playbooks with:
+#   ansible-playbook playbooks/provision.yml      -i inventories/lab.ini
+#   ansible-playbook playbooks/build_images.yml   -i inventories/lab.ini --ask-vault-pass
+#   ansible-playbook playbooks/workload-gitops.yml -i inventories/lab.ini --ask-vault-pass
+#   # NFs: see docs/NEPHIO.md and docs/LAB_SERVER_VPN.md
+# ============================================================================
+
+[control_plane]
+# <hostname>  ansible_host=<vpn_ip>  control_plane_ip=<vpn_ip>  ansible_user=<ssh_user>
+cp1  ansible_host=10.8.0.2  control_plane_ip=10.8.0.2  ansible_user=ubuntu
+
+# Leave empty for single-node (provision.yml untaints the control-plane).
+[workers]
+
+[k8s_cluster:children]
+control_plane
+workers
+
+[k8s_cluster:vars]
+ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=auto_legacy_silent
+
+[local]
+localhost ansible_connection=local
