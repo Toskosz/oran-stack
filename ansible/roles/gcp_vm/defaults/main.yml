@@ -7,7 +7,7 @@
 gcp_project: ""
 
 # Zone for both VMs
-gcp_zone: "us-central1-a"
+gcp_zone: "us-east1-b"
 
 # OS image
 gcp_image_family:  "ubuntu-2204-lts"

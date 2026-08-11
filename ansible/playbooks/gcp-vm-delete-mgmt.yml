@@ -21,7 +21,7 @@
   gather_facts: false
   vars:
     gcp_project: ""
-    gcp_zone: "us-central1-a"
+    gcp_zone: "us-east1-b"
     gcp_mgmt_name: "oran-mgmt"
 
   tasks:
