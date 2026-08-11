@@ -3,15 +3,20 @@
 # Purpose:  Build Docker images for Open5GS NFs, WebUI, OCUDU, srsUE, and xApps from the
 #           local repository and push them to Docker Hub.
 #
-# Usage:
-#   ansible-playbook ansible/playbooks/build_images.yml \
-#     -e dockerhub_username=myuser \
-#     --ask-vault-pass          # vault holds dockerhub_password
+# Usage (from ansible/ — inventory loads group_vars + vault via ansible.cfg):
+#   ansible-playbook ./playbooks/build_images.yml -i inventories/gcp.ini
+#   ansible-playbook ./playbooks/build_images.yml -i inventories/hosts.ini
+#   ansible-playbook ./playbooks/build_images.yml -i inventories/lab.ini
 #
-# Pre-requisites (see TODO.md):
+# From repo root:
+#   ansible-playbook ansible/playbooks/build_images.yml \
+#     -i ansible/inventories/gcp.ini
+#
+# Pre-requisites:
 #   - Docker daemon running on the Ansible controller
 #   - All Dockerfiles present in their expected locations
-#   - dockerhub_username and dockerhub_password set (group_vars or vault)
+#   - Inventory passed (-i) so group_vars load dockerhub_* from vault
+#   - ~/.oran_vault_pass present (ansible.cfg vault_password_file)
 # ============================================================================
 ---
 - name: Build and push container images to Docker Hub
