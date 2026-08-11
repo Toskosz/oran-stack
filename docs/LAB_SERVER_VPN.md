@@ -78,7 +78,7 @@ Set:
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
 ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/lab.ini --ask-vault-pass
+  -i ansible/inventories/lab.ini
 ```
 
 `provision.yml` writes `./kubeconfig` with the API server at

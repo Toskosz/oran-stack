@@ -111,15 +111,15 @@ Infra options for the **workload** cluster:
 ```bash
 ansible-playbook ansible/playbooks/gcp-vm-create.yml
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
-ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
+# Inventory loads group_vars + vault (see ansible/ansible.cfg vault_password_file)
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/gcp.ini
 ```
 
 **Option B — BYO / home LAN:** copy `ansible/inventories/hosts.ini.example` → `hosts.ini`, then:
 
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/hosts.ini
-ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/hosts.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/hosts.ini
 ```
 
 **Option C — Lab server (OpenVPN, single-node):** connect VPN, copy
@@ -128,8 +128,7 @@ ansible-playbook ansible/playbooks/build_images.yml \
 
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
-ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/lab.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/lab.ini
 ```
 
 ### 2. Management cluster + Nephio
