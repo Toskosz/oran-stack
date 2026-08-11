@@ -146,7 +146,8 @@
       ansible.builtin.command:
         cmd: >
           kpt live apply {{ nephio_work_dir }}/{{ item.name }}
-          --reconcile-timeout=15m --output=table
+          --reconcile-timeout={{ nephio_kpt_reconcile_timeout }}
+          --output=table
       loop: "{{ nephio_bootstrap_packages }}"
       loop_control:
         label: "{{ item.name }}"
@@ -154,6 +155,9 @@
         not (item.optional | default(false) | bool) or
         (_pkg_get.results | selectattr('item.name', 'equalto', item.name) | map(attribute='rc') | first | default(1)) == 0
       register: _live_apply
+      retries: "{{ nephio_kpt_live_apply_retries | int }}"
+      delay: "{{ nephio_kpt_live_apply_delay_s | int }}"
+      until: _live_apply.rc == 0
       failed_when: >
         _live_apply.rc != 0 and not (item.optional | default(false) | bool)
 

@@ -29,6 +29,12 @@ nephio_bin_dir: "{{ ansible_env.HOME }}/.local/bin"
 nephio_catalog_repo: "https://github.com/nephio-project/catalog.git"
 nephio_catalog_ref: "v5.0.0"
 
+# kpt live apply can race (Config Sync operator image pull / Ready).
+# Retries re-apply until reconciled so bootstrap finishes in one playbook run.
+nephio_kpt_reconcile_timeout: "15m"
+nephio_kpt_live_apply_retries: 5
+nephio_kpt_live_apply_delay_s: 30
+
 # gcr.io/kubebuilder/kube-rbac-proxy was removed; rewrite to the brancz mirror.
 nephio_kube_rbac_proxy_from: "gcr.io/kubebuilder/kube-rbac-proxy:"
 nephio_kube_rbac_proxy_to: "quay.io/brancz/kube-rbac-proxy:"
