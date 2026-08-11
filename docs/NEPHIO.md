@@ -245,9 +245,19 @@ Fallback (migration): `ansible-playbook ansible/playbooks/verify-only.yml`.
 
 | Keep | Retire (legacy Helm path) |
 |------|---------------------------|
-| `gcp-vm-*`, `provision.yml`, `build_images.yml`, `teardown.yml` | `deploy.yml` + `deploy_*` roles (deprecated) |
+| `gcp-vm-*`, `provision.yml`, `build_images.yml`, `teardown.yml`, `teardown-mgmt.yml` | `deploy.yml` + `deploy_*` roles (deprecated) |
 | `provision-mgmt.yml`, `bootstrap-nephio.yml`, `workload-gitops.yml` | Helm `--set` wiring in deploy roles |
 | Vault for Docker Hub pull secrets | README Helm-first quick start |
+
+### Teardown (management)
+
+```bash
+ansible-playbook ansible/playbooks/teardown-mgmt.yml \
+  -i ansible/inventories/mgmt.ini
+# GCP only — omit for BYO hosts you want to keep:
+ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+  -e gcp_zone=us-east1-b
+```
 
 ## Catalog pin
 

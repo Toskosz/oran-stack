@@ -215,12 +215,17 @@ ansible-playbook ansible/playbooks/verify-only.yml
 ## Teardown
 
 ```bash
-# Reset the workload kubeadm cluster (and optional Helm leftovers)
+# Workload: reset kubeadm (+ optional Helm leftovers), then delete GCP VMs
 ansible-playbook ansible/playbooks/teardown.yml \
   -i ansible/inventories/gcp.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/gcp-vm-delete.yml \
+  -e gcp_zone=us-east1-b   # same zone used at create time
 
-# Delete GCP VMs
-ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+# Management: reset kubeadm, then delete the GCP mgmt VM
+ansible-playbook ansible/playbooks/teardown-mgmt.yml \
+  -i ansible/inventories/mgmt.ini
+ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+  -e gcp_zone=us-east1-b
 ```
 
 ---
@@ -296,8 +301,11 @@ oran-stack/
 │   │   ├── deploy.yml             # DEPRECATED legacy Helm path
 │   │   ├── build_images.yml
 │   │   ├── teardown.yml
+│   │   ├── teardown-mgmt.yml
 │   │   ├── gcp-vm-create.yml
-│   │   └── gcp-vm-create-mgmt.yml
+│   │   ├── gcp-vm-delete.yml
+│   │   ├── gcp-vm-create-mgmt.yml
+│   │   └── gcp-vm-delete-mgmt.yml
 │   └── roles/
 │       ├── nephio_bootstrap/
 │       ├── workload_gitops/
