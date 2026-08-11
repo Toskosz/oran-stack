@@ -112,6 +112,7 @@
         msg: |
           Management VM {{ gcp_mgmt_name }} ready ({{ _mgmt_ext }}).
           Next:
-            ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+            ansible-playbook ansible/playbooks/provision-mgmt.yml \
+              -i ansible/inventories/mgmt.ini --ask-become-pass
             export KUBECONFIG=$(pwd)/kubeconfig-mgmt
             ansible-playbook ansible/playbooks/bootstrap-nephio.yml ...

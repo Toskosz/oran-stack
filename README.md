@@ -134,9 +134,21 @@ ansible-playbook ansible/playbooks/build_images.yml \
 
 ### 2. Management cluster + Nephio
 
+**GCP mgmt VM** (optional): `gcp-vm-create-mgmt.yml` writes `mgmt.ini`.
+
+**BYO mgmt** (e.g. second Ubuntu laptop): copy
+`ansible/inventories/mgmt.ini.example` → `mgmt.ini`, set `ansible_host` /
+`control_plane_ip` to that host’s LAN IP, and complete SSH prerequisites
+(key ownership, `ssh-copy-id`, `ssh-agent` if the key has a passphrase).
+Details: [docs/NEPHIO.md](docs/NEPHIO.md#byo-management-host--ssh-and-mgmtini).
+
 ```bash
+# Skip gcp-vm-create-mgmt.yml when using a BYO host and a hand-edited mgmt.ini.
 ansible-playbook ansible/playbooks/gcp-vm-create-mgmt.yml
-ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+# --ask-become-pass when the SSH user needs a sudo password (typical BYO).
+# Keep ssh-agent loaded if the private key has a passphrase.
+ansible-playbook ansible/playbooks/provision-mgmt.yml \
+  -i ansible/inventories/mgmt.ini --ask-become-pass
 
 export KUBECONFIG=$(pwd)/kubeconfig-mgmt
 # Set GITHUB_TOKEN to a fine-grained or classic PAT (do not commit tokens).

@@ -70,13 +70,100 @@ created by `provision.yml` on the workload cluster.
 
 ### 1. Management cluster (infra)
 
+Prefer a dedicated host for Porch/Nephio (~4 vCPU / 8 GB+). Options:
+
+| Option | How |
+|--------|-----|
+| GCP VM | `gcp-vm-create-mgmt.yml` (writes `mgmt.ini`) |
+| BYO (e.g. second Ubuntu laptop) | Copy/edit `mgmt.ini` yourself — steps below |
+
+Do **not** co-locate management kubeadm with the workload cluster on the same
+host OS. The Ansible controller (often WSL2) is separate from both.
+
+#### BYO management host — SSH and `mgmt.ini`
+
+On the **controller** (Ansible laptop / WSL2):
+
+1. **SSH key usable by your user** (not root-owned):
+
+   ```bash
+   sudo chown "$USER:$USER" ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+   chmod 600 ~/.ssh/id_ed25519
+   chmod 644 ~/.ssh/id_ed25519.pub
+   ```
+
+2. **Install the public key** on the management host (password login once):
+
+   ```bash
+   ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<mgmt_lan_ip>
+   ```
+
+3. **If the private key has a passphrase**, unlock it for this shell (Ansible
+   and `BatchMode` SSH will not prompt):
+
+   ```bash
+   eval "$(ssh-agent -s)"
+   ssh-add ~/.ssh/id_ed25519
+   ```
+
+4. **Verify key-only SSH** (must print the hostname with no password prompt):
+
+   ```bash
+   ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes <user>@<mgmt_lan_ip> 'hostname'
+   ```
+
+5. **Inventory** — `ansible_host` is the **management host** IP (reachable
+   from the controller), not the controller’s own IP:
+
+   ```bash
+   cp ansible/inventories/mgmt.ini.example ansible/inventories/mgmt.ini
+   ```
+
+   Example (`mgmt.ini` is gitignored):
+
+   ```ini
+   [control_plane]
+   mgmt1  ansible_host=192.168.15.86  control_plane_ip=192.168.15.86  ansible_user=tokarski
+
+   [workers]
+
+   [k8s_cluster:children]
+   control_plane
+   workers
+
+   [k8s_cluster:vars]
+   ansible_ssh_private_key_file=~/.ssh/id_ed25519
+   ansible_python_interpreter=auto_legacy_silent
+   nephio_mgmt_mode=true
+
+   [local]
+   localhost ansible_connection=local
+   ```
+
+   | Field | Value |
+   |-------|--------|
+   | `ansible_host` | IP the controller uses for SSH / later `kubectl` |
+   | `control_plane_ip` | Same address **on that host** (`ip -4 addr`); kubeadm requires it |
+   | `ansible_user` | SSH login on the management host |
+   | `ansible_ssh_private_key_file` | Private key on the controller |
+   | `[workers]` | Leave empty for single-node mgmt |
+
+   Prefer a reserved/static DHCP lease so the IP does not change.
+
+6. **Remote user must have `sudo`** (password OK — see `--ask-become-pass`).
+
+#### Provision management kubeadm
+
 ```bash
 # Optional GCP VM for management (~4 vCPU / 8 GB+)
 ansible-playbook ansible/playbooks/gcp-vm-create-mgmt.yml
 
 # kubeadm without Multus/OVS (writes ./kubeconfig-mgmt)
+# Use --ask-become-pass when the SSH user has a sudo password (typical BYO/laptop).
+# GCP VMs with passwordless sudo can omit it.
+# Keep ssh-agent loaded in this shell if the key has a passphrase.
 ansible-playbook ansible/playbooks/provision-mgmt.yml \
-  -i ansible/inventories/mgmt.ini
+  -i ansible/inventories/mgmt.ini --ask-become-pass
 ```
 
 ### 2. Nephio on management
@@ -94,7 +181,11 @@ ansible-playbook ansible/playbooks/bootstrap-nephio.yml \
 
 This installs Porch, Nephio controllers, Config Sync (mgmt), optional WebUI
 from the Nephio catalog (`v5.0.0` by default), and registers Git repos with
-`porchctl`.
+`porchctl`. Catalog `kpt live apply` retries (default 5× / 30s) so Config Sync
+operator startup races do not require a manual re-run.
+
+Run the playbook from `ansible/` (so `ansible.cfg` resolves roles), or set
+`ANSIBLE_CONFIG=ansible/ansible.cfg` from the repo root.
 
 Create empty Git repos first:
 
