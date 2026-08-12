@@ -327,8 +327,10 @@ The playbook performs the following sequence:
 10. `monitoring`
 
 It proposes and approves Porch revisions, waits for each Config Sync commit,
-and runs the package readiness gates. `xapp-lifecycle` waits for AppMgr,
-resynchronizes RTMgr, restarts and resubscribes the xApp, preserves the
+and runs the package readiness gates. While it runs, Ansible prints `ASYNC POLL`
+every 20s and streams detail to `oran-stack/.nephio-deploy.log`
+(`tail -f ../.nephio-deploy.log` from `ansible/`). `xapp-lifecycle` waits for
+AppMgr, resynchronizes RTMgr, restarts and resubscribes the xApp, preserves the
 subscription routes, and requires at least one `RIC Indication Received`
 message before `verify-ue` proceeds.
 
