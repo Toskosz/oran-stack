@@ -1,3 +1,4 @@
+---
 # Source: 5g-core/templates/configmap-nf-configs.yaml
 # ============================================================================
 # ConfigMap: Open5GS NF Configuration Templates
@@ -494,7 +495,7 @@ kind: Service
 metadata:
   name: ausf
   namespace: 5g-core
-  labels: {app: ausf}
+  labels: { app: ausf }
 spec:
   selector: {app: ausf}
   ports: [{name: sbi, port: 7777, targetPort: 7777}]
@@ -505,7 +506,7 @@ kind: Service
 metadata:
   name: udm
   namespace: 5g-core
-  labels: {app: udm}
+  labels: { app: udm }
 spec:
   selector: {app: udm}
   ports: [{name: sbi, port: 7777, targetPort: 7777}]
@@ -516,7 +517,7 @@ kind: Service
 metadata:
   name: pcf
   namespace: 5g-core
-  labels: {app: pcf}
+  labels: { app: pcf }
 spec:
   selector: {app: pcf}
   ports:
@@ -529,7 +530,7 @@ kind: Service
 metadata:
   name: nssf
   namespace: 5g-core
-  labels: {app: nssf}
+  labels: { app: nssf }
 spec:
   selector: {app: nssf}
   ports: [{name: sbi, port: 7777, targetPort: 7777}]
@@ -540,7 +541,7 @@ kind: Service
 metadata:
   name: bsf
   namespace: 5g-core
-  labels: {app: bsf}
+  labels: { app: bsf }
 spec:
   selector: {app: bsf}
   ports: [{name: sbi, port: 7777, targetPort: 7777}]
@@ -551,7 +552,7 @@ kind: Service
 metadata:
   name: udr
   namespace: 5g-core
-  labels: {app: udr}
+  labels: { app: udr }
 spec:
   selector: {app: udr}
   ports: [{name: sbi, port: 7777, targetPort: 7777}]
@@ -1170,7 +1171,7 @@ kind: Deployment
 metadata:
   name: ausf
   namespace: 5g-core
-  labels: {app: ausf, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: ausf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -1321,7 +1322,7 @@ kind: Deployment
 metadata:
   name: udm
   namespace: 5g-core
-  labels: {app: udm, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: udm, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -1472,7 +1473,7 @@ kind: Deployment
 metadata:
   name: pcf
   namespace: 5g-core
-  labels: {app: pcf, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: pcf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -1623,7 +1624,7 @@ kind: Deployment
 metadata:
   name: nssf
   namespace: 5g-core
-  labels: {app: nssf, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: nssf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -1774,7 +1775,7 @@ kind: Deployment
 metadata:
   name: bsf
   namespace: 5g-core
-  labels: {app: bsf, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: bsf, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -1925,7 +1926,7 @@ kind: Deployment
 metadata:
   name: udr
   namespace: 5g-core
-  labels: {app: udr, app.kubernetes.io/part-of: oran-stack}
+  labels: { app: udr, app.kubernetes.io/part-of: oran-stack }
 spec:
   replicas: 1
   strategy:
@@ -2856,48 +2857,42 @@ spec:
       imagePullSecrets:
       - name: dockerhub-secret
       containers:
-      - name: mongodb
-        image: mongo:7.0
-        # Use args (not command) so the official entrypoint runs init scripts
-        # in /docker-entrypoint-initdb.d/ on first startup with an empty PVC.
-        # deploy_5g_core also runs rs.initiate + seed idempotently after deploy.
-        args: ["--replSet", "rs0", "--bind_ip_all"]
-        ports:
-        - containerPort: 27017
-        env:
-        - name: MONGO_INITDB_DATABASE
-          value: open5gs
-        volumeMounts:
-        - name: mongodb-data
-          mountPath: /data/db
-        - name: mongodb-config
-          mountPath: /data/configdb
-        - name: init-scripts
-          mountPath: /docker-entrypoint-initdb.d
-        livenessProbe:
-          exec:
-            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 5
-        readinessProbe:
-          exec:
-            command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-          initialDelaySeconds: 15
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 5
-        resources:
-          requests:
-            cpu: 250m
-            memory: 512Mi
-          limits:
-            memory: 1Gi
-      volumes:
-      - name: init-scripts
-        configMap:
-          name: mongodb-init-scripts
+        - name: mongodb
+          image: mongo:7.0
+          # Use args (not command) so the official entrypoint runs init scripts
+          # in /docker-entrypoint-initdb.d/ on first startup with an empty PVC.
+          # deploy_5g_core also runs rs.initiate + seed idempotently after deploy.
+          args: ["--replSet", "rs0", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_DATABASE
+              value: open5gs
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+            - name: mongodb-config
+              mountPath: /data/configdb
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
   # VolumeClaimTemplates create a PersistentVolumeClaim per replica.
   # GKE's standard-rwo StorageClass provisions a GCP Persistent Disk (pd-ssd)
   # automatically when the pod is first scheduled.

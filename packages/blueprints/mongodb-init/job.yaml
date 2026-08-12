@@ -54,6 +54,10 @@ data:
     }
   mongodb-seed.js: |
     // Idempotent Open5GS admin + test subscriber seed.
+    const ueImsi = process.env.UE_IMSI;
+    const ueK = process.env.UE_K;
+    const ueOpc = process.env.UE_OPC;
+    const ueApn = process.env.UE_APN;
     db = db.getSiblingDB('admin');
     try {
       const adminResult = db.administrators.updateOne(
@@ -71,12 +75,12 @@ data:
     db = db.getSiblingDB('open5gs');
     try {
       db.subscribers.updateOne(
-        { imsi: '001010000000001' },
+        { imsi: ueImsi },
         { $setOnInsert: {
-            imsi: '001010000000001', msisdn: '+82100000001',
+            imsi: ueImsi, msisdn: '+82100000001',
             subscriber_status: 0, network_access_mode: 0,
             access_restriction_data: 32, subscribed_rau_tau_timer: 12,
-            pdn: [{ apn: 'internet', type: 2, dnn: 'internet', qci: 9,
+            pdn: [{ apn: ueApn, type: 2, dnn: ueApn, qci: 9,
               arp: { priority_level: 8, pre_emption_capability: 0, pre_emption_vulnerability: 0 },
               mbr: { downlink: 1024, uplink: 1024 },
               ambr: { downlink: 1024000, uplink: 1024000 }
@@ -87,16 +91,16 @@ data:
         }},
         { upsert: true }
       );
-      print('5G subscriber seeded: 001010000000001');
+      print('5G subscriber seeded: ' + ueImsi);
     } catch (e) { print('5G subscriber: ' + e.message); }
 
     try {
       db.auths.updateOne(
-        { imsi: '001010000000001' },
+        { imsi: ueImsi },
         { $setOnInsert: {
-            imsi: '001010000000001',
-            k: '465B5CE8B199B49FAA5F0A2EE238A6BC',
-            opc: 'E8ED289DEBA952E4283B54E88E6183CA',
+            imsi: ueImsi,
+            k: ueK,
+            opc: ueOpc,
             amf: 32770, sqn: 0, ck: null, ik: null,
             created_at: new Date(), updated_at: new Date()
         }},
@@ -124,41 +128,43 @@ spec:
       serviceAccountName: mongodb-init
       restartPolicy: OnFailure
       containers:
-      - name: init
-        image: bitnamilegacy/kubectl:1.30
-        imagePullPolicy: IfNotPresent
-        command:
-        - /bin/bash
-        - -c
-        - |
-          set -euo pipefail
-          NS=5g-core
-          echo "Waiting for mongodb-0 Ready..."
-          kubectl wait --for=condition=Ready pod/mongodb-0 -n "$NS" --timeout=300s
-          kubectl cp /scripts/mongodb-init-rs.js "$NS/mongodb-0:/tmp/mongodb-init-rs.js" -c mongodb
-          kubectl cp /scripts/mongodb-seed.js "$NS/mongodb-0:/tmp/mongodb-seed.js" -c mongodb
-          kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-            mongosh "mongodb://localhost:27017/?directConnection=true" \
-            --quiet --file /tmp/mongodb-init-rs.js
-          for i in $(seq 1 30); do
-            if kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-              mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval \
-              "try { var s = rs.status(); quit(s.members[0].stateStr === 'PRIMARY' ? 0 : 1) } catch (e) { quit(1) }"; then
-              break
-            fi
-            sleep 2
-          done
-          kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-            mongosh "mongodb://localhost:27017/?directConnection=true" \
-            --quiet --file /tmp/mongodb-seed.js
-          COUNT=$(kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-            mongosh open5gs --quiet --eval 'db.subscribers.countDocuments({imsi:"001010000000001"})')
-          test "$COUNT" = "1"
-          echo "MongoDB init OK — subscriber present"
-        volumeMounts:
-        - name: scripts
-          mountPath: /scripts
-          readOnly: true
+        - name: init
+          image: bitnamilegacy/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: oran-lab-settings
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              NS=5g-core
+              echo "Waiting for mongodb-0 Ready..."
+              kubectl wait --for=condition=Ready pod/mongodb-0 -n "$NS" --timeout=300s
+              echo "Initializing replica set..."
+              kubectl exec -i -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/?directConnection=true" --quiet < /scripts/mongodb-init-rs.js
+              for i in $(seq 1 30); do
+                if kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                  mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval \
+                  "try { var s = rs.status(); quit(s.members[0].stateStr === 'PRIMARY' ? 0 : 1) } catch (e) { quit(1) }"; then
+                  break
+                fi
+                sleep 2
+              done
+              echo "Seeding subscriber..."
+              kubectl exec -i -n "$NS" mongodb-0 -c mongodb -- \
+                env UE_IMSI="$UE_IMSI" UE_K="$UE_K" UE_OPC="$UE_OPC" UE_APN="$UE_APN" \
+                mongosh "mongodb://localhost:27017/?directConnection=true" --quiet < /scripts/mongodb-seed.js
+              COUNT=$(kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
+                mongosh open5gs --quiet --eval "db.subscribers.countDocuments({imsi:\"$UE_IMSI\"})")
+              test "$COUNT" = "1"
+              echo "MongoDB init OK — subscriber present"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
       volumes:
       - name: scripts
         configMap:

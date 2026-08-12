@@ -46,6 +46,7 @@ kubeconfig-mgmt
 # Nephio local bootstrap working trees
 .nephio-bootstrap/
 .nephio-workload/
+.nephio-deploy.log
 
 # Generated Nephio management inventory
 ansible/inventories/mgmt.ini

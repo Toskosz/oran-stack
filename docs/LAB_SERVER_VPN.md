@@ -15,9 +15,12 @@ GCP and two-node BYO/home-lab (`hosts.ini`) paths are unchanged.
 
 **NFs:** Nephio remains primary. This path provisions **workload** infra only.
 Keep Porch / management on an existing mgmt cluster (GCP or BYO `mgmt.ini`).
-See [NEPHIO.md](NEPHIO.md). For a closed lab without a second cluster, the
-deprecated `deploy.yml` Helm path still works (do not mix with Nephio ownership
-of the same objects).
+Typical three-role lab: **controller** (WSL2/Ansible) + **mgmt host** (Ubuntu
+laptop / GCP) + **lab server** (this doc’s `lab.ini`). Full BYO mgmt steps
+(SSH key ownership, `ssh-copy-id`, passphrase/`ssh-agent`, filling `mgmt.ini`,
+`--ask-become-pass`): [NEPHIO.md — BYO management host](NEPHIO.md#byo-management-host--ssh-and-mgmtini).
+For a closed lab without a second cluster, the deprecated `deploy.yml` Helm path
+still works (do not mix with Nephio ownership of the same objects).
 
 ---
 
@@ -26,9 +29,11 @@ of the same objects).
 | Requirement | Notes |
 |-------------|--------|
 | OpenVPN client | Connected before Ansible / `kubectl` |
-| SSH key auth | Same key as in `lab.ini` |
+| SSH key auth (lab) | Key auth to the lab server; same key as in `lab.ini` |
+| Management cluster | Separate host via `mgmt.ini` — see [NEPHIO.md](NEPHIO.md#byo-management-host--ssh-and-mgmtini) |
 | Ansible ≥ 2.15 on the laptop | Galaxy collections: `ansible-galaxy collection install -r ansible/requirements.yml` |
 | Lab host resources | Prefer ≥ 4 vCPU / 16 GB RAM / 50 GB disk for the full O-RAN stack on one box |
+| Passphrase-protected SSH key | `eval "$(ssh-agent -s)"` + `ssh-add` before Ansible in that shell |
 
 Do **not** run a second kubeadm node on the same host OS (port conflicts on
 6443, kubelet, etcd, containerd). Nested VMs are out of scope for this path.
@@ -73,7 +78,7 @@ Set:
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
 ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/lab.ini --ask-vault-pass
+  -i ansible/inventories/lab.ini
 ```
 
 `provision.yml` writes `./kubeconfig` with the API server at
@@ -98,9 +103,8 @@ ansible-playbook ansible/playbooks/workload-gitops.yml \
   -e nephio_git_username=<user> \
   -e nephio_git_token=<token>
 
-export KUBECONFIG=$(pwd)/kubeconfig-mgmt
-kubectl apply -f packages/variants/oran-lab-packagevariants.yaml
-# Approve PackageRevisions in order (ns → core → mongodb-init → ric → ran → …)
+# Apply, publish, and verify packages in dependency order.
+ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml
 ```
 
 ### Optional: legacy Helm (no mgmt cluster)

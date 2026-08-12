@@ -302,9 +302,9 @@ With stable IPs and a working inventory:
 ansible-playbook ansible/playbooks/provision.yml \
   -i ansible/inventories/hosts.ini
 
-# Build images (first time only; requires vault password)
+# Build images (first time only; needs inventory for vault-backed dockerhub_*)
 ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/hosts.ini --ask-vault-pass
+  -i ansible/inventories/hosts.ini
 
 # Deploy the full stack
 ansible-playbook ansible/playbooks/deploy.yml \

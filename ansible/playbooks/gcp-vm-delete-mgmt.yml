@@ -1,0 +1,70 @@
+# =============================================================================
+# Playbook: gcp-vm-delete-mgmt.yml
+# Purpose:  Delete the GCP management VM created by gcp-vm-create-mgmt.yml.
+#           Also removes ansible/inventories/mgmt.ini and ./kubeconfig-mgmt.
+#
+# WARNING: Permanently deletes the VM and its boot disk.
+#          Run teardown-mgmt.yml first if you want a clean kubeadm reset.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml
+#
+#   # If you used a non-default zone/name at create time:
+#   ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+#     -e gcp_zone=us-east1-b \
+#     -e gcp_mgmt_name=oran-mgmt
+# =============================================================================
+---
+- name: Delete GCP Nephio management VM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    gcp_project: ""
+    gcp_zone: "us-east1-b"
+    gcp_mgmt_name: "oran-mgmt"
+
+  tasks:
+    - name: Resolve GCP project
+      ansible.builtin.command: gcloud config get-value project
+      register: _gcp_project_cmd
+      changed_when: false
+      when: gcp_project | length == 0
+
+    - name: Fail if no active GCP project
+      ansible.builtin.fail:
+        msg: >
+          No active GCP project found.
+          Run: gcloud config set project YOUR_PROJECT_ID
+          Or pass: -e gcp_project=YOUR_PROJECT_ID
+      when: >
+        gcp_project | length == 0 and
+        (_gcp_project_cmd.stdout | default('') | trim) == ""
+
+    - name: Set GCP project fact
+      ansible.builtin.set_fact:
+        _gcp_project: "{{ gcp_project if gcp_project | length > 0 else (_gcp_project_cmd.stdout | trim) }}"
+
+    - name: Delete management VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ gcp_mgmt_name }}"
+        zone: "{{ gcp_zone }}"
+        project: "{{ _gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Remove mgmt.ini inventory file
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../inventories/mgmt.ini"
+        state: absent
+
+    - name: Remove management kubeconfig from Ansible controller
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../kubeconfig-mgmt"
+        state: absent
+
+    - name: Confirm deletion
+      ansible.builtin.debug:
+        msg: >-
+          Management VM '{{ gcp_mgmt_name }}' deleted from zone {{ gcp_zone }},
+          project {{ _gcp_project }}. Removed mgmt.ini and kubeconfig-mgmt.

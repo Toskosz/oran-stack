@@ -48,32 +48,48 @@ spec:
       serviceAccountName: verify-ue
       restartPolicy: Never
       containers:
-      - name: verify
-        image: bitnamilegacy/kubectl:1.30
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: RAN_NS
-          value: ran
-        - name: WAIT_RETRIES
-          value: "36"
-        - name: WAIT_DELAY
-          value: "10"
-        command:
-        - /bin/bash
-        - -c
-        - |
-          set -euo pipefail
-          echo "Waiting for srsUE RRC Connected + PDU Session Established..."
-          for i in $(seq 1 "${WAIT_RETRIES}"); do
-            LOGS=$(kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=200 2>/dev/null || true)
-            if echo "${LOGS}" | grep -q 'RRC Connected' \
-               && echo "${LOGS}" | grep -q 'PDU Session Established'; then
-              echo "UE OK — RRC Connected and PDU Session Established"
+        - name: verify
+          image: bitnamilegacy/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RAN_NS
+              value: ran
+          envFrom:
+            - configMapRef:
+                name: oran-verification-settings
+                optional: true
+            - configMapRef:
+                name: oran-lab-settings
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              WAIT_RETRIES="${UE_WAIT_RETRIES:-36}"
+              WAIT_DELAY="${UE_WAIT_DELAY:-10}"
+              UE_ATTACH_REQUIRED="${UE_ATTACH_REQUIRED:-true}"
+              echo "Waiting for srsUE RRC Connected + PDU Session Established..."
+              for i in $(seq 1 "${WAIT_RETRIES}"); do
+                LOGS=$(kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=200 2>/dev/null || true)
+                if echo "${LOGS}" | grep -q 'RRC Connected' \
+                   && echo "${LOGS}" | grep -q 'PDU Session Established'; then
+                  echo "UE OK — RRC Connected and PDU Session Established"
+                  exit 0
+                fi
+                echo "attempt ${i}/${WAIT_RETRIES}: UE not attached yet"
+                sleep "${WAIT_DELAY}"
+              done
+              echo "ERROR: UE attach not confirmed"
+              echo "--- srsUE log tail ---"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=80 || true
+              echo "--- DU log tail ---"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c ocudu-du --tail=80 || true
+              echo "Checklist:"
+              echo "- ZMQ endpoints must use 127.0.0.1 inside the CU/DU sidecar pod."
+              echo "- coreset0_index must be 12 and UE nof_prb must be 106 (20 MHz)."
+              echo "- MongoDB must contain subscriber IMSI ${UE_IMSI}."
+              if [[ "${UE_ATTACH_REQUIRED}" == "true" ]]; then
+                exit 1
+              fi
+              echo "WARNING: UE attach is optional; continuing without confirmation"
               exit 0
-            fi
-            echo "attempt ${i}/${WAIT_RETRIES}: UE not attached yet"
-            sleep "${WAIT_DELAY}"
-          done
-          echo "ERROR: UE attach not confirmed"
-          kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=80 || true
-          exit 1

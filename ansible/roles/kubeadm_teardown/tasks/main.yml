@@ -48,7 +48,7 @@
 
 - name: Remove kubeconfig from Ansible controller
   file:
-    path: "{{ playbook_dir }}/../../kubeconfig"
+    path: "{{ kubeconfig_local_path | default(playbook_dir + '/../../kubeconfig') }}"
     state: absent
   delegate_to: localhost
   become: false

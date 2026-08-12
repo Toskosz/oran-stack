@@ -26,7 +26,8 @@
 # After this playbook:
 #   ansible-playbook ansible/playbooks/provision.yml \
 #     -i ansible/inventories/gcp.ini
-#   ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
+#   ansible-playbook ansible/playbooks/build_images.yml \
+#     -i ansible/inventories/gcp.ini
 #   # Then Nephio: docs/NEPHIO.md (deploy.yml is deprecated)
 # =============================================================================
 ---

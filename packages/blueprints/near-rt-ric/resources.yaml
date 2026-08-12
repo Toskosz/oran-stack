@@ -433,9 +433,9 @@ roleRef:
   kind: Role
   name: ric-e2term-pod-reader
 subjects:
-- kind: ServiceAccount
-  name: ric-e2term
-  namespace: near-rt-ric
+  - kind: ServiceAccount
+    name: ric-e2term
+    namespace: near-rt-ric
 ---
 # Source: near-rt-ric/templates/deployments.yaml
 apiVersion: v1
@@ -959,56 +959,56 @@ spec:
         - name: shared
           mountPath: /shared
       containers:
-      - name: rtmgr
-        image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
-        imagePullPolicy: IfNotPresent
-        # Patch /etc/hosts with the submgr alias before exec'ing the real binary.
-        # This is the Kubernetes equivalent of Docker Compose extra_hosts.
-        command:
-        - sh
-        - -c
-        - |
-          SUBMGR_IP=$(cat /shared/submgr-ip)
-          echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
-          exec /run_rtmgr.sh
-        env:
-        - name: RMR_SEED_RT
-          value: /uta_rtg_ric.rt
-        - name: RMR_RTG_SVC
-          value: ric-rtmgr:4561
-        # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
-        # e2term/e2mgr then try to resolve the pod name to ACK route
-        # updates, which fails. Force the stable service name instead.
-        - name: RMR_SRC_ID
-          value: ric-rtmgr.near-rt-ric
-        - name: CFGFILE
-          value: /cfg/rtmgr-config.yaml
-        - name: RTFILE
-          value: /db/rt.json
-        - name: DBAAS_SERVICE_HOST
-          value: ric-dbaas
-        - name: DBAAS_SERVICE_PORT
-          value: "6379"
-        ports:
-        - containerPort: 3800
-          name: http
-        - containerPort: 4560
-          name: rmr
-        volumeMounts:
-        - name: rtmgr-config
-          mountPath: /cfg/rtmgr-config.yaml
-          subPath: rtmgr-config.yaml
-        # /db/rt.json must be writable — rtmgr writes the computed route
-        # table here at runtime. Mount an emptyDir so the ConfigMap seed
-        # (read-only subPath) does not block writes.
-        - name: rtmgr-db
-          mountPath: /db
-        - name: shared
-          mountPath: /shared
-        resources:
-          requests:
-            cpu: 100m
-            memory: 128Mi
+        - name: rtmgr
+          image: nexus3.o-ran-sc.org:10001/o-ran-sc/ric-plt-rtmgr:0.9.6
+          imagePullPolicy: IfNotPresent
+          # Patch /etc/hosts with the submgr alias before exec'ing the real binary.
+          # This is the Kubernetes equivalent of Docker Compose extra_hosts.
+          command:
+            - sh
+            - -c
+            - |
+              SUBMGR_IP=$(cat /shared/submgr-ip)
+              echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
+              exec /run_rtmgr.sh
+          env:
+            - name: RMR_SEED_RT
+              value: /uta_rtg_ric.rt
+            - name: RMR_RTG_SVC
+              value: ric-rtmgr:4561
+            # Without RMR_SRC_ID, RMR defaults to $HOSTNAME (pod name).
+            # e2term/e2mgr then try to resolve the pod name to ACK route
+            # updates, which fails. Force the stable service name instead.
+            - name: RMR_SRC_ID
+              value: ric-rtmgr.near-rt-ric
+            - name: CFGFILE
+              value: /cfg/rtmgr-config.yaml
+            - name: RTFILE
+              value: /db/rt.json
+            - name: DBAAS_SERVICE_HOST
+              value: ric-dbaas
+            - name: DBAAS_SERVICE_PORT
+              value: "6379"
+          ports:
+            - containerPort: 3800
+              name: http
+            - containerPort: 4560
+              name: rmr
+          volumeMounts:
+            - name: rtmgr-config
+              mountPath: /cfg/rtmgr-config.yaml
+              subPath: rtmgr-config.yaml
+            # /db/rt.json must be writable — rtmgr writes the computed route
+            # table here at runtime. Mount an emptyDir so the ConfigMap seed
+            # (read-only subPath) does not block writes.
+            - name: rtmgr-db
+              mountPath: /db
+            - name: shared
+              mountPath: /shared
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
       volumes:
       - name: rtmgr-config
         configMap:

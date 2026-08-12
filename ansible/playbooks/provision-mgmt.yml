@@ -4,7 +4,10 @@
 #
 # Usage:
 #   ansible-playbook ansible/playbooks/provision-mgmt.yml \
-#     -i ansible/inventories/mgmt.ini
+#     -i ansible/inventories/mgmt.ini --ask-become-pass
+#
+# --ask-become-pass is required when the remote SSH user needs a sudo password
+# (BYO / laptop). Omit it on hosts with passwordless sudo (typical GCP images).
 #
 # Writes ./kubeconfig-mgmt (does not overwrite workload ./kubeconfig).
 # ============================================================================

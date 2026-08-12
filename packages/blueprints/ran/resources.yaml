@@ -327,54 +327,54 @@ spec:
         - name: ocudu-rendered
           mountPath: /mnt/ocudu/configs
       containers:
-      - name: ocudu-cu
-        image: x0tok/oran-ocudu:latest
-        imagePullPolicy: IfNotPresent
-        command: ["/usr/local/bin/ocu", "-c", "/mnt/ocudu/configs/cu.yml"]
-        securityContext:
-          privileged: true
-          capabilities:
-            add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
-        ports:
-        - containerPort: 38412
-          name: n2-sctp
-          protocol: SCTP
-        - containerPort: 38472
-          name: f1ap
-          protocol: SCTP
-        - containerPort: 2152
-          name: ngu-gtpu
-          protocol: UDP
-        - containerPort: 2153
-          name: f1u
-          protocol: UDP
-        volumeMounts:
-        - name: ocudu-rendered
-          mountPath: /mnt/ocudu/configs
-          readOnly: true
-        - name: ocudu-logs
-          mountPath: /mnt/ocudu/logs
-        stdin: true
-        tty: true
-        # CU exposes only SCTP/UDP — use process check (not tcpSocket).
-        # `pgrep -x` alone; avoid `kill -0 $(pgrep …)` which misbehaves
-        # when pgrep returns empty and flaps Available.
-        readinessProbe:
-          exec:
-            command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
-          initialDelaySeconds: 15
-          periodSeconds: 5
-          failureThreshold: 6
-        livenessProbe:
-          exec:
-            command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
-          initialDelaySeconds: 45
-          periodSeconds: 10
-          failureThreshold: 6
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
+        - name: ocudu-cu
+          image: x0tok/oran-ocudu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/ocu", "-c", "/mnt/ocudu/configs/cu.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 38412
+              name: n2-sctp
+              protocol: SCTP
+            - containerPort: 38472
+              name: f1ap
+              protocol: SCTP
+            - containerPort: 2152
+              name: ngu-gtpu
+              protocol: UDP
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+          volumeMounts:
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+              readOnly: true
+            - name: ocudu-logs
+              mountPath: /mnt/ocudu/logs
+          stdin: true
+          tty: true
+          # CU exposes only SCTP/UDP — use process check (not tcpSocket).
+          # `pgrep -x` alone; avoid `kill -0 $(pgrep …)` which misbehaves
+          # when pgrep returns empty and flaps Available.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x ocu >/dev/null"]
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
       volumes:
       - name: ocudu-templates
         configMap:
@@ -511,84 +511,87 @@ spec:
           sleep "${HOLD_OFF_SEC}"
           echo "Hold-off complete — starting DU."
       containers:
-      - name: ocudu-du
-        image: x0tok/oran-ocudu:latest
-        imagePullPolicy: IfNotPresent
-        command: ["/usr/local/bin/odu", "-c", "/mnt/ocudu/configs/du.yml"]
-        securityContext:
-          privileged: true
-          capabilities:
-            add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
-        ports:
-        - containerPort: 2153
-          name: f1u
-          protocol: UDP
-        - containerPort: 36421
-          name: e2-sctp
-          protocol: SCTP
-        - containerPort: 2000
-          name: zmq-tx
-          protocol: TCP
-        - containerPort: 2001
-          name: zmq-rx
-          protocol: TCP
-        volumeMounts:
-        - name: ocudu-rendered
-          mountPath: /mnt/ocudu/configs
-          readOnly: true
-        - name: ocudu-logs
-          mountPath: /mnt/ocudu/logs
-        stdin: true
-        tty: true
-        readinessProbe:
-          tcpSocket:
-            port: 2000
-          initialDelaySeconds: 20
-          periodSeconds: 5
-          failureThreshold: 6
-        livenessProbe:
-          tcpSocket:
-            port: 2000
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          failureThreshold: 5
-        resources:
-          requests:
-            cpu: 100m
-            memory: 256Mi
-      # srsUE sidecar — must share the DU netns so ZMQ can use 127.0.0.1.
-      # Cross-pod ZMQ via ClusterIP deadlocks after the TCP handshake.
-      - name: srsue
-        image: x0tok/oran-srsue:latest
-        imagePullPolicy: IfNotPresent
-        command:
-        - bash
-        - -c
-        - |
-          set -e
-          echo "waiting for local DU ZMQ on 127.0.0.1:2000..."
-          until timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/2000" 2>/dev/null; do
-            sleep 2
-          done
-          echo "DU ZMQ up — waiting 40s for cell to activate..."
-          sleep 40
-          exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
-        securityContext:
-          privileged: true
-          capabilities:
-            add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
-        volumeMounts:
-        - name: ocudu-templates
-          mountPath: /mnt/srsran/configs
-          readOnly: true
-        - name: srsue-logs
-          mountPath: /mnt/srsran/logs
-        stdin: true
-        tty: true
-        resources:
-          requests:
-            cpu: 50m
-            memory: 128Mi
+        - name: ocudu-du
+          image: x0tok/oran-ocudu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/odu", "-c", "/mnt/ocudu/configs/du.yml"]
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          ports:
+            - containerPort: 2153
+              name: f1u
+              protocol: UDP
+            - containerPort: 36421
+              name: e2-sctp
+              protocol: SCTP
+            - containerPort: 2000
+              name: zmq-tx
+              protocol: TCP
+            - containerPort: 2001
+              name: zmq-rx
+              protocol: TCP
+          volumeMounts:
+            - name: ocudu-rendered
+              mountPath: /mnt/ocudu/configs
+              readOnly: true
+            - name: ocudu-logs
+              mountPath: /mnt/ocudu/logs
+          stdin: true
+          tty: true
+          # ZMQ stops accepting probe connections after the UE sidecar owns the
+          # stream; probing the port kills an otherwise healthy DU. Check the
+          # OCUDU process instead.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        # srsUE sidecar — must share the DU netns so ZMQ can use 127.0.0.1.
+        # Cross-pod ZMQ via ClusterIP deadlocks after the TCP handshake.
+        - name: srsue
+          image: x0tok/oran-srsue:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "waiting for local DU ZMQ on 127.0.0.1:2000..."
+              until timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/2000" 2>/dev/null; do
+                sleep 2
+              done
+              echo "DU ZMQ up — waiting 40s for cell to activate..."
+              sleep 40
+              exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
+          securityContext:
+            privileged: true
+            capabilities:
+              add: [NET_ADMIN, SYS_ADMIN, NET_RAW]
+          volumeMounts:
+            - name: ocudu-templates
+              mountPath: /mnt/srsran/configs
+              readOnly: true
+            - name: srsue-logs
+              mountPath: /mnt/srsran/logs
+          stdin: true
+          tty: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
       volumes:
       - name: ocudu-templates
         configMap:

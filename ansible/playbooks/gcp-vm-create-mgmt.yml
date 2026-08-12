@@ -8,6 +8,7 @@
 #     -e gcp_mgmt_machine_type=e2-standard-8
 #
 # Writes ansible/inventories/mgmt.ini (same SSH key defaults as workload VMs).
+# Delete with: ansible/playbooks/gcp-vm-delete-mgmt.yml (-e gcp_zone=...).
 # =============================================================================
 ---
 - name: Provision GCP VM for Nephio management cluster
@@ -18,7 +19,7 @@
   # Override with -e (e.g. -e gcp_zone=europe-west1-b).
   vars:
     gcp_project: ""
-    gcp_zone: "us-central1-a"
+    gcp_zone: "us-east1-b"
     gcp_image_family: "ubuntu-2204-lts"
     gcp_image_project: "ubuntu-os-cloud"
     gcp_disk_type: "pd-ssd"
@@ -112,6 +113,13 @@
         msg: |
           Management VM {{ gcp_mgmt_name }} ready ({{ _mgmt_ext }}).
           Next:
-            ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+            ansible-playbook ansible/playbooks/provision-mgmt.yml \
+              -i ansible/inventories/mgmt.ini --ask-become-pass
             export KUBECONFIG=$(pwd)/kubeconfig-mgmt
             ansible-playbook ansible/playbooks/bootstrap-nephio.yml ...
+
+          Tear down:
+            ansible-playbook ansible/playbooks/teardown-mgmt.yml \
+              -i ansible/inventories/mgmt.ini
+            ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+              -e gcp_zone={{ gcp_zone }}

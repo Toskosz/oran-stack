@@ -5,7 +5,13 @@
 # are registered with Porch. Approve PackageRevisions in dependency order:
 #
 #   ns-and-secrets → 5g-core → mongodb-init → near-rt-ric → ran →
-#   verify-e2 → xapp-simple-mon → verify-ue → monitoring
+#   verify-e2 → xapp-simple-mon → xapp-lifecycle → verify-ue → monitoring
+#
+# Automated deployment:
+#
+#   ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml
+#
+# See docs/NEPHIO.md §4 for lifecycle details and manual commands.
 #
 # Adjust repository names / package paths to match your Porch registration.
 # Use workspaceName (branch) for unpublished drafts, or revision: <int> for published vN tags.
@@ -126,6 +132,22 @@ spec:
   downstream:
     repo: oran-lab
     package: xapp-simple-mon
+  adoptionPolicy: adoptExisting
+  deletionPolicy: delete
+---
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: oran-lab-xapp-lifecycle
+  namespace: default
+spec:
+  upstream:
+    repo: blueprints
+    package: xapp-lifecycle
+    workspaceName: refactor-nephio
+  downstream:
+    repo: oran-lab
+    package: xapp-lifecycle
   adoptionPolicy: adoptExisting
   deletionPolicy: delete
 ---

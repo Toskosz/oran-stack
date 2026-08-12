@@ -169,8 +169,8 @@ spec:
             failureThreshold: 6
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
       volumes:
         - name: ocudu-templates
           configMap:
@@ -353,22 +353,25 @@ spec:
               mountPath: /mnt/ocudu/logs
           stdin: true
           tty: true
+          # ZMQ stops accepting probe connections after the UE sidecar owns the
+          # stream; probing the port kills an otherwise healthy DU. Check the
+          # OCUDU process instead.
           readinessProbe:
-            tcpSocket:
-              port: {{ .Values.zmq.duTxPort }}
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
             initialDelaySeconds: 20
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
-            tcpSocket:
-              port: {{ .Values.zmq.duTxPort }}
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
             initialDelaySeconds: 60
             periodSeconds: 10
             failureThreshold: 5
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 100m
+              memory: 256Mi
 {{- if .Values.deployUE }}
         # srsUE sidecar — must share the DU netns so ZMQ can use 127.0.0.1.
         # Cross-pod ZMQ via ClusterIP deadlocks after the TCP handshake.
@@ -401,8 +404,8 @@ spec:
           tty: true
           resources:
             requests:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 50m
+              memory: 128Mi
 {{- end }}
       volumes:
         - name: ocudu-templates

@@ -1,0 +1,23 @@
+# =============================================================================
+# Playbook: teardown-mgmt.yml
+# Purpose:  Reset the Nephio management kubeadm cluster (no Multus/OVS/Helm NFs).
+#           Removes ./kubeconfig-mgmt. Does not delete the GCP VM.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/teardown-mgmt.yml \
+#     -i ansible/inventories/mgmt.ini
+#
+# Then delete the VM (GCP):
+#   ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+#     -e gcp_zone=us-east1-b
+# =============================================================================
+---
+- name: Reset Nephio management kubeadm cluster
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+  vars:
+    kubeconfig_local_path: "{{ playbook_dir }}/../../kubeconfig-mgmt"
+
+  roles:
+    - role: kubeadm_teardown

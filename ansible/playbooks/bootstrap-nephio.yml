@@ -8,14 +8,16 @@
 #   - kpt available on the Ansible controller (role installs if missing)
 #   - Git repos created (blueprints, mgmt, oran-lab)
 #
-# Usage:
-#   export KUBECONFIG=$(pwd)/kubeconfig-mgmt
-#   ansible-playbook ansible/playbooks/bootstrap-nephio.yml \
+# Usage (from ansible/ so ansible.cfg finds roles, or set ANSIBLE_CONFIG):
+#   export KUBECONFIG=$(pwd)/../kubeconfig-mgmt   # if cwd is ansible/
+#   ansible-playbook playbooks/bootstrap-nephio.yml \
 #     -e nephio_git_blueprints_url=https://github.com/Toskosz/oran-stack.git \
 #     -e nephio_git_mgmt_url=https://github.com/Toskosz/oran-mgmt.git \
 #     -e nephio_git_oran_lab_url=https://github.com/Toskosz/oran-lab.git \
 #     -e nephio_git_username=Toskosz \
 #     -e nephio_git_token="$GITHUB_TOKEN"
+#
+# kpt live apply retries on failure (Config Sync Ready race); see role defaults.
 # ============================================================================
 ---
 - name: Bootstrap Nephio on management cluster

@@ -94,7 +94,10 @@ chmod 600 ~/.oran_vault_pass
 
 ## Quick start (Nephio)
 
-Full detail: [docs/NEPHIO.md](docs/NEPHIO.md).
+Full detail:
+
+- [GCP end-to-end runbook](docs/GCP_RUNBOOK.md) — clean create, deploy, verify, teardown, and rebuild
+- [Nephio architecture and bootstrap](docs/NEPHIO.md)
 
 Infra options for the **workload** cluster:
 
@@ -111,15 +114,15 @@ Infra options for the **workload** cluster:
 ```bash
 ansible-playbook ansible/playbooks/gcp-vm-create.yml
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/gcp.ini
-ansible-playbook ansible/playbooks/build_images.yml --ask-vault-pass
+# Inventory loads group_vars + vault (see ansible/ansible.cfg vault_password_file)
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/gcp.ini
 ```
 
 **Option B — BYO / home LAN:** copy `ansible/inventories/hosts.ini.example` → `hosts.ini`, then:
 
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/hosts.ini
-ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/hosts.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/hosts.ini
 ```
 
 **Option C — Lab server (OpenVPN, single-node):** connect VPN, copy
@@ -128,15 +131,26 @@ ansible-playbook ansible/playbooks/build_images.yml \
 
 ```bash
 ansible-playbook ansible/playbooks/provision.yml -i ansible/inventories/lab.ini
-ansible-playbook ansible/playbooks/build_images.yml \
-  -i ansible/inventories/lab.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/build_images.yml -i ansible/inventories/lab.ini
 ```
 
 ### 2. Management cluster + Nephio
 
+**GCP mgmt VM** (optional): `gcp-vm-create-mgmt.yml` writes `mgmt.ini`.
+
+**BYO mgmt** (e.g. second Ubuntu laptop): copy
+`ansible/inventories/mgmt.ini.example` → `mgmt.ini`, set `ansible_host` /
+`control_plane_ip` to that host’s LAN IP, and complete SSH prerequisites
+(key ownership, `ssh-copy-id`, `ssh-agent` if the key has a passphrase).
+Details: [docs/NEPHIO.md](docs/NEPHIO.md#byo-management-host--ssh-and-mgmtini).
+
 ```bash
+# Skip gcp-vm-create-mgmt.yml when using a BYO host and a hand-edited mgmt.ini.
 ansible-playbook ansible/playbooks/gcp-vm-create-mgmt.yml
-ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+# --ask-become-pass when the SSH user needs a sudo password (typical BYO).
+# Keep ssh-agent loaded if the private key has a passphrase.
+ansible-playbook ansible/playbooks/provision-mgmt.yml \
+  -i ansible/inventories/mgmt.ini --ask-become-pass
 
 export KUBECONFIG=$(pwd)/kubeconfig-mgmt
 # Set GITHUB_TOKEN to a fine-grained or classic PAT (do not commit tokens).
@@ -162,17 +176,23 @@ ansible-playbook ansible/playbooks/workload-gitops.yml \
 ### 4. Deploy NFs via Porch
 
 ```bash
-export KUBECONFIG=$(pwd)/kubeconfig-mgmt
-kubectl apply -f packages/variants/oran-lab-packagevariants.yaml
-# Approve PackageRevisions in order (ns → core → mongodb-init → ric → ran → …)
+ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml
 ```
 
-Package order includes **srsUE** inside the `ran` package (not a separate CNF).
+This applies PackageVariants, publishes revisions in dependency order, waits for
+Config Sync and verification jobs, and automatically repairs the stale
+Published-history/empty-workload case after a cluster rebuild. It is safe to rerun.
+The `xapp-lifecycle` gate restores the legacy AppMgr/RTMgr synchronization,
+xApp resubscription, subscription-route preservation, and KPM indication check.
+It reruns on every deployment to heal stale runtime routes.
+Package order includes **srsUE** inside `ran` (not a separate CNF). Details:
+[docs/NEPHIO.md](docs/NEPHIO.md#4-deploy-packages).
 
 Re-render blueprints after Helm chart edits:
 
 ```bash
 ./scripts/render-nephio-packages.sh
+./scripts/render-nephio-packages.sh --check
 ```
 
 ### Legacy Helm deploy (deprecated)
@@ -203,12 +223,17 @@ ansible-playbook ansible/playbooks/verify-only.yml
 ## Teardown
 
 ```bash
-# Reset the workload kubeadm cluster (and optional Helm leftovers)
+# Workload: reset kubeadm (+ optional Helm leftovers), then delete GCP VMs
 ansible-playbook ansible/playbooks/teardown.yml \
   -i ansible/inventories/gcp.ini --ask-vault-pass
+ansible-playbook ansible/playbooks/gcp-vm-delete.yml \
+  -e gcp_zone=us-east1-b   # same zone used at create time
 
-# Delete GCP VMs
-ansible-playbook ansible/playbooks/gcp-vm-delete.yml
+# Management: reset kubeadm, then delete the GCP mgmt VM
+ansible-playbook ansible/playbooks/teardown-mgmt.yml \
+  -i ansible/inventories/mgmt.ini
+ansible-playbook ansible/playbooks/gcp-vm-delete-mgmt.yml \
+  -e gcp_zone=us-east1-b
 ```
 
 ---
@@ -280,12 +305,16 @@ oran-stack/
 │   │   ├── provision-mgmt.yml     # Management kubeadm (no Multus)
 │   │   ├── bootstrap-nephio.yml   # Porch + controllers + repo register
 │   │   ├── workload-gitops.yml    # Config Sync + RootSync + pull secrets
+│   │   ├── deploy-nephio-nfs.yml  # Ordered Porch publish + workload gates
 │   │   ├── verify-only.yml        # E2/xApp/UE gates without Helm deploy
 │   │   ├── deploy.yml             # DEPRECATED legacy Helm path
 │   │   ├── build_images.yml
 │   │   ├── teardown.yml
+│   │   ├── teardown-mgmt.yml
 │   │   ├── gcp-vm-create.yml
-│   │   └── gcp-vm-create-mgmt.yml
+│   │   ├── gcp-vm-delete.yml
+│   │   ├── gcp-vm-create-mgmt.yml
+│   │   └── gcp-vm-delete-mgmt.yml
 │   └── roles/
 │       ├── nephio_bootstrap/
 │       ├── workload_gitops/

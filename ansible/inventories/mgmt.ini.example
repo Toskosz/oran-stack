@@ -1,9 +1,21 @@
 # ============================================================================
 # Nephio management cluster inventory template
 # ============================================================================
+# Prerequisites (controller → management host) — see docs/NEPHIO.md:
+#   - Private key owned by your user (not root): chmod 600 ~/.ssh/id_ed25519
+#   - Public key on the mgmt host: ssh-copy-id -i ~/.ssh/id_ed25519.pub user@host
+#   - If the key has a passphrase: eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519
+#   - Test: ssh -o BatchMode=yes -i ~/.ssh/id_ed25519 user@host 'hostname'
+#
+# ansible_host / control_plane_ip = management host IP (not the controller).
+# Prefer a static/reserved LAN IP. control_plane_ip must appear in `ip -4 addr`
+# on that host. Leave [workers] empty for single-node mgmt.
+#
 # cp mgmt.ini.example mgmt.ini
 # Fill in the management control-plane host, then:
-#   ansible-playbook ansible/playbooks/provision-mgmt.yml -i ansible/inventories/mgmt.ini
+#   ansible-playbook ansible/playbooks/provision-mgmt.yml \
+#     -i ansible/inventories/mgmt.ini --ask-become-pass
+# (--ask-become-pass if the SSH user needs a sudo password; omit with passwordless sudo)
 # ============================================================================
 
 [control_plane]

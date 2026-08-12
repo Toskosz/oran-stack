@@ -1,0 +1,101 @@
+# =============================================================================
+# Playbook: deploy-nephio-nfs.yml
+# Purpose:  Publish the current O-RAN blueprints through Porch in dependency
+#           order and wait for Config Sync workload verification.
+#
+# Normal runs approve PackageVariant Drafts. If a rebuilt workload is empty but
+# Porch only exposes stale Published history, the deployment script creates and
+# publishes fresh revisions without deleting Git history.
+#
+# Usage:
+#   ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml
+#
+# Force a fresh revision of every package:
+#   ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml \
+#     -e deploy_force_fresh=true
+# =============================================================================
+---
+- name: Deploy O-RAN network functions through Nephio
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    deploy_script: "{{ playbook_dir }}/../../packages/examples/deploy-oran-lab.sh"
+    deploy_kubeconfig_mgmt: "{{ playbook_dir }}/../../kubeconfig-mgmt"
+    deploy_kubeconfig_workload: "{{ playbook_dir }}/../../kubeconfig"
+    # Live log for this long task (Ansible buffers module stdout until the job ends).
+    deploy_log: "{{ playbook_dir }}/../../.nephio-deploy.log"
+    # Ceiling for the whole publish/verify run (10 packages × waits + recovery).
+    deploy_async_timeout: 10800
+    # Emit ASYNC POLL lines so the playbook output is not silent.
+    deploy_progress_poll: 20
+    deploy_package_timeout: 900
+    deploy_xapp_lifecycle_retries: 36
+    deploy_xapp_lifecycle_delay: 5
+    deploy_xapp_indication_retries: 18
+    deploy_xapp_indication_delay: 10
+    deploy_e2_wait_retries: 30
+    deploy_e2_wait_delay: 10
+    deploy_e2_recovery_enabled: true
+    deploy_ue_wait_retries: 36
+    deploy_ue_wait_delay: 10
+    deploy_ue_attach_required: true
+    deploy_force_fresh: false
+
+  tasks:
+    - name: Verify deployment inputs
+      ansible.builtin.assert:
+        that:
+          - deploy_script is file
+          - deploy_kubeconfig_mgmt is file
+          - deploy_kubeconfig_workload is file
+        fail_msg: >-
+          Complete provision-mgmt.yml, bootstrap-nephio.yml, provision.yml,
+          and workload-gitops.yml before deploying network functions.
+
+    - name: Clear previous Nephio deploy log
+      ansible.builtin.file:
+        path: "{{ deploy_log }}"
+        state: absent
+
+    - name: Show Nephio deploy progress hints
+      ansible.builtin.debug:
+        msg: >-
+          Live log: {{ deploy_log }}.
+          Tail in another terminal with: tail -f {{ deploy_log }}.
+          This task also prints ASYNC POLL every {{ deploy_progress_poll }}s
+          while packages publish and verify.
+
+    - name: Publish and verify Nephio packages
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cmd=({{ deploy_script | quote }})
+        {% if deploy_force_fresh | bool %}
+        cmd+=(--force-fresh)
+        {% endif %}
+        log={{ deploy_log | quote }}
+        if command -v stdbuf >/dev/null 2>&1; then
+          stdbuf -oL -eL "${cmd[@]}" 2>&1 | tee "$log"
+        else
+          "${cmd[@]}" 2>&1 | tee "$log"
+        fi
+      args:
+        executable: /bin/bash
+      environment:
+        KUBECONFIG_MGMT: "{{ deploy_kubeconfig_mgmt }}"
+        KUBECONFIG_WL: "{{ deploy_kubeconfig_workload }}"
+        PACKAGE_TIMEOUT: "{{ deploy_package_timeout | string }}"
+        XAPP_LIFECYCLE_RETRIES: "{{ deploy_xapp_lifecycle_retries | string }}"
+        XAPP_LIFECYCLE_DELAY: "{{ deploy_xapp_lifecycle_delay | string }}"
+        XAPP_INDICATION_RETRIES: "{{ deploy_xapp_indication_retries | string }}"
+        XAPP_INDICATION_DELAY: "{{ deploy_xapp_indication_delay | string }}"
+        E2_WAIT_RETRIES: "{{ deploy_e2_wait_retries | string }}"
+        E2_WAIT_DELAY: "{{ deploy_e2_wait_delay | string }}"
+        E2_RECOVERY_ENABLED: "{{ deploy_e2_recovery_enabled | bool | ternary('true', 'false') }}"
+        UE_WAIT_RETRIES: "{{ deploy_ue_wait_retries | string }}"
+        UE_WAIT_DELAY: "{{ deploy_ue_wait_delay | string }}"
+        UE_ATTACH_REQUIRED: "{{ deploy_ue_attach_required | bool | ternary('true', 'false') }}"
+      async: "{{ deploy_async_timeout | int }}"
+      poll: "{{ deploy_progress_poll | int }}"
+      register: _nephio_deploy
+      changed_when: "'DEPLOY_RESULT_CHANGED=true' in _nephio_deploy.stdout"
