@@ -353,15 +353,18 @@ spec:
               mountPath: /mnt/ocudu/logs
           stdin: true
           tty: true
+          # ZMQ stops accepting probe connections after the UE sidecar owns the
+          # stream; probing the port kills an otherwise healthy DU. Check the
+          # OCUDU process instead.
           readinessProbe:
-            tcpSocket:
-              port: {{ .Values.zmq.duTxPort }}
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
             initialDelaySeconds: 20
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
-            tcpSocket:
-              port: {{ .Values.zmq.duTxPort }}
+            exec:
+              command: ["sh", "-c", "pgrep -x odu >/dev/null"]
             initialDelaySeconds: 60
             periodSeconds: 10
             failureThreshold: 5
