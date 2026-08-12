@@ -103,9 +103,8 @@ ansible-playbook ansible/playbooks/workload-gitops.yml \
   -e nephio_git_username=<user> \
   -e nephio_git_token=<token>
 
-export KUBECONFIG=$(pwd)/kubeconfig-mgmt
-kubectl apply -f packages/variants/oran-lab-packagevariants.yaml
-# Approve PackageRevisions in order (ns → core → mongodb-init → ric → ran → …)
+# Apply, publish, and verify packages in dependency order.
+ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml
 ```
 
 ### Optional: legacy Helm (no mgmt cluster)
