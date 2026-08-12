@@ -4,7 +4,9 @@
 #   ./scripts/render-nephio-packages.sh
 #
 # Hand-maintained (not overwritten by the render script):
-#   ns-and-secrets, mongodb-init, verify-e2, verify-ue
+#   mongodb-init, verify-e2, xapp-lifecycle, verify-ue
+# Generated shared settings:
+#   ns-and-secrets/settings.yaml (from packages/values/lab-defaults.yaml)
 #
 # Deploy order on the workload cluster (via oran-lab deployment repo):
 #   1. ns-and-secrets
@@ -14,7 +16,9 @@
 #   5. ran          (CU + DU + srsUE sidecar)
 #   6. verify-e2
 #   7. xapp-simple-mon
-#   8. verify-ue
-#   9. monitoring
+#   8. xapp-lifecycle (RTMgr sync + subscription routes + KPM gate)
+#   9. verify-ue
+#  10. monitoring
 #
-# See docs/NEPHIO.md for management/workload bootstrap.
+# See docs/NEPHIO.md for management/workload bootstrap and PackageRevision
+# propose/approve commands (ns-and-secrets → … → monitoring).

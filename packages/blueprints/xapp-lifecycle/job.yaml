@@ -1,0 +1,208 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: xapp-lifecycle
+  namespace: oran-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oran-xapp-lifecycle
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oran-xapp-lifecycle
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: oran-xapp-lifecycle
+subjects:
+  - kind: ServiceAccount
+    name: xapp-lifecycle
+    namespace: oran-verify
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: xapp-lifecycle
+  namespace: oran-verify
+  labels:
+    app: xapp-lifecycle
+    oran.stack/gate: xapp
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: xapp-lifecycle
+    spec:
+      serviceAccountName: xapp-lifecycle
+      restartPolicy: Never
+      containers:
+        - name: verify
+          image: bitnamilegacy/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: XAPP_NS
+              value: ricxapp
+            - name: XAPP_DEPLOYMENT
+              value: r4-simple-mon
+            - name: RIC_NS
+              value: near-rt-ric
+            - name: E2_NODE_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: oran-lab-settings
+                  key: E2_NODE_ID
+          envFrom:
+            - configMapRef:
+                name: xapp-lifecycle-settings
+                optional: true
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              WAIT_RETRIES="${WAIT_RETRIES:-36}"
+              WAIT_DELAY="${WAIT_DELAY:-5}"
+              INDICATION_RETRIES="${INDICATION_RETRIES:-18}"
+              INDICATION_DELAY="${INDICATION_DELAY:-10}"
+
+              cleanup() {
+                kubectl delete pod xapp-route-keep -n "${XAPP_NS}" \
+                  --ignore-not-found --wait=false >/dev/null 2>&1 || true
+              }
+              trap cleanup EXIT
+
+              xapp_logs() {
+                kubectl logs -n "${XAPP_NS}" deployment/"${XAPP_DEPLOYMENT}" \
+                  -c xapp --tail=300 2>/dev/null || true
+              }
+
+              wait_for_xapp_log() {
+                local description="$1"
+                shift
+                local logs="" pattern i matched
+                for i in $(seq 1 "${WAIT_RETRIES}"); do
+                  logs="$(xapp_logs)"
+                  matched=true
+                  for pattern in "$@"; do
+                    if ! printf '%s\n' "${logs}" | grep -Fq "${pattern}"; then
+                      matched=false
+                    fi
+                  done
+                  if ${matched}; then
+                    echo "xApp ${description} confirmed"
+                    return 0
+                  fi
+                  echo "attempt ${i}/${WAIT_RETRIES}: waiting for ${description}"
+                  sleep "${WAIT_DELAY}"
+                done
+                echo "ERROR: xApp ${description} not confirmed" >&2
+                printf '%s\n' "${logs}" >&2
+                return 1
+              }
+
+              echo "Waiting for initial AppMgr registration..."
+              wait_for_xapp_log "AppMgr registration" "appmgr register" "HTTP 201"
+
+              echo "Restarting RTMgr so it reloads xApps from AppMgr..."
+              kubectl rollout restart deployment/ric-rtmgr -n "${RIC_NS}"
+              kubectl rollout status deployment/ric-rtmgr -n "${RIC_NS}" --timeout=300s
+
+              echo "Waiting for RTMgr to push platform routes to the xApp..."
+              for i in $(seq 1 "${WAIT_RETRIES}"); do
+                RTMGR_LOGS="$(kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr \
+                  -c rtmgr --since=10m 2>/dev/null || true)"
+                if printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                  "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful"; then
+                  break
+                fi
+                echo "attempt ${i}/${WAIT_RETRIES}: waiting for xApp route push"
+                sleep "${WAIT_DELAY}"
+              done
+              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful"
+
+              echo "Restarting xApp against the synchronized route table..."
+              kubectl rollout restart deployment/"${XAPP_DEPLOYMENT}" -n "${XAPP_NS}"
+              kubectl rollout status deployment/"${XAPP_DEPLOYMENT}" \
+                -n "${XAPP_NS}" --timeout=300s
+              wait_for_xapp_log "post-sync AppMgr registration" "appmgr register" "HTTP 201"
+              wait_for_xapp_log "E2 subscription" \
+                "Subscribe to E2 node ID: ${E2_NODE_ID}" "Successfully subscribed"
+
+              echo "Waiting for RTMgr subscription indication routes..."
+              for i in $(seq 1 "${WAIT_RETRIES}"); do
+                RTMGR_LOGS="$(kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr \
+                  -c rtmgr --since=10m 2>/dev/null || true)"
+                if printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
+                     "RoutingManager->SubManager Add Request Success" \
+                   && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                     "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful.*Entries:9" \
+                   && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                     "Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9"; then
+                  break
+                fi
+                echo "attempt ${i}/${WAIT_RETRIES}: waiting for 12050 routes"
+                sleep "${WAIT_DELAY}"
+              done
+              printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
+                "RoutingManager->SubManager Add Request Success"
+              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful.*Entries:9"
+              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                "Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9"
+
+              XAPP_LOGS="$(xapp_logs)"
+              SUBID="$(printf '%s\n' "${XAPP_LOGS}" |
+                grep -Eo 'mapping: .* -> [0-9]+' | awk '{print $NF}' | tail -1 || true)"
+              if [[ -z "${SUBID}" || "${SUBID}" == "0" ]]; then
+                echo "ERROR: non-zero E2EventInstanceId not found" >&2
+                printf '%s\n' "${XAPP_LOGS}" >&2
+                exit 1
+              fi
+
+              EP="service-ricxapp-${XAPP_DEPLOYMENT}-rmr.${XAPP_NS}"
+              RTMGR="http://ric-rtmgr.${RIC_NS}:3800/ric/v1/handles/xapp-subscription-handle"
+              cleanup
+              kubectl run xapp-route-keep -n "${XAPP_NS}" --restart=Never \
+                --image=curlimages/curl:8.5.0 --command -- \
+                sh -c "while true; do
+                  curl -sf -X POST '${RTMGR}' \
+                    -H 'Content-Type: application/json' \
+                    -d '{\"address\":\"${EP}\",\"port\":4561,\"subscription_id\":${SUBID}}' \
+                    >/dev/null || true
+                  sleep 1
+                done"
+              kubectl wait --for=condition=Ready pod/xapp-route-keep \
+                -n "${XAPP_NS}" --timeout=60s
+
+              echo "Waiting for an E2SM-KPM indication..."
+              for i in $(seq 1 "${INDICATION_RETRIES}"); do
+                XAPP_LOGS="$(xapp_logs)"
+                if printf '%s\n' "${XAPP_LOGS}" | grep -Fq "RIC Indication Received" \
+                   && ! printf '%s\n' "${XAPP_LOGS}" | grep -Fq "ApiException" \
+                   && ! printf '%s\n' "${XAPP_LOGS}" | grep -Fq "503"; then
+                  echo "xApp OK — clean subscription and KPM indication received"
+                  exit 0
+                fi
+                echo "attempt ${i}/${INDICATION_RETRIES}: KPM indication not confirmed"
+                sleep "${INDICATION_DELAY}"
+              done
+
+              echo "ERROR: xApp did not receive a clean KPM indication" >&2
+              printf '%s\n' "${XAPP_LOGS}" >&2
+              kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr -c rtmgr \
+                --since=10m 2>/dev/null >&2 || true
+              exit 1
