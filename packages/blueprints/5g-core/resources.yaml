@@ -1,3 +1,4 @@
+---
 # Source: 5g-core/templates/configmap-nf-configs.yaml
 # ============================================================================
 # ConfigMap: Open5GS NF Configuration Templates
@@ -2917,8 +2918,6 @@ spec:
               mountPath: /data/db
             - name: mongodb-config
               mountPath: /data/configdb
-            - name: init-scripts
-              mountPath: /docker-entrypoint-initdb.d
           livenessProbe:
             exec:
               command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
@@ -2939,10 +2938,6 @@ spec:
               memory: 512Mi
             limits:
               memory: 1Gi
-      volumes:
-        - name: init-scripts
-          configMap:
-            name: mongodb-init-scripts
   # VolumeClaimTemplates create a PersistentVolumeClaim per replica.
   # GKE's standard-rwo StorageClass provisions a GCP Persistent Disk (pd-ssd)
   # automatically when the pod is first scheduled.
