@@ -54,6 +54,10 @@ data:
     }
   mongodb-seed.js: |
     // Idempotent Open5GS admin + test subscriber seed.
+    const ueImsi = process.env.UE_IMSI;
+    const ueK = process.env.UE_K;
+    const ueOpc = process.env.UE_OPC;
+    const ueApn = process.env.UE_APN;
     db = db.getSiblingDB('admin');
     try {
       const adminResult = db.administrators.updateOne(
@@ -71,12 +75,12 @@ data:
     db = db.getSiblingDB('open5gs');
     try {
       db.subscribers.updateOne(
-        { imsi: '001010000000001' },
+        { imsi: ueImsi },
         { $setOnInsert: {
-            imsi: '001010000000001', msisdn: '+82100000001',
+            imsi: ueImsi, msisdn: '+82100000001',
             subscriber_status: 0, network_access_mode: 0,
             access_restriction_data: 32, subscribed_rau_tau_timer: 12,
-            pdn: [{ apn: 'internet', type: 2, dnn: 'internet', qci: 9,
+            pdn: [{ apn: ueApn, type: 2, dnn: ueApn, qci: 9,
               arp: { priority_level: 8, pre_emption_capability: 0, pre_emption_vulnerability: 0 },
               mbr: { downlink: 1024, uplink: 1024 },
               ambr: { downlink: 1024000, uplink: 1024000 }
@@ -87,16 +91,16 @@ data:
         }},
         { upsert: true }
       );
-      print('5G subscriber seeded: 001010000000001');
+      print('5G subscriber seeded: ' + ueImsi);
     } catch (e) { print('5G subscriber: ' + e.message); }
 
     try {
       db.auths.updateOne(
-        { imsi: '001010000000001' },
+        { imsi: ueImsi },
         { $setOnInsert: {
-            imsi: '001010000000001',
-            k: '465B5CE8B199B49FAA5F0A2EE238A6BC',
-            opc: 'E8ED289DEBA952E4283B54E88E6183CA',
+            imsi: ueImsi,
+            k: ueK,
+            opc: ueOpc,
             amf: 32770, sqn: 0, ck: null, ik: null,
             created_at: new Date(), updated_at: new Date()
         }},
@@ -127,6 +131,9 @@ spec:
         - name: init
           image: bitnamilegacy/kubectl:1.30
           imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: oran-lab-settings
           command:
             - /bin/bash
             - -c
@@ -148,9 +155,10 @@ spec:
               done
               echo "Seeding subscriber..."
               kubectl exec -i -n "$NS" mongodb-0 -c mongodb -- \
+                env UE_IMSI="$UE_IMSI" UE_K="$UE_K" UE_OPC="$UE_OPC" UE_APN="$UE_APN" \
                 mongosh "mongodb://localhost:27017/?directConnection=true" --quiet < /scripts/mongodb-seed.js
               COUNT=$(kubectl exec -n "$NS" mongodb-0 -c mongodb -- \
-                mongosh open5gs --quiet --eval 'db.subscribers.countDocuments({imsi:"001010000000001"})')
+                mongosh open5gs --quiet --eval "db.subscribers.countDocuments({imsi:\"$UE_IMSI\"})")
               test "$COUNT" = "1"
               echo "MongoDB init OK — subscriber present"
           volumeMounts:

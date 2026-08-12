@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oran-lab-settings
+  namespace: oran-verify
+  labels:
+    oran.stack/managed-by: nephio
+data:
+  E2_NODE_ID: gnbc_001_001_00019b_0
+  UE_IMSI: '001010000000001'
+  UE_K: 465B5CE8B199B49FAA5F0A2EE238A6BC
+  UE_OPC: E8ED289DEBA952E4283B54E88E6183CA
+  UE_APN: internet
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oran-lab-settings
+  namespace: 5g-core
+  labels:
+    oran.stack/managed-by: nephio
+data:
+  E2_NODE_ID: gnbc_001_001_00019b_0
+  UE_IMSI: '001010000000001'
+  UE_K: 465B5CE8B199B49FAA5F0A2EE238A6BC
+  UE_OPC: E8ED289DEBA952E4283B54E88E6183CA
+  UE_APN: internet
