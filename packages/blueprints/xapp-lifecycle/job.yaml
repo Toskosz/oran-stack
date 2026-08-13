@@ -89,6 +89,19 @@ spec:
                   -c xapp --tail=300 2>/dev/null || true
               }
 
+              newest_pod() {
+                kubectl get pods -n "$1" -l "app=$2" \
+                  --field-selector=status.phase=Running \
+                  --sort-by=.metadata.creationTimestamp \
+                  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' \
+                  | tail -1
+              }
+
+              rtmgr_logs() {
+                kubectl logs -n "${RIC_NS}" "pod/${RTMGR_POD}" -c rtmgr \
+                  2>/dev/null || true
+              }
+
               wait_for_xapp_log() {
                 local description="$1"
                 shift
@@ -113,64 +126,113 @@ spec:
                 return 1
               }
 
+              wait_for_platform_routes() {
+                local i
+                echo "Waiting for RTMgr to push platform routes to the xApp..."
+                for i in $(seq 1 "${WAIT_RETRIES}"); do
+                  RTMGR_LOGS="$(rtmgr_logs)"
+                  if printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                    "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful"; then
+                    echo "platform routes confirmed on ${RTMGR_POD}"
+                    return 0
+                  fi
+                  echo "attempt ${i}/${WAIT_RETRIES}: waiting for xApp route push"
+                  sleep "${WAIT_DELAY}"
+                done
+                echo "ERROR: RTMgr did not push xApp platform routes" >&2
+                printf '%s\n' "${RTMGR_LOGS}" >&2
+                return 1
+              }
+
+              wait_for_12050_routes() {
+                local i
+                echo "Waiting for RTMgr subscription indication routes..."
+                for i in $(seq 1 "${WAIT_RETRIES}"); do
+                  RTMGR_LOGS="$(rtmgr_logs)"
+                  if printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
+                       "RoutingManager->SubManager Add Request Success" \
+                     && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                       "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful.*Entries:9" \
+                     && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                       "Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9"; then
+                    echo "12050 routes confirmed on ${RTMGR_POD}"
+                    return 0
+                  fi
+                  echo "attempt ${i}/${WAIT_RETRIES}: waiting for 12050 routes"
+                  sleep "${WAIT_DELAY}"
+                done
+                echo "ERROR: 12050 indication routes not confirmed on ${RTMGR_POD}" >&2
+                printf '%s\n' "${RTMGR_LOGS}" >&2
+                return 1
+              }
+
+              restart_xapp_and_subscribe() {
+                echo "Restarting xApp against the synchronized route table..."
+                kubectl rollout restart deployment/"${XAPP_DEPLOYMENT}" -n "${XAPP_NS}"
+                kubectl rollout status deployment/"${XAPP_DEPLOYMENT}" \
+                  -n "${XAPP_NS}" --timeout=300s
+                wait_for_xapp_log "post-sync AppMgr registration" \
+                  "appmgr register" "HTTP 201"
+                wait_for_xapp_log "E2 subscription" \
+                  "Subscribe to E2 node ID: ${E2_NODE_ID}" "Successfully subscribed"
+              }
+
+              wait_for_nonzero_subid() {
+                local i
+                echo "Waiting for non-zero E2EventInstanceId..."
+                SUBID=""
+                for i in $(seq 1 30); do
+                  XAPP_LOGS="$(xapp_logs)"
+                  SUBID="$(printf '%s\n' "${XAPP_LOGS}" |
+                    grep -Eo 'mapping: .* -> [0-9]+' | awk '{print $NF}' | tail -1 || true)"
+                  if [[ -n "${SUBID}" && "${SUBID}" != "0" ]]; then
+                    echo "E2EventInstanceId ${SUBID}"
+                    return 0
+                  fi
+                  echo "attempt ${i}/30: waiting for non-zero instance id"
+                  sleep 2
+                done
+                return 1
+              }
+
               echo "Waiting for initial AppMgr registration..."
               wait_for_xapp_log "AppMgr registration" "appmgr register" "HTTP 201"
 
               echo "Restarting RTMgr so it reloads xApps from AppMgr..."
               kubectl rollout restart deployment/ric-rtmgr -n "${RIC_NS}"
               kubectl rollout status deployment/ric-rtmgr -n "${RIC_NS}" --timeout=300s
-
-              echo "Waiting for RTMgr to push platform routes to the xApp..."
-              for i in $(seq 1 "${WAIT_RETRIES}"); do
-                RTMGR_LOGS="$(kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr \
-                  -c rtmgr --since=10m 2>/dev/null || true)"
-                if printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                  "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful"; then
-                  break
-                fi
-                echo "attempt ${i}/${WAIT_RETRIES}: waiting for xApp route push"
-                sleep "${WAIT_DELAY}"
-              done
-              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful"
-
-              echo "Restarting xApp against the synchronized route table..."
-              kubectl rollout restart deployment/"${XAPP_DEPLOYMENT}" -n "${XAPP_NS}"
-              kubectl rollout status deployment/"${XAPP_DEPLOYMENT}" \
-                -n "${XAPP_NS}" --timeout=300s
-              wait_for_xapp_log "post-sync AppMgr registration" "appmgr register" "HTTP 201"
-              wait_for_xapp_log "E2 subscription" \
-                "Subscribe to E2 node ID: ${E2_NODE_ID}" "Successfully subscribed"
-
-              echo "Waiting for RTMgr subscription indication routes..."
-              for i in $(seq 1 "${WAIT_RETRIES}"); do
-                RTMGR_LOGS="$(kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr \
-                  -c rtmgr --since=10m 2>/dev/null || true)"
-                if printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
-                     "RoutingManager->SubManager Add Request Success" \
-                   && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                     "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful.*Entries:9" \
-                   && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                     "Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9"; then
-                  break
-                fi
-                echo "attempt ${i}/${WAIT_RETRIES}: waiting for 12050 routes"
-                sleep "${WAIT_DELAY}"
-              done
-              printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
-                "RoutingManager->SubManager Add Request Success"
-              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                "Update Routes to Endpoint: service-ricxapp-${XAPP_DEPLOYMENT}-rmr\\.${XAPP_NS}:4561 successful.*Entries:9"
-              printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                "Update Routes to Endpoint: ric-e2term:38000 successful.*Entries:9"
-
-              XAPP_LOGS="$(xapp_logs)"
-              SUBID="$(printf '%s\n' "${XAPP_LOGS}" |
-                grep -Eo 'mapping: .* -> [0-9]+' | awk '{print $NF}' | tail -1 || true)"
-              if [[ -z "${SUBID}" || "${SUBID}" == "0" ]]; then
-                echo "ERROR: non-zero E2EventInstanceId not found" >&2
-                printf '%s\n' "${XAPP_LOGS}" >&2
+              RTMGR_POD="$(newest_pod "${RIC_NS}" ric-rtmgr)"
+              if [[ -z "${RTMGR_POD}" ]]; then
+                echo "ERROR: no running ric-rtmgr pod after rollout" >&2
                 exit 1
+              fi
+              echo "Using RTMgr pod ${RTMGR_POD} (ignore leftover logs from the previous replica)"
+
+              wait_for_platform_routes
+              # newrt continues after the first successful push. SubMgr's
+              # POST /handles/xapp-subscription-handle times out if we
+              # subscribe during that window.
+              echo "Waiting 15s for RTMgr newrt to finish..."
+              sleep 15
+
+              restart_xapp_and_subscribe
+              wait_for_12050_routes || true
+              wait_for_nonzero_subid || true
+
+              if [[ -z "${SUBID:-}" || "${SUBID}" == "0" ]]; then
+                echo "Instance id still 0; RTMgr was likely still in newrt."
+                echo "Restarting xApp once so SubMgr retries against a ready RTMgr..."
+                restart_xapp_and_subscribe
+                wait_for_12050_routes
+                if ! wait_for_nonzero_subid; then
+                  echo "ERROR: non-zero E2EventInstanceId not found" >&2
+                  printf '%s\n' "${XAPP_LOGS}" >&2
+                  kubectl logs -n "${RIC_NS}" "pod/${RTMGR_POD}" -c rtmgr \
+                    --tail=80 >&2 || true
+                  kubectl logs -n "${RIC_NS}" deployment/ric-submgr -c submgr \
+                    --since=10m 2>/dev/null | tail -30 >&2 || true
+                  exit 1
+                fi
               fi
 
               EP="service-ricxapp-${XAPP_DEPLOYMENT}-rmr.${XAPP_NS}"
