@@ -75,7 +75,7 @@ spec:
               set -euo pipefail
               WAIT_RETRIES="${WAIT_RETRIES:-36}"
               WAIT_DELAY="${WAIT_DELAY:-5}"
-              INDICATION_RETRIES="${INDICATION_RETRIES:-18}"
+              INDICATION_RETRIES="${INDICATION_RETRIES:-10}"
               INDICATION_DELAY="${INDICATION_DELAY:-10}"
 
               cleanup() {

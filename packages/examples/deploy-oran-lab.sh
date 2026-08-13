@@ -22,7 +22,7 @@
 #   PACKAGE_TIMEOUT  seconds to wait per package (default: 900)
 #   XAPP_LIFECYCLE_RETRIES attempts for route lifecycle stages (default: 36)
 #   XAPP_LIFECYCLE_DELAY seconds between route lifecycle checks (default: 5)
-#   XAPP_INDICATION_RETRIES attempts for the KPM indication gate (default: 18)
+#   XAPP_INDICATION_RETRIES attempts for the KPM indication gate (default: 10)
 #   XAPP_INDICATION_DELAY seconds between KPM indication checks (default: 10)
 #   E2_RECOVERY_ENABLED restart CU/DU once after E2 failure (default: true)
 #   UE_ATTACH_REQUIRED fail when UE attach is unconfirmed (default: true)
@@ -36,7 +36,7 @@ PACKAGE_TIMEOUT="${PACKAGE_TIMEOUT:-900}"
 HEARTBEAT_SECS="${HEARTBEAT_SECS:-30}"
 XAPP_LIFECYCLE_RETRIES="${XAPP_LIFECYCLE_RETRIES:-36}"
 XAPP_LIFECYCLE_DELAY="${XAPP_LIFECYCLE_DELAY:-5}"
-XAPP_INDICATION_RETRIES="${XAPP_INDICATION_RETRIES:-18}"
+XAPP_INDICATION_RETRIES="${XAPP_INDICATION_RETRIES:-10}"
 XAPP_INDICATION_DELAY="${XAPP_INDICATION_DELAY:-10}"
 E2_WAIT_RETRIES="${E2_WAIT_RETRIES:-30}"
 E2_WAIT_DELAY="${E2_WAIT_DELAY:-10}"

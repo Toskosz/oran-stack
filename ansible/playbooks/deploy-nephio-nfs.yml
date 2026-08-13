@@ -28,7 +28,7 @@
     deploy_package_timeout: 900
     deploy_xapp_lifecycle_retries: 36
     deploy_xapp_lifecycle_delay: 5
-    deploy_xapp_indication_retries: 18
+    deploy_xapp_indication_retries: 10
     deploy_xapp_indication_delay: 10
     deploy_e2_wait_retries: 30
     deploy_e2_wait_delay: 10

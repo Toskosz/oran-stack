@@ -257,7 +257,7 @@ Runtime gate settings can be overridden with Ansible extra vars:
 ansible-playbook ansible/playbooks/deploy-nephio-nfs.yml \
   -e deploy_e2_recovery_enabled=true \
   -e deploy_ue_attach_required=true \
-  -e deploy_xapp_indication_retries=18
+  -e deploy_xapp_indication_retries=10
 ```
 
 It is safe to rerun. Packages already present on a healthy workload are skipped.
