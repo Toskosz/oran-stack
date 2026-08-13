@@ -53,3 +53,7 @@ ansible/inventories/mgmt.ini
 
 # Local Ansible playbook run logs
 ansible/output-*.txt
+
+# Local Nephio deploy wait timings
+.nephio-timing.sqlite
+.nephio-timing.sqlite-*

@@ -59,6 +59,7 @@
         msg: >-
           Live log: {{ deploy_log }}.
           Tail in another terminal with: tail -f {{ deploy_log }}.
+          Wait timings: python3 {{ playbook_dir }}/../../packages/examples/nephio-timing.py summary
 
     - name: Publish and verify Nephio packages
       ansible.builtin.shell: |

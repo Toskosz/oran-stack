@@ -27,6 +27,7 @@
 #   E2_RECOVERY_ENABLED restart CU/DU once after E2 failure (default: true)
 #   UE_ATTACH_REQUIRED fail when UE attach is unconfirmed (default: true)
 #   HEARTBEAT_SECS     progress line interval during long waits (default: 30)
+#   TIMING_DB          SQLite wait-history path (default: .nephio-timing.sqlite)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -54,6 +55,10 @@ LOCK_ACQUIRED=false
 DEPLOY_CHANGED=false
 LAST_SOURCE_COMMIT=""
 EXPECTED_SYNC_COMMIT=""
+CURRENT_PACKAGE=""
+TIMING_PY="$ROOT/packages/examples/nephio-timing.py"
+TIMING_DB="${TIMING_DB:-$ROOT/.nephio-timing.sqlite}"
+declare -A TIMING_T0
 
 PACKAGES=(
   ns-and-secrets
@@ -125,11 +130,58 @@ porch() {
   porchctl "$@" --kubeconfig="$KUBECONFIG_MGMT"
 }
 
+timing_begin() {
+  TIMING_T0["$1"]=$SECONDS
+}
+
+timing_end() {
+  local step="$1" status="${2:-ok}" t0=""
+  [[ -v "TIMING_T0[$step]" ]] || return 0
+  t0="${TIMING_T0[$step]}"
+  unset "TIMING_T0[$step]"
+  [[ -f "$TIMING_PY" ]] && command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$TIMING_PY" record \
+    --db "$TIMING_DB" \
+    --workspace "$RUN_WORKSPACE" \
+    --package "${CURRENT_PACKAGE:-}" \
+    --step "$step" \
+    --elapsed "$((SECONDS - t0))" \
+    --status "$status" \
+    --force-fresh "$FORCE_FRESH" \
+    >/dev/null || true
+}
+
+timing_note() {
+  [[ -f "$TIMING_PY" ]] && command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$TIMING_PY" hint \
+    --db "$TIMING_DB" \
+    --package "${CURRENT_PACKAGE:-}" \
+    --step "$1" \
+    --elapsed "$2" \
+    2>/dev/null || true
+}
+
+timing_typical() {
+  local note
+  note="$(timing_note "$1" 0 || true)"
+  [[ -n "$note" && "$note" != "no baseline yet" ]] || return 0
+  echo "==> typical: $note" >&2
+}
+
 # Progress goes to stderr so command substitutions (e.g. wait_for_revision)
 # still capture only the PackageRevision name on stdout.
 heartbeat() {
   local description="$1" deadline="$2"
-  echo "==> still waiting: $description ($((deadline - SECONDS))s left)" >&2
+  local t0="${TIMING_T0[$description]:-$SECONDS}"
+  local elapsed=$((SECONDS - t0))
+  local left=$((deadline - SECONDS))
+  local note
+  note="$(timing_note "$description" "$elapsed" || true)"
+  if [[ -n "$note" && "$note" != "no baseline yet" ]]; then
+    echo "==> still waiting: $description (${left}s left; elapsed ${elapsed}s; ${note})" >&2
+  else
+    echo "==> still waiting: $description (${left}s left; elapsed ${elapsed}s)" >&2
+  fi
 }
 
 dump_job() {
@@ -153,14 +205,18 @@ kwl_wait_job() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local next_hb=$((SECONDS + HEARTBEAT_SECS))
   echo "==> $description"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     if job_condition "$job" "$namespace" Complete; then
       echo "==> $description: ready"
+      timing_end "$description" ok
       return 0
     fi
     if job_condition "$job" "$namespace" Failed; then
       echo "ERROR: $description failed" >&2
       dump_job "$job" "$namespace"
+      timing_end "$description" failed
       return 1
     fi
     if (( SECONDS >= next_hb )); then
@@ -171,6 +227,7 @@ kwl_wait_job() {
   done
   echo "timed out waiting: $description" >&2
   dump_job "$job" "$namespace"
+  timing_end "$description" timeout
   return 1
 }
 
@@ -182,6 +239,8 @@ kwl_wait_condition() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local left chunk
   echo "==> $description"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     left=$((deadline - SECONDS))
     chunk=$HEARTBEAT_SECS
@@ -189,11 +248,13 @@ kwl_wait_condition() {
     (( chunk < 1 )) && break
     if kwl wait "$@" --timeout="${chunk}s" >/dev/null 2>&1; then
       echo "==> $description: ready"
+      timing_end "$description" ok
       return 0
     fi
     heartbeat "$description" "$deadline"
   done
   echo "timed out waiting: $description" >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -203,6 +264,8 @@ kwl_rollout_status() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local left chunk
   echo "==> $description"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     left=$((deadline - SECONDS))
     chunk=$HEARTBEAT_SECS
@@ -210,16 +273,24 @@ kwl_rollout_status() {
     (( chunk < 1 )) && break
     if kwl rollout status "$@" --timeout="${chunk}s" >/dev/null 2>&1; then
       echo "==> $description: ready"
+      timing_end "$description" ok
       return 0
     fi
     heartbeat "$description" "$deadline"
   done
   echo "timed out waiting: $description" >&2
+  timing_end "$description" timeout
   return 1
 }
 
 restore_variants_on_exit() {
   local rc=$?
+  local st=failed open_steps=()
+  (( rc == 0 )) && st=ok
+  open_steps=("${!TIMING_T0[@]}")
+  for step in "${open_steps[@]}"; do
+    timing_end "$step" "$st"
+  done
   if $VARIANTS_PAUSED; then
     echo "==> Restoring PackageVariants before exit"
     if ! kmgmt apply -f "$VARIANTS" || \
@@ -290,9 +361,11 @@ wait_for_revision() {
   local description="$repo/$package lifecycle=$lifecycle_re"
   [[ -n "$workspace" ]] && description+=" workspace=$workspace"
   echo "==> Waiting for PackageRevision $description" >&2
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     name="$(find_revision "$repo" "$package" "$lifecycle_re" "$workspace")"
-    [[ -n "$name" ]] && { printf '%s\n' "$name"; return 0; }
+    [[ -n "$name" ]] && { timing_end "$description" ok; printf '%s\n' "$name"; return 0; }
     if (( SECONDS >= next_hb )); then
       heartbeat "$description" "$deadline"
       next_hb=$((SECONDS + HEARTBEAT_SECS))
@@ -300,6 +373,7 @@ wait_for_revision() {
     sleep 5
   done
   echo "timed out waiting for $description" >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -331,9 +405,12 @@ wait_for_object() {
   local next_hb=$((SECONDS + HEARTBEAT_SECS))
   local description="$kind/$name in $namespace"
   echo "==> Waiting for $description"
+  timing_begin "$description"
+  timing_typical "$description"
   until kwl get "$kind" "$name" -n "$namespace" >/dev/null 2>&1; do
     (( SECONDS < deadline )) || {
       echo "timed out waiting for $description" >&2
+      timing_end "$description" timeout
       return 1
     }
     if (( SECONDS >= next_hb )); then
@@ -343,11 +420,16 @@ wait_for_object() {
     sleep 5
   done
   echo "==> Found $description"
+  timing_end "$description" ok
 }
 
 wait_for_ran() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local terminal=""
+  local description="ocudu-cu and ocudu-du Available"
+  echo "==> RAN rollout status"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     echo "==> RAN rollout status"
     kwl get pods -n ran -o wide || true
@@ -363,6 +445,7 @@ wait_for_ran() {
       echo "ERROR: terminal RAN pod error" >&2
       printf '%s\n' "$terminal" | sort -u >&2
       kwl describe pods -n ran >&2 || true
+      timing_end "$description" failed
       return 1
     fi
 
@@ -370,11 +453,14 @@ wait_for_ran() {
       deployment/ocudu-cu deployment/ocudu-du -n ran --timeout=20s \
       >/dev/null 2>&1; then
       echo "ocudu-cu and ocudu-du are Available"
+      timing_end "$description" ok
       return 0
     fi
+    heartbeat "$description" "$deadline"
     sleep 15
   done
   echo "timed out waiting for ocudu-cu and ocudu-du" >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -382,22 +468,27 @@ wait_for_prometheus() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local statefulset=""
   local next_hb=$((SECONDS + HEARTBEAT_SECS))
+  local description="Prometheus StatefulSet"
   echo "==> Waiting for Prometheus StatefulSet"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     statefulset="$(kwl get statefulset -n monitoring \
       -l app.kubernetes.io/name=prometheus -o name 2>/dev/null | awk 'NR == 1')"
     if [[ -n "$statefulset" ]]; then
+      timing_end "$description" ok
       kwl_rollout_status "Prometheus $statefulset rollout" \
         "$statefulset" -n monitoring
       return
     fi
     if (( SECONDS >= next_hb )); then
-      heartbeat "Prometheus StatefulSet" "$deadline"
+      heartbeat "$description" "$deadline"
       next_hb=$((SECONDS + HEARTBEAT_SECS))
     fi
     sleep 5
   done
   echo "timed out waiting for the Prometheus StatefulSet" >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -430,22 +521,27 @@ rootsync_commit() {
 wait_for_new_source_commit() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT)) commit=""
   local next_hb=$((SECONDS + HEARTBEAT_SECS))
+  local description="Config Sync new source commit"
   echo "==> Waiting for Config Sync to observe a new source commit"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     commit="$(rootsync_commit source)"
     if [[ -n "$commit" && "$commit" != "$LAST_SOURCE_COMMIT" ]]; then
       EXPECTED_SYNC_COMMIT="$commit"
       LAST_SOURCE_COMMIT="$commit"
       echo "==> Config Sync observed source commit $commit"
+      timing_end "$description" ok
       return 0
     fi
     if (( SECONDS >= next_hb )); then
-      heartbeat "Config Sync new source commit" "$deadline"
+      heartbeat "$description" "$deadline"
       next_hb=$((SECONDS + HEARTBEAT_SECS))
     fi
     sleep 5
   done
   echo "timed out waiting for Config Sync to observe a new source commit" >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -453,25 +549,35 @@ wait_for_expected_sync() {
   local deadline=$((SECONDS + PACKAGE_TIMEOUT))
   local rendering="" synced=""
   local next_hb=$((SECONDS + HEARTBEAT_SECS))
+  local description="Config Sync apply"
   echo "==> Waiting for Config Sync to apply $EXPECTED_SYNC_COMMIT"
+  timing_begin "$description"
+  timing_typical "$description"
   while (( SECONDS < deadline )); do
     rendering="$(rootsync_commit rendering)"
     synced="$(rootsync_commit sync)"
     if [[ "$rendering" == "$EXPECTED_SYNC_COMMIT" &&
           "$synced" == "$EXPECTED_SYNC_COMMIT" ]]; then
       echo "==> Config Sync applied commit $EXPECTED_SYNC_COMMIT"
+      timing_end "$description" ok
       return 0
     fi
     if (( SECONDS >= next_hb )); then
+      local t0="${TIMING_T0[$description]:-$SECONDS}"
+      local note
+      note="$(timing_note "$description" "$((SECONDS - t0))" || true)"
+      [[ "$note" == "no baseline yet" ]] && note=""
       echo "==> still waiting: Config Sync apply" \
         "(source rendering=$rendering sync=$synced;" \
-        "want $EXPECTED_SYNC_COMMIT; $((deadline - SECONDS))s left)" >&2
+        "want $EXPECTED_SYNC_COMMIT; $((deadline - SECONDS))s left;" \
+        "elapsed $((SECONDS - t0))s${note:+; $note})" >&2
       next_hb=$((SECONDS + HEARTBEAT_SECS))
     fi
     sleep 5
   done
   echo "timed out waiting for Config Sync to apply $EXPECTED_SYNC_COMMIT" >&2
   kwl get rootsync oran-lab -n config-management-system -o yaml >&2
+  timing_end "$description" timeout
   return 1
 }
 
@@ -483,18 +589,22 @@ wait_for_package() {
       for ns in 5g-core near-rt-ric ran ricxapp monitoring oran-verify; do
         local deadline=$((SECONDS + PACKAGE_TIMEOUT))
         local next_hb=$((SECONDS + HEARTBEAT_SECS))
+        local description="namespace/$ns"
         echo "==> Waiting for namespace/$ns"
+        timing_begin "$description"
         until kwl get namespace "$ns" >/dev/null 2>&1; do
           (( SECONDS < deadline )) || {
             echo "timed out waiting for namespace/$ns" >&2
+            timing_end "$description" timeout
             return 1
           }
           if (( SECONDS >= next_hb )); then
-            heartbeat "namespace/$ns" "$deadline"
+            heartbeat "$description" "$deadline"
             next_hb=$((SECONDS + HEARTBEAT_SECS))
           fi
           sleep 5
         done
+        timing_end "$description" ok
       done
       apply_xapp_lifecycle_settings
       apply_verification_settings
@@ -698,7 +808,9 @@ if $FORCE_FRESH; then
 fi
 
 for package in "${PACKAGES[@]}"; do
+  CURRENT_PACKAGE="$package"
   echo "==== $package ===="
+  timing_begin "package"
 
   if ! $FORCE_FRESH && [[ "$package" == "xapp-lifecycle" ]] && \
      package_present "$package"; then
@@ -707,12 +819,14 @@ for package in "${PACKAGES[@]}"; do
     kwl delete job xapp-lifecycle -n oran-verify --ignore-not-found
     wait_for_package "$package"
     DEPLOY_CHANGED=true
+    timing_end "package" ok
     continue
   fi
 
   if ! $FORCE_FRESH && package_present "$package"; then
     echo "already present on workload cluster; skip publish and verify readiness"
     wait_for_package "$package"
+    timing_end "package" ok
     continue
   fi
 
@@ -731,6 +845,7 @@ for package in "${PACKAGES[@]}"; do
 
   wait_for_expected_sync
   wait_for_package "$package"
+  timing_end "package" ok
 done
 
 if $VARIANTS_PAUSED; then
@@ -739,6 +854,7 @@ if $VARIANTS_PAUSED; then
   echo "==> Waiting for PackageVariants Ready"
   deadline=$((SECONDS + PACKAGE_TIMEOUT))
   variants_ready=false
+  timing_begin "PackageVariants Ready"
   while (( SECONDS < deadline )); do
     left=$((deadline - SECONDS))
     chunk=$HEARTBEAT_SECS
@@ -754,18 +870,23 @@ if $VARIANTS_PAUSED; then
   done
   if ! $variants_ready; then
     echo "timed out waiting for PackageVariants Ready" >&2
+    timing_end "PackageVariants Ready" timeout
     exit 1
   fi
+  timing_end "PackageVariants Ready" ok
   # Adoption can create one final reconciliation Draft to restore the
   # PackageVariant upstream lock. Publish those drafts in the same safe order.
   sleep 10
   for package in "${PACKAGES[@]}"; do
+    CURRENT_PACKAGE="$package"
     revision="$(find_revision "$DOWNSTREAM_REPO" "$package" 'Draft|Proposed')"
     if [[ -n "$revision" ]]; then
       echo "==> Publishing reconciliation draft $revision"
+      timing_begin "package"
       publish_revision "$revision"
       wait_for_expected_sync
       wait_for_package "$package"
+      timing_end "package" ok
     fi
   done
   VARIANTS_PAUSED=false
