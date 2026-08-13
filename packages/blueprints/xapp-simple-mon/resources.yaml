@@ -1,3 +1,4 @@
+---
 # Source: xapp/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -12,14 +13,14 @@ spec:
     app: r4-simple-mon
     release: r4-simple-mon
   ports:
-  - name: rmr
-    port: 4561
-    targetPort: 4561
-    protocol: TCP
-  - name: http
-    port: 8091
-    targetPort: 8091
-    protocol: TCP
+    - name: rmr
+      port: 4561
+      targetPort: 4561
+      protocol: TCP
+    - name: http
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
 ---
 # Source: xapp/templates/service.yaml
 apiVersion: v1
@@ -34,10 +35,10 @@ spec:
     app: r4-simple-mon
     release: r4-simple-mon
   ports:
-  - name: http
-    port: 8091
-    targetPort: 8091
-    protocol: TCP
+    - name: http
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
 ---
 # Source: xapp/templates/deployment.yaml
 apiVersion: apps/v1
@@ -63,54 +64,55 @@ spec:
         release: r4-simple-mon
     spec:
       imagePullSecrets:
-      - name: dockerhub-secret
+        - name: dockerhub-secret
       hostname: r4-simple-mon
       initContainers:
-      - name: wait-for-gnb
-        image: curlimages/curl:8.5.0
-        command:
-        - sh
-        - -c
-        - |
-          E2MGR="http://ric-e2mgr.near-rt-ric:3800/v1/nodeb/states"
-          GNB="gnbc_001_001_00019b_0"
-          echo "Waiting for gNB ${GNB} in e2mgr..."
-          until curl -sf "${E2MGR}" | grep -q "${GNB}"; do
-            echo "gNB not registered yet, retrying in 10s..."
-            sleep 10
-          done
-          echo "gNB ${GNB} registered — starting xApp"
+        - name: wait-for-gnb
+          image: curlimages/curl:8.5.0
+          command:
+            - sh
+            - -c
+            - |
+              E2MGR="http://ric-e2mgr.near-rt-ric:3800/v1/nodeb/states"
+              GNB="gnbc_001_001_00019b_0"
+              echo "Waiting for gNB ${GNB} in e2mgr..."
+              until curl -sf "${E2MGR}" | grep -q "${GNB}"; do
+                echo "gNB not registered yet, retrying in 10s..."
+                sleep 10
+              done
+              echo "gNB ${GNB} registered — starting xApp"
       containers:
-      - name: xapp
-        image: "x0tok/oran-xapps:latest"
-        imagePullPolicy: IfNotPresent
-        command: ["./kpm_mon_xapp.py"]
-        args:
-        - "--metrics=DRB.PacketSuccessRateUlgNBUu"
-        - "--kpm_report_style=1"
-        - "--rmr_port=4561"
-        - "--http_server_port=8091"
-        - "--e2_node_id=gnbc_001_001_00019b_0"
-        - "--ran_func_id=2"
-        ports:
-        - name: rmr
-          containerPort: 4561
-          protocol: TCP
-        - name: http
-          containerPort: 8091
-          protocol: TCP
-        env:
-        - name: RMR_RTG_SVC
-          value: ""
-        - name: XAPP_NAME
-          value: r4-simple-mon
-        - name: XAPP_NAMESPACE
-          value: ricxapp
-        - name: XAPP_IP
-          # Must exactly match the endpoint registered with AppMgr.
-          value: service-ricxapp-r4-simple-mon-rmr.ricxapp
-        - name: SUB_MGR_URI
-          value: "http://ric-submgr.near-rt-ric:8088/ric/v1"
-        - name: APP_MGR_REGISTER_URI
-          value: "http://ric-appmgr.near-rt-ric:8080/ric/v1/register"
-        resources: {}
+        - name: xapp
+          image: "x0tok/oran-xapps:latest"
+          imagePullPolicy: IfNotPresent
+          command: ["./kpm_mon_xapp.py"]
+          args:
+            - "--metrics=DRB.PacketSuccessRateUlgNBUu"
+            - "--kpm_report_style=1"
+            - "--rmr_port=4561"
+            - "--http_server_port=8091"
+            - "--e2_node_id=gnbc_001_001_00019b_0"
+            - "--ran_func_id=2"
+          ports:
+            - name: rmr
+              containerPort: 4561
+              protocol: TCP
+            - name: http
+              containerPort: 8091
+              protocol: TCP
+          env:
+            - name: RMR_RTG_SVC
+              value: ""
+            - name: XAPP_NAME
+              value: r4-simple-mon
+            - name: XAPP_NAMESPACE
+              value: ricxapp
+            - name: XAPP_IP
+              # Must exactly match the endpoint registered with AppMgr.
+              value: service-ricxapp-r4-simple-mon-rmr.ricxapp
+            - name: SUB_MGR_URI
+              value: "http://ric-submgr.near-rt-ric:8088/ric/v1"
+            - name: APP_MGR_REGISTER_URI
+              value: "http://ric-appmgr.near-rt-ric:8080/ric/v1/register"
+          resources:
+            {}
