@@ -383,11 +383,20 @@ spec:
             - -c
             - |
               set -e
-              echo "waiting for local DU ZMQ on 127.0.0.1:{{ .Values.zmq.duTxPort }}..."
-              until timeout 1 bash -c "echo >/dev/tcp/127.0.0.1/{{ .Values.zmq.duTxPort }}" 2>/dev/null; do
+              # Do not connect to the ZMQ port. A TCP probe (nc /dev/tcp)
+              # is treated as a radio client and deadlocks IQ streaming if
+              # it lands before F1 cell activation — UE then stays at
+              # NAS "Switching on" with no PRACH.
+              port={{ .Values.zmq.duTxPort }}
+              hex=$(printf '%04X' "$port")
+              echo "waiting for DU ZMQ listen on 127.0.0.1:${port}..."
+              until awk -v hex="$hex" '
+                  $2 ~ ":"hex"$" && $4 == "0A" { found=1 }
+                  END { exit !found }
+                ' /proc/net/tcp; do
                 sleep 2
               done
-              echo "DU ZMQ up — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
+              echo "DU ZMQ listening — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
               sleep {{ .Values.ueStartDelaySec }}
               exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
           securityContext:
