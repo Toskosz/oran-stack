@@ -25,10 +25,6 @@
     deploy_kubeconfig_workload: "{{ playbook_dir }}/../../kubeconfig"
     # Live log for this long task (Ansible buffers module stdout until the job ends).
     deploy_log: "{{ playbook_dir }}/../../.nephio-deploy.log"
-    # Ceiling for the whole publish/verify run (10 packages × waits + recovery).
-    deploy_async_timeout: 10800
-    # Emit ASYNC POLL lines so the playbook output is not silent.
-    deploy_progress_poll: 20
     deploy_package_timeout: 900
     deploy_xapp_lifecycle_retries: 36
     deploy_xapp_lifecycle_delay: 5
@@ -63,8 +59,6 @@
         msg: >-
           Live log: {{ deploy_log }}.
           Tail in another terminal with: tail -f {{ deploy_log }}.
-          This task also prints ASYNC POLL every {{ deploy_progress_poll }}s
-          while packages publish and verify.
 
     - name: Publish and verify Nephio packages
       ansible.builtin.shell: |
@@ -95,7 +89,5 @@
         UE_WAIT_RETRIES: "{{ deploy_ue_wait_retries | string }}"
         UE_WAIT_DELAY: "{{ deploy_ue_wait_delay | string }}"
         UE_ATTACH_REQUIRED: "{{ deploy_ue_attach_required | bool | ternary('true', 'false') }}"
-      async: "{{ deploy_async_timeout | int }}"
-      poll: "{{ deploy_progress_poll | int }}"
       register: _nephio_deploy
       changed_when: "'DEPLOY_RESULT_CHANGED=true' in _nephio_deploy.stdout"
