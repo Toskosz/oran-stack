@@ -203,16 +203,10 @@
   changed_when: false
 
 - name: Keep subscription routes installed and wait for KPM indication
-  # rtmgr hardcodes a lookup for Platform component "A1Mediator". When that
-  # fails it redistributes a full newrt table (about every 10s) that wipes
-  # mse|12050|<subid> routes installed via updatert. The previous approach
-  # re-created a repost pod on every Ansible retry, which left gaps (pod
-  # delete + recreate + wait-for-Ready) between repost cycles; if a newrt
-  # wipe landed in one of those gaps, no indication would ever get through
-  # in 18 retries. Instead, start ONE persistent repost pod that keeps
-  # reinstalling the route every second for the whole wait window, and let
-  # Ansible's retry loop just poll the (unrelated, side-effect-free) xApp
-  # logs — no more pod churn racing against the wipe.
+  # rtmgr hardcodes a lookup for Platform component "A1Mediator". That
+  # component is now listed in PlatformComponents so the lookup succeeds.
+  # Keep this re-POST loop as a backstop if A1's RMR wormhole flaps and
+  # rtmgr still emits a newrt that wipes mse|12050|<subid>.
   block:
     - name: Extract E2EventInstanceId (subscription_id) for route keep-alive
       ansible.builtin.shell: |

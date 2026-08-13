@@ -145,6 +145,11 @@ data:
       - name: E2MAN
         fqdn: ric-e2mgr
         port: 3801
+      # rtmgr hardcodes a lookup for this name. If it is missing, rtmgr
+      # redistributes a full newrt every ~10s and wipes mse|12050|<subid>.
+      - name: A1Mediator
+        fqdn: ric-a1mediator
+        port: 4562
     PlatformRoutes:
       - messagetype: E2_TERM_INIT
         senderendpoint: ""
@@ -251,10 +256,9 @@ data:
       - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
       - "RIC_HEALTH_CHECK_REQ=100"
       - "RIC_HEALTH_CHECK_RESP=101"
-    # A1_POLICY_* deliberately omitted: referencing them makes rtmgr look up
-    # Platform component "A1Mediator". When that lookup fails (or A1's RMR
-    # wormhole is down), rtmgr redistributes a full newrt every few seconds
-    # and wipes subscription indication routes (mse|12050|<subid>|...).
+    # A1_POLICY_* stay omitted (no A1 policy traffic in this lab). A1Mediator
+    # must still be listed under PlatformComponents: rtmgr looks it up even
+    # without those message types, and a miss triggers newrt wipes of 12050.
     local:
       host: ":8989"
     logger:
@@ -278,7 +282,7 @@ data:
       timeout: 30
 
   rt.json: |
-    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801}]}
+    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"A1Mediator","fqdn":"ric-a1mediator","port":4562}]}
 ---
 # --- submgr configuration ----------------------------------------------------
 apiVersion: v1

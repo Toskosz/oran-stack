@@ -58,11 +58,12 @@ band-aids:
      `ric/config/submgr/submgr-config.yaml`.
 
 2. **Stop A1Mediator-triggered `newrt` wipes of `mse|12050|<subid>`**
-   - Referencing `A1_POLICY_*` / Platform component `A1Mediator` makes RTMgr
-     redistribute a full `newrt` when A1 RMR is down, wiping subscription
-     indication routes.
-   - Omit A1 from PlatformComponents / `rt.json` Pcs and drop `A1_POLICY_*`
-     from messagetypes until A1 is actually needed and healthy.
+   - rtmgr hardcodes a lookup for Platform component `A1Mediator`. If that
+     name is missing from `PlatformComponents` / `rt.json` Pcs, it
+     redistributes a full `newrt` every ~10s and wipes indication routes.
+   - Keep `A1Mediator` (`fqdn: ric-a1mediator`, port `4562`) in
+     PlatformComponents. Continue omitting `A1_POLICY_*` messagetypes until
+     A1 policy traffic is actually needed.
    - Files: rtmgr configmap + `ric/config/rtmgr/*`.
 
 3. **Explicit `RIC_SUB_*` / `RIC_SUB_DEL_*` platform routes**

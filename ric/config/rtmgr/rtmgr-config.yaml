@@ -11,6 +11,9 @@ PlatformComponents:
   - name: E2MAN
     fqdn: ric-e2mgr
     port: 3801
+  - name: A1Mediator
+    fqdn: ric-a1mediator
+    port: 4562
 PlatformRoutes:
   - messagetype: E2_TERM_INIT
     senderendpoint: ""
@@ -107,7 +110,8 @@ messagetypes:
   - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
   - "RIC_HEALTH_CHECK_REQ=100"
   - "RIC_HEALTH_CHECK_RESP=101"
-  # A1_POLICY_* omitted — see helm near-rt-ric rtmgr-config comment.
+  # A1_POLICY_* omitted. A1Mediator stays in PlatformComponents — see helm
+  # near-rt-ric rtmgr-config comment.
 local:
   # NOTE: This value is NOT used by ric-plt-rtmgr:0.9.6. The swagger-generated
   # HTTP server ignores local.host and hardcodes port 3800 as its NBI REST bind port.
