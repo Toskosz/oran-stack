@@ -132,6 +132,48 @@ heartbeat() {
   echo "==> still waiting: $description ($((deadline - SECONDS))s left)" >&2
 }
 
+dump_job() {
+  local job="$1" namespace="$2"
+  kwl get job "$job" -n "$namespace" -o wide >&2 || true
+  kwl get pods -n "$namespace" -l "job-name=$job" -o wide >&2 || true
+  kwl logs -n "$namespace" "job/$job" --tail=80 >&2 || true
+}
+
+job_condition() {
+  local job="$1" namespace="$2" type="$3"
+  kwl get job "$job" -n "$namespace" \
+    -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}' \
+    2>/dev/null | grep -qx "${type}=True"
+}
+
+# Jobs that have Failed=True can never become Complete. Poll both conditions
+# so a gate failure returns immediately instead of burning PACKAGE_TIMEOUT.
+kwl_wait_job() {
+  local description="$1" job="$2" namespace="$3"
+  local deadline=$((SECONDS + PACKAGE_TIMEOUT))
+  local next_hb=$((SECONDS + HEARTBEAT_SECS))
+  echo "==> $description"
+  while (( SECONDS < deadline )); do
+    if job_condition "$job" "$namespace" Complete; then
+      echo "==> $description: ready"
+      return 0
+    fi
+    if job_condition "$job" "$namespace" Failed; then
+      echo "ERROR: $description failed" >&2
+      dump_job "$job" "$namespace"
+      return 1
+    fi
+    if (( SECONDS >= next_hb )); then
+      heartbeat "$description" "$deadline"
+      next_hb=$((SECONDS + HEARTBEAT_SECS))
+    fi
+    sleep 2
+  done
+  echo "timed out waiting: $description" >&2
+  dump_job "$job" "$namespace"
+  return 1
+}
+
 # Chunk long kubectl waits so the log keeps moving instead of going quiet for
 # PACKAGE_TIMEOUT seconds.
 kwl_wait_condition() {
@@ -464,8 +506,7 @@ wait_for_package() {
       wait_for_object job mongodb-init 5g-core
       kwl_rollout_status "statefulset/mongodb rollout" \
         statefulset/mongodb -n 5g-core
-      kwl_wait_condition "job/mongodb-init complete" \
-        --for=condition=complete job/mongodb-init -n 5g-core
+      kwl_wait_job "job/mongodb-init complete" mongodb-init 5g-core
       wait_for_object deployment amf 5g-core
       kwl_wait_condition "5g-core deployments Available" \
         --for=condition=Available deployment --all -n 5g-core
@@ -481,8 +522,7 @@ wait_for_package() {
       ;;
     verify-e2)
       wait_for_object job verify-e2 oran-verify
-      kwl_wait_condition "job/verify-e2 complete" \
-        --for=condition=complete job/verify-e2 -n oran-verify
+      kwl_wait_job "job/verify-e2 complete" verify-e2 oran-verify
       ;;
     xapp-simple-mon)
       wait_for_object deployment r4-simple-mon ricxapp
@@ -492,13 +532,11 @@ wait_for_package() {
     xapp-lifecycle)
       apply_xapp_lifecycle_settings
       wait_for_object job xapp-lifecycle oran-verify
-      kwl_wait_condition "job/xapp-lifecycle complete" \
-        --for=condition=complete job/xapp-lifecycle -n oran-verify
+      kwl_wait_job "job/xapp-lifecycle complete" xapp-lifecycle oran-verify
       ;;
     verify-ue)
       wait_for_object job verify-ue oran-verify
-      kwl_wait_condition "job/verify-ue complete" \
-        --for=condition=complete job/verify-ue -n oran-verify
+      kwl_wait_job "job/verify-ue complete" verify-ue oran-verify
       ;;
     monitoring)
       wait_for_object deployment monitoring-grafana monitoring
