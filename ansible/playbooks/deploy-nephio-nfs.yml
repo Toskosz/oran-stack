@@ -37,6 +37,8 @@
     deploy_ue_wait_delay: 10
     deploy_ue_attach_required: true
     deploy_force_fresh: false
+    deploy_from_package: ""
+    deploy_packages: ""
 
   tasks:
     - name: Verify deployment inputs
@@ -67,6 +69,12 @@
         cmd=({{ deploy_script | quote }})
         {% if deploy_force_fresh | bool %}
         cmd+=(--force-fresh)
+        {% endif %}
+        {% if deploy_from_package | default('') | length > 0 %}
+        cmd+=(--from-package {{ deploy_from_package | quote }})
+        {% endif %}
+        {% if deploy_packages | default('') | length > 0 %}
+        cmd+=(--packages {{ deploy_packages | quote }})
         {% endif %}
         log={{ deploy_log | quote }}
         if command -v stdbuf >/dev/null 2>&1; then

@@ -78,15 +78,30 @@ declare -A UPSTREAM_WORKSPACE
 
 usage() {
   cat <<'EOF'
-Usage: deploy-oran-lab.sh [--force-fresh]
+Usage: deploy-oran-lab.sh [--force-fresh] [--from-package NAME] [--packages LIST]
 
-  --force-fresh  Publish fresh downstream revisions even if workloads exist.
+  --force-fresh     Publish fresh downstream revisions even if workloads exist.
+  --from-package    Skip packages before NAME (use with --force-fresh to
+                    republish a failed gate and continue the rest).
+  --packages        Comma-separated package list to publish (others skipped).
 EOF
 }
 
+FROM_PACKAGE=""
+ONLY_PACKAGES=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --force-fresh) FORCE_FRESH=true ;;
+    --from-package)
+      [[ -n "${2:-}" ]] || { echo "--from-package requires a package name" >&2; exit 2; }
+      FROM_PACKAGE="$2"
+      shift
+      ;;
+    --packages)
+      [[ -n "${2:-}" ]] || { echo "--packages requires a list" >&2; exit 2; }
+      ONLY_PACKAGES="$2"
+      shift
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -113,6 +128,8 @@ if [[ "${ORAN_DEPLOY_STDBUF:-}" != "1" && ! -t 1 ]] && \
   export ORAN_DEPLOY_STDBUF=1
   reexec_args=()
   $FORCE_FRESH && reexec_args+=(--force-fresh)
+  [[ -n "$FROM_PACKAGE" ]] && reexec_args+=(--from-package "$FROM_PACKAGE")
+  [[ -n "$ONLY_PACKAGES" ]] && reexec_args+=(--packages "$ONLY_PACKAGES")
   exec stdbuf -oL -eL bash "$0" "${reexec_args[@]}"
 fi
 
@@ -140,8 +157,7 @@ timing_end() {
   t0="${TIMING_T0[$step]}"
   unset "TIMING_T0[$step]"
   [[ -f "$TIMING_PY" ]] && command -v python3 >/dev/null 2>&1 || return 0
-  python3 "$TIMING_PY" record \
-    --db "$TIMING_DB" \
+  python3 "$TIMING_PY" --db "$TIMING_DB" record \
     --workspace "$RUN_WORKSPACE" \
     --package "${CURRENT_PACKAGE:-}" \
     --step "$step" \
@@ -153,8 +169,7 @@ timing_end() {
 
 timing_note() {
   [[ -f "$TIMING_PY" ]] && command -v python3 >/dev/null 2>&1 || return 0
-  python3 "$TIMING_PY" hint \
-    --db "$TIMING_DB" \
+  python3 "$TIMING_PY" --db "$TIMING_DB" hint \
     --package "${CURRENT_PACKAGE:-}" \
     --step "$1" \
     --elapsed "$2" \
@@ -623,6 +638,27 @@ wait_for_package() {
       ;;
     near-rt-ric)
       wait_for_object deployment ric-e2term near-rt-ric
+      # A1 must be headless so RTMgr can open an RMR wormhole to the pod
+      # (same reason as e2term). clusterIP is immutable, so recreate the
+      # Service if Config Sync left a ClusterIP behind.
+      a1_deadline=$((SECONDS + 120))
+      while (( SECONDS < a1_deadline )); do
+        a1_cip="$(kwl get svc ric-a1mediator -n near-rt-ric -o jsonpath='{.spec.clusterIP}' 2>/dev/null || true)"
+        if [[ "${a1_cip}" == "None" ]]; then
+          echo "==> ric-a1mediator is headless"
+          break
+        fi
+        if [[ -n "${a1_cip}" ]]; then
+          echo "==> Recreating ric-a1mediator as a headless Service (was ClusterIP ${a1_cip})"
+          kwl delete svc ric-a1mediator -n near-rt-ric --ignore-not-found
+        fi
+        sleep 3
+      done
+      a1_cip="$(kwl get svc ric-a1mediator -n near-rt-ric -o jsonpath='{.spec.clusterIP}' 2>/dev/null || true)"
+      if [[ "${a1_cip}" != "None" ]]; then
+        echo "ric-a1mediator is not headless (clusterIP=${a1_cip:-missing})" >&2
+        return 1
+      fi
       kwl_wait_condition "near-rt-ric deployments Available" \
         --for=condition=Available deployment --all -n near-rt-ric
       ;;
@@ -803,11 +839,37 @@ if ! package_present 5g-core && \
   FORCE_FRESH=true
 fi
 
+from_package_seen=true
+if [[ -n "$FROM_PACKAGE" ]]; then
+  from_package_seen=false
+  valid_from=false
+  for package in "${PACKAGES[@]}"; do
+    [[ "$package" == "$FROM_PACKAGE" ]] && valid_from=true
+  done
+  if ! $valid_from; then
+    echo "unknown --from-package: $FROM_PACKAGE" >&2
+    exit 2
+  fi
+fi
+
 if $FORCE_FRESH; then
   pause_variants
 fi
 
 for package in "${PACKAGES[@]}"; do
+  if [[ -n "$ONLY_PACKAGES" ]]; then
+    case ",$ONLY_PACKAGES," in
+      *",$package,"*) ;;
+      *) continue ;;
+    esac
+  fi
+  if ! $from_package_seen; then
+    if [[ "$package" == "$FROM_PACKAGE" ]]; then
+      from_package_seen=true
+    else
+      continue
+    fi
+  fi
   CURRENT_PACKAGE="$package"
   echo "==== $package ===="
   timing_begin "package"
