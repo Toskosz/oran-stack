@@ -122,6 +122,10 @@
       deployment/ric-rtmgr -n {{ namespaces.ric }} --timeout=300s
   changed_when: false
 
+# Do not bounce A1 after RTMgr. rtmgr pins A1's pod IP in /etc/hosts and
+# looks up the platform endpoint as A1MEDIATOR. Recreating A1 stale-pins
+# that IP and the wormhole never attaches.
+
 - name: Wait for RTMgr to push platform routes to the xApp
   ansible.builtin.shell: |
     set -euo pipefail
@@ -203,7 +207,7 @@
   changed_when: false
 
 - name: Keep subscription routes installed and wait for KPM indication
-  # rtmgr hardcodes a lookup for Platform component "A1Mediator". That
+  # rtmgr hardcodes a lookup for Platform component "A1MEDIATOR". That
   # component is now listed in PlatformComponents so the lookup succeeds.
   # Keep this re-POST loop as a backstop if A1's RMR wormhole flaps and
   # rtmgr still emits a newrt that wipes mse|12050|<subid>.

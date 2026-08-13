@@ -145,9 +145,8 @@ data:
       - name: E2MAN
         fqdn: ric-e2mgr
         port: 3801
-      # rtmgr hardcodes a lookup for this name. If it is missing, rtmgr
-      # redistributes a full newrt every ~10s and wipes mse|12050|<subid>.
-      - name: A1Mediator
+      # rtmgr looks up this name case-sensitively as "A1MEDIATOR".
+      - name: A1MEDIATOR
         fqdn: ric-a1mediator
         port: 4562
     PlatformRoutes:
@@ -256,7 +255,7 @@ data:
       - "RIC_E2NODE_CONFIG_UPDATE_FAILURE=12072"
       - "RIC_HEALTH_CHECK_REQ=100"
       - "RIC_HEALTH_CHECK_RESP=101"
-    # A1_POLICY_* stay omitted (no A1 policy traffic in this lab). A1Mediator
+    # A1_POLICY_* stay omitted (no A1 policy traffic in this lab). A1MEDIATOR
     # must still be listed under PlatformComponents: rtmgr looks it up even
     # without those message types, and a miss triggers newrt wipes of 12050.
     local:
@@ -282,7 +281,7 @@ data:
       timeout: 30
 
   rt.json: |
-    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"A1Mediator","fqdn":"ric-a1mediator","port":4562}]}
+    {"XApps":[],"E2Ts":{},"MeidMap":[],"Pcs":[{"name":"E2TERM","fqdn":"ric-e2term","port":38000},{"name":"SUBMAN","fqdn":"ric-submgr","port":4560},{"name":"E2MAN","fqdn":"ric-e2mgr","port":3801},{"name":"A1MEDIATOR","fqdn":"ric-a1mediator","port":4562}]}
 ---
 # --- submgr configuration ----------------------------------------------------
 apiVersion: v1
@@ -392,10 +391,13 @@ metadata:
 data:
   config.yaml: |
     log-level: debug
-    NAME: ""
+    NAME: "A1Mediator"
     MAX_SIZE: 65534
     THREAD_TYPE: 0
     LOW_LATENCY: false
     FAST_ACK: false
     MAX_RETRY_ON_FAILURE: 1
     PORT: 4562
+  a1mediator.rt: |
+    newrt|start
+    newrt|end

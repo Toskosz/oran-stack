@@ -11,7 +11,7 @@ PlatformComponents:
   - name: E2MAN
     fqdn: ric-e2mgr
     port: 3801
-  - name: A1Mediator
+  - name: A1MEDIATOR
     fqdn: ric-a1mediator
     port: 4562
 PlatformRoutes:

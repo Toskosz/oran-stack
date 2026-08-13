@@ -1,5 +1,5 @@
 log-level: debug
-NAME: ""
+NAME: "A1Mediator"
 MAX_SIZE: 65534
 THREAD_TYPE: 0
 LOW_LATENCY: false

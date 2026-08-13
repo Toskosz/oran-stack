@@ -417,6 +417,22 @@ spec:
           volumeMounts:
             - name: shared
               mountPath: /shared
+        # RMR wormholes A1 on port 4561. Headless DNS can miss during A1
+        # Recreate; pin the pod IP into /etc/hosts like submgr.
+        - name: resolve-a1-ip
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              until getent hosts ric-a1mediator > /tmp/out; do
+                echo "waiting for ric-a1mediator DNS..."; sleep 2;
+              done
+              awk '{print $1}' /tmp/out > /shared/a1-ip
+              echo "Resolved ric-a1mediator to: $(cat /shared/a1-ip)"
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
       containers:
         - name: rtmgr
           image: {{ .Values.images.rtmgr.repository }}:{{ .Values.images.rtmgr.tag }}
@@ -429,6 +445,8 @@ spec:
             - |
               SUBMGR_IP=$(cat /shared/submgr-ip)
               echo "${SUBMGR_IP}  service-ricplt-submgr-http.ricplt" >> /etc/hosts
+              A1_IP=$(cat /shared/a1-ip)
+              echo "${A1_IP}  ric-a1mediator" >> /etc/hosts
               exec /run_rtmgr.sh
           env:
             - name: RMR_SEED_RT
@@ -750,15 +768,22 @@ spec:
               value: ric-a1mediator
             - name: RMR_RTG_SVC
               value: "ric-rtmgr:4561"
+            - name: RMR_SEED_RT
+              value: /opt/a1-mediator/a1mediator.rt
           ports:
             - containerPort: 10000
               name: http
             - containerPort: 4562
               name: rmr
+            - containerPort: 4561
+              name: rmr-mgmt
           volumeMounts:
             - name: a1mediator-config
               mountPath: /opt/a1-mediator/config.yaml
               subPath: config.yaml
+            - name: a1mediator-config
+              mountPath: /opt/a1-mediator/a1mediator.rt
+              subPath: a1mediator.rt
           resources:
             requests:
               cpu: 100m
@@ -776,6 +801,11 @@ metadata:
   labels:
     app: ric-a1mediator
 spec:
+  # Headless so RMR wormholes target the pod IP. ClusterIP/kube-proxy
+  # yields invalid Wormhole IDs from rtmgr (same reason ric-e2term is
+  # headless).
+  clusterIP: None
+  publishNotReadyAddresses: true
   selector:
     app: ric-a1mediator
   ports:
@@ -785,3 +815,6 @@ spec:
     - name: rmr
       port: 4562
       targetPort: 4562
+    - name: rmr-mgmt
+      port: 4561
+      targetPort: 4561
