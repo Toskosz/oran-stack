@@ -38,14 +38,16 @@
       mongosh "mongodb://localhost:27017/?directConnection=true"
       --quiet --file /tmp/mongodb-init-rs.js
   register: rs_init
-  changed_when: "'initialized' in rs_init.stdout"
+  changed_when: >-
+    'initialized' in rs_init.stdout or
+    'reconfigured' in rs_init.stdout
 
 - name: Wait for MongoDB replica set PRIMARY
   ansible.builtin.command:
     cmd: >
       kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
       mongosh "mongodb://localhost:27017/?directConnection=true" --quiet --eval
-      "try { var s = rs.status(); quit(s.members[0].stateStr === 'PRIMARY' ? 0 : 1) } catch (e) { quit(1) }"
+      "try { quit(db.hello().isWritablePrimary ? 0 : 1) } catch (e) { quit(1) }"
   register: rs_primary
   until: rs_primary.rc == 0
   retries: 30
@@ -68,7 +70,7 @@
   ansible.builtin.command:
     cmd: >
       kubectl --kubeconfig={{ _kubeconfig }} exec -n {{ namespaces.core }} mongodb-0 -c mongodb --
-      mongosh open5gs --quiet --eval
+      mongosh "mongodb://localhost:27017/open5gs?directConnection=true" --quiet --eval
       'db.subscribers.countDocuments({imsi:"001010000000001"})'
   register: subscriber_count
   changed_when: false

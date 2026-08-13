@@ -1,5 +1,5 @@
 // Idempotent Open5GS admin + test subscriber seed.
-// Keep in sync with helm/5g-core/templates/configmap-mongodb-init.yaml (init-data.js).
+// Keep in sync with packages/blueprints/mongodb-init/job.yaml (mongodb-seed.js).
 
 db = db.getSiblingDB('admin');
 try {
@@ -13,7 +13,7 @@ try {
     { upsert: true }
   );
   print(adminResult.upsertedCount === 1 ? 'Admin user initialized' : 'Admin user already exists');
-} catch (e) { print('Admin: ' + e.message); }
+} catch (e) { print('Admin: ' + e.message); throw e; }
 
 db = db.getSiblingDB('open5gs');
 
@@ -36,7 +36,7 @@ try {
     { upsert: true }
   );
   print('5G subscriber seeded: 001010000000001');
-} catch (e) { print('5G subscriber: ' + e.message); }
+} catch (e) { print('5G subscriber: ' + e.message); throw e; }
 
 try {
   db.auths.updateOne(
@@ -51,4 +51,4 @@ try {
     { upsert: true }
   );
   print('5G auth seeded');
-} catch (e) { print('5G auth: ' + e.message); }
+} catch (e) { print('5G auth: ' + e.message); throw e; }
