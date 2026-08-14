@@ -91,12 +91,6 @@
       text-transform: uppercase;
     }
 
-    .slide.accent-cyan::before { background: var(--cyan); }
-    .slide.accent-amber::before { background: var(--amber); }
-    .slide.accent-rose::before { background: var(--rose); }
-    .slide.accent-purple::before { background: var(--purple); }
-    .slide.accent-green::before { background: var(--green); }
-
     .eyebrow {
       margin: 0 0 1.2%;
       color: var(--blue);
@@ -134,6 +128,11 @@
       line-height: 1.07;
       letter-spacing: -0.035em;
       color: var(--blue);
+    }
+
+    .slide:nth-child(even) h1,
+    .slide:nth-child(even) h2 {
+      color: var(--green);
     }
 
     h3 {
@@ -293,6 +292,7 @@
     .accent-rose ul.clean li::before { background: var(--rose); }
     .accent-purple ul.clean li::before { background: var(--purple); }
     .accent-green ul.clean li::before { background: var(--green); }
+    .slide ul.clean.blue li::before { background: var(--blue); }
 
     table {
       width: 100%;
@@ -482,34 +482,37 @@
 
     .stack-list {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 1.25%;
+      grid-template-columns: 1fr;
+      grid-template-rows: repeat(5, 1fr);
+      gap: 1.4%;
       height: 100%;
     }
 
     .stack-item {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 22% 1fr;
+      align-items: center;
+      gap: 3%;
       min-width: 0;
-      padding: 9%;
-      border-top: 0.35rem solid var(--blue);
+      min-height: 0;
+      padding: 0 3.2%;
+      border-left: 0.35rem solid var(--blue);
       background: var(--surface);
     }
 
-    .stack-item:nth-child(2) { border-top-color: var(--cyan); }
-    .stack-item:nth-child(3) { border-top-color: var(--amber); }
-    .stack-item:nth-child(4) { border-top-color: var(--purple); }
-    .stack-item:nth-child(5) { border-top-color: var(--green); }
+    .stack-item:nth-child(2) { border-left-color: var(--cyan); }
+    .stack-item:nth-child(3) { border-left-color: var(--amber); }
+    .stack-item:nth-child(4) { border-left-color: var(--purple); }
+    .stack-item:nth-child(5) { border-left-color: var(--green); }
 
     .stack-item strong {
-      font-size: clamp(17px, 1.65vw, 28px);
+      font-size: clamp(18px, 1.7vw, 28px);
       line-height: 1.1;
     }
 
     .stack-item span {
       color: var(--muted);
-      font-size: clamp(11px, 1.02vw, 17px);
+      font-size: clamp(14px, 1.28vw, 22px);
       line-height: 1.35;
     }
 
@@ -556,6 +559,15 @@
     .lane-arrow {
       color: var(--muted);
       font-size: clamp(16px, 1.5vw, 25px);
+    }
+
+    .lane-time {
+      display: block;
+      margin-top: 0.4em;
+      color: var(--cyan);
+      font-size: clamp(12px, 1.12vw, 19px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
     }
 
     @media (max-aspect-ratio: 4/3) {
@@ -631,9 +643,8 @@
       <div class="footer"><span>oran-stack · rede</span><span>01</span></div>
     </section>
 
-    <section class="slide" data-title="O que o repositório implanta">
-      <p class="eyebrow">Visão geral do sistema</p>
-      <h2>Um laboratório, cinco subsistemas conectados</h2>
+    <section class="slide" data-title="Visão geral do sistema">
+      <h2>Visão geral do sistema</h2>
       <div class="content stack-list">
         <article class="stack-item">
           <strong>Núcleo 5G</strong>
@@ -659,9 +670,8 @@
       <div class="footer"><span class="source">Fonte: README.md · Arquitetura</span><span>02</span></div>
     </section>
 
-    <section class="slide accent-amber" data-title="Duas opções de infraestrutura">
-      <p class="eyebrow">Opções de deploy</p>
-      <h2>A mesma rede de workload em dois ambientes</h2>
+    <section class="slide accent-amber" data-title="Deploy">
+      <h2>Deploy</h2>
       <div class="content grid-2">
         <article class="card">
           <span class="kicker">Opção A · GCP</span>
@@ -689,9 +699,8 @@
       <div class="footer"><span class="source">Fontes: GCP_RUNBOOK.md · HOME_LAB_DHCP.md</span><span>03</span></div>
     </section>
 
-    <section class="slide accent-green" data-title="Tamanho das instâncias">
-      <p class="eyebrow">Dimensionamento</p>
-      <h2>O worker concentra a carga; 4 vCPU é o piso</h2>
+    <section class="slide accent-green" data-title="Recursos das VMs">
+      <h2>Recursos das VMs</h2>
       <div class="content grid-3">
         <article class="card">
           <span class="kicker">Workload · cp1</span>
@@ -715,9 +724,8 @@
       <div class="footer"><span class="source">Fontes: ansible/roles/gcp_vm/defaults · vars.yml · LAB_SERVER_VPN.md · LEARNINGS.md §40</span><span>04</span></div>
     </section>
 
-    <section class="slide accent-purple" data-title="Arquitetura com clusters separados">
-      <p class="eyebrow">Gerenciamento e workload</p>
-      <h2>O Nephio roda num cluster; as funções de rede, noutro</h2>
+    <section class="slide accent-purple" data-title="Topologia de clusters: orquestração e NFs separados">
+      <h2>Topologia de clusters: orquestração e NFs separados</h2>
       <div class="content diagram" role="img" aria-label="O controlador Ansible conecta-se aos clusters de gerenciamento e workload; o gerenciamento aplica a configuração ao workload">
         <svg viewBox="0 0 1400 560" aria-hidden="true">
           <defs>
@@ -860,14 +868,14 @@
       <div class="footer"><span class="source">Fonte: docs/NEPHIO.md · packages/variants</span><span>08</span></div>
     </section>
 
-    <section class="slide" data-title="Como o Helm é usado">
-      <p class="eyebrow">Geração de manifestos</p>
-      <h2>Helm é a fonte dos charts — não o implantador principal</h2>
+    <section class="slide" data-title="Helm como fonte de charts">
+      <p class="eyebrow">Helm</p>
+      <h2>Geração de blueprints</h2>
       <div class="content grid-4">
         <article class="card">
           <span class="kicker">01 · Criar</span>
-          <h3>Mantém templates dos charts</h3>
-          <p class="muted"><code>helm/5g-core</code>, <code>ran</code>, <code>near-rt-ric</code>, <code>xapps</code> e <code>monitoring</code>.</p>
+          <h3>Mantém os templates</h3>
+          <p class="muted">Charts em <code>helm/5g-core</code>, <code>ran</code>, <code>near-rt-ric</code>, <code>xapps</code> e <code>monitoring</code> continuam sendo a fonte dos manifestos.</p>
         </article>
         <article class="card">
           <span class="kicker">02 · Configurar</span>
@@ -877,7 +885,7 @@
         <article class="card">
           <span class="kicker">03 · Renderizar</span>
           <h3>Gera blueprints kpt</h3>
-          <p class="muted"><code>render-nephio-packages.sh</code> executa o Helm e grava manifestos versionados em <code>packages/blueprints</code>.</p>
+          <p class="muted"><code>render-nephio-packages.sh</code> executa <code>helm template</code> e grava YAML versionado em <code>packages/blueprints</code>.</p>
         </article>
         <article class="card">
           <span class="kicker">04 · Verificar</span>
@@ -885,10 +893,10 @@
           <p class="muted"><code>--check</code> renderiza em um diretório temporário e verifica se os pacotes versionados permanecem atualizados.</p>
         </article>
       </div>
-      <div class="callout blue" style="margin-top: 1.5%;">
-        O caminho legado Ansible → Helm está obsoleto; ele não deve controlar os mesmos objetos que o Nephio.
+      <div class="callout" style="margin-top: 1.5%;">
+        O Helm não sai do fluxo — só muda o momento. Ele templateia antes do GitOps; Porch e Config Sync aplicam. <code>helm install</code> é o caminho legado.
       </div>
-      <div class="footer"><span class="source">Fonte: scripts/render-nephio-packages.sh · README.md</span><span>09</span></div>
+      <div class="footer"><span class="source">Fonte: scripts/render-nephio-packages.sh · README.md · docs/NEPHIO.md</span><span>09</span></div>
     </section>
 
     <section class="slide accent-amber" data-title="Docker e Docker Hub">
@@ -920,9 +928,8 @@
       <div class="footer"><span class="source">Fonte: ansible/playbooks/build_images.yml · role container_images</span><span>10</span></div>
     </section>
 
-    <section class="slide accent-purple" data-title="Versões de software de terceiros">
-      <p class="eyebrow">Inventário de software</p>
-      <h2>Versões de terceiros e política de fixação</h2>
+    <section class="slide accent-purple" data-title="Inventário de software">
+      <h2>Inventário de software</h2>
       <div class="content grid-2">
         <div>
           <h3>Plataforma e implantação</h3>
@@ -939,8 +946,8 @@
                 <tr><td>porchctl</td><td class="mono">v1.5.6</td></tr>
                 <tr><td>Flannel</td><td class="mono">v0.25.4</td></tr>
                 <tr><td>CNAO</td><td class="mono">v0.101.0-rc-0</td></tr>
-                <tr><td>Multus</td><td><span class="highlight-rose">master · não fixado</span></td></tr>
-                <tr><td>Open vSwitch</td><td>Pacote Ubuntu · não fixado</td></tr>
+                <tr><td>Multus</td><td>master · <span class="highlight-rose">não fixado</span></td></tr>
+                <tr><td>Open vSwitch</td><td>Pacote Ubuntu · <span class="highlight-rose">não fixado</span></td></tr>
               </tbody>
             </table>
           </div>
@@ -953,8 +960,8 @@
               <tbody>
                 <tr><td>Base Ubuntu</td><td class="mono">22.04 LTS</td></tr>
                 <tr><td>OCUDU CU/DU</td><td class="mono">release_26_04</td></tr>
-                <tr><td>Open5GS</td><td><span class="mono">2.7.x</span> alvo; fonte não fixada</td></tr>
-                <tr><td>srsUE</td><td>branch padrão do srsRAN_4G · não fixada</td></tr>
+                <tr><td>Open5GS</td><td><span class="mono">2.7.x</span> alvo; fonte <span class="highlight-rose">não fixada</span></td></tr>
+                <tr><td>srsUE</td><td>branch padrão do srsRAN_4G · <span class="highlight-rose">não fixada</span></td></tr>
                 <tr><td>MongoDB</td><td class="mono">7.0</td></tr>
                 <tr><td>RIC e2 / e2mgr</td><td class="mono">6.0.8</td></tr>
                 <tr><td>Plataforma RIC</td><td class="mono">dbaas 0.6.5 · appmgr 0.5.4 · submgr 0.10.4 · rtmgr 0.9.6 · A1 3.2.2</td></tr>
@@ -979,11 +986,11 @@
               <div class="lane-title" style="margin-top: 0.65em;">Cluster O-RAN</div>
             </div>
             <div class="lane-flow">
-              <div class="lane-node"><code>gcp-vm-create.yml</code><br><span class="muted">VMs GCP opcionais</span></div>
+              <div class="lane-node"><code>gcp-vm-create.yml</code><br><span class="muted">VMs GCP opcionais</span><span class="lane-time">~4 min</span></div>
               <span class="lane-arrow">→</span>
-              <div class="lane-node"><code>provision.yml</code><br><span class="muted">kubeadm + CNI + OVS</span></div>
+              <div class="lane-node"><code>provision.yml</code><br><span class="muted">kubeadm + CNI + OVS</span><span class="lane-time">~12 min</span></div>
               <span class="lane-arrow">→</span>
-              <div class="lane-node"><code>build_images.yml</code><br><span class="muted">constrói + envia imagens</span></div>
+              <div class="lane-node"><code>build_images.yml</code><br><span class="muted">constrói + envia imagens</span><span class="lane-time">~20 min</span></div>
             </div>
           </div>
         </div>
@@ -994,21 +1001,20 @@
               <div class="lane-title" style="margin-top: 0.65em;">Cluster Nephio</div>
             </div>
             <div class="lane-flow">
-              <div class="lane-node"><code>gcp-vm-create-mgmt.yml</code><br><span class="muted">VM de gerência opcional</span></div>
+              <div class="lane-node"><code>gcp-vm-create-mgmt.yml</code><br><span class="muted">VM de gerência opcional</span><span class="lane-time">~3 min</span></div>
               <span class="lane-arrow">→</span>
-              <div class="lane-node"><code>provision-mgmt.yml</code><br><span class="muted">kubeadm de gerenciamento</span></div>
+              <div class="lane-node"><code>provision-mgmt.yml</code><br><span class="muted">kubeadm de gerenciamento</span><span class="lane-time">~8 min</span></div>
               <span class="lane-arrow">→</span>
-              <div class="lane-node"><code>bootstrap-nephio.yml</code><br><span class="muted">Porch + controladores</span></div>
+              <div class="lane-node"><code>bootstrap-nephio.yml</code><br><span class="muted">Porch + controladores</span><span class="lane-time">~12 min</span></div>
             </div>
           </div>
         </div>
-        <div class="grid-3" style="margin-top: 1.5%;">
+        <div class="grid-2" style="margin-top: 1.5%;">
           <article class="card compact"><span class="kicker">Saída de provision.yml</span><strong><code>./kubeconfig</code></strong></article>
           <article class="card compact"><span class="kicker">Saída de provision-mgmt.yml</span><strong><code>./kubeconfig-mgmt</code></strong></article>
-          <article class="card compact"><span class="kicker">BYO / VPN</span><strong>Pule a criação das VMs; forneça um inventário</strong></article>
         </div>
       </div>
-      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision*.yml · bootstrap-nephio.yml · build_images.yml</span><span>12</span></div>
+      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision*.yml · bootstrap-nephio.yml · build_images.yml · tempos médios no laboratório GCP</span><span>12</span></div>
     </section>
 
     <section class="slide accent-green" data-title="Scripts de implantação: workloads">
@@ -1017,13 +1023,13 @@
       <div class="content" style="display: flex; flex-direction: column; justify-content: center;">
         <div class="lane">
           <div class="lane-flow">
-            <div class="lane-node"><code>workload-gitops.yml</code><br><span class="muted">Config Sync + RootSync + secrets</span></div>
+            <div class="lane-node"><code>workload-gitops.yml</code><br><span class="muted">Config Sync + RootSync + secrets</span><span class="lane-time">~8 min</span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node"><code>deploy-nephio-nfs.yml</code><br><span class="muted">publica pacotes em ordem</span></div>
+            <div class="lane-node"><code>deploy-nephio-nfs.yml</code><br><span class="muted">publica pacotes em ordem</span><span class="lane-time">~15 min</span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node"><code>verify-only.yml</code><br><span class="muted">repete gates E2 / xApp / UE</span></div>
+            <div class="lane-node"><code>verify-only.yml</code><br><span class="muted">repete gates E2 / xApp / UE</span><span class="lane-time">~3 min</span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node"><code>teardown*.yml</code><br><span class="muted">reseta workload / gerenciamento</span></div>
+            <div class="lane-node"><code>teardown*.yml</code><br><span class="muted">reseta workload / gerenciamento</span><span class="lane-time">~5 min</span></div>
           </div>
         </div>
         <div class="grid-3" style="margin-top: 2%;">
@@ -1037,11 +1043,11 @@
           </article>
           <article class="card compact">
             <span class="kicker">Após editar os charts</span>
-            <strong>Execute <code>render-nephio-packages.sh</code> antes da implantação</strong>
+            <strong>Execute <code>render-nephio-packages.sh</code> antes da implantação · média ~2 s</strong>
           </article>
         </div>
       </div>
-      <div class="footer"><span class="source">Fontes: workload-gitops.yml · deploy-nephio-nfs.yml · verify-only.yml</span><span>13</span></div>
+      <div class="footer"><span class="source">Fontes: workload-gitops.yml · deploy-nephio-nfs.yml · verify-only.yml · tempos médios no laboratório GCP</span><span>13</span></div>
     </section>
 
     <section class="slide accent-cyan" data-title="Ferramentas de rede do Kubernetes">
@@ -1080,7 +1086,7 @@
     </section>
 
     <section class="slide accent-cyan" data-title="Rede Kubernetes em dois planos">
-      <p class="eyebrow">Projeto central</p>
+      <p class="eyebrow">CNI e comutação</p>
       <h2>Dois caminhos de dados atendem a protocolos distintos</h2>
       <div class="content">
         <div class="lane">
@@ -1123,7 +1129,6 @@
     </section>
 
     <section class="slide accent-rose" data-title="Por que o OVS existe">
-      <p class="eyebrow">Justificativa do projeto</p>
       <h2>Associações SCTP precisam de um caminho previsível</h2>
       <div class="content grid-2" style="align-items: stretch;">
         <article class="card" style="border-top: 0.35rem solid var(--rose);">
@@ -1134,25 +1139,15 @@
             <li>A tradução dos Services envolvia kube-proxy / conntrack</li>
             <li>Associações N2 e F1 podiam oscilar após o setup</li>
           </ul>
-          <div class="chip-row" style="margin-top: 1.2em;">
-            <span class="chip rose">DNAT</span>
-            <span class="chip rose">conntrack</span>
-            <span class="chip rose">perda de associação</span>
-          </div>
         </article>
         <article class="card" style="border-top: 0.35rem solid var(--cyan);">
           <span class="kicker">Solução atual</span>
           <h3>Domínios L2 dedicados via Multus</h3>
-          <ul class="clean">
+          <ul class="clean blue">
             <li>Cada endpoint SCTP recebe um IP secundário estático</li>
             <li>Bridges OVS conectam os pods diretamente</li>
             <li>VXLAN estende cada bridge entre os nós</li>
           </ul>
-          <div class="chip-row" style="margin-top: 1.2em;">
-            <span class="chip cyan">L2 direto</span>
-            <span class="chip cyan">IP de bind estático</span>
-            <span class="chip cyan">sem DNAT de Service</span>
-          </div>
         </article>
       </div>
       <div class="callout rose" style="margin-top: 1.5%;">
@@ -1180,8 +1175,8 @@
             <tr>
               <td><strong class="highlight-blue mono">n2br</strong></td>
               <td class="mono">10.200.1.0/24</td>
-              <td class="mono highlight-amber">.2</td>
-              <td class="mono highlight-green">.3</td>
+              <td class="mono highlight-amber">10.200.1.2</td>
+              <td class="mono highlight-green">10.200.1.3</td>
               <td class="muted">—</td>
               <td class="muted">—</td>
             </tr>
@@ -1189,25 +1184,20 @@
               <td><strong class="highlight-purple mono">f1cbr</strong></td>
               <td class="mono">10.200.2.0/24</td>
               <td class="muted">—</td>
-              <td class="mono highlight-green">.2</td>
-              <td class="mono highlight-green">.3</td>
+              <td class="mono highlight-green">10.200.2.2</td>
+              <td class="mono highlight-green">10.200.2.3</td>
               <td class="muted">—</td>
             </tr>
             <tr>
               <td><strong class="highlight mono">e2br</strong></td>
               <td class="mono">10.200.3.0/24</td>
               <td class="muted">—</td>
-              <td class="mono highlight-green">.2</td>
-              <td class="mono highlight-green">.3</td>
-              <td class="mono highlight-purple">.4</td>
+              <td class="mono highlight-green">10.200.3.2</td>
+              <td class="mono highlight-green">10.200.3.3</td>
+              <td class="mono highlight-purple">10.200.3.4</td>
             </tr>
           </tbody>
         </table>
-      </div>
-      <div class="grid-3" style="margin-top: 1.5%;">
-        <div class="card compact"><span class="kicker">n2br</span>N2 / NGAP</div>
-        <div class="card compact"><span class="kicker">f1cbr</span>Plano de controle F1</div>
-        <div class="card compact"><span class="kicker">e2br</span>O-RAN E2AP</div>
       </div>
       <div class="footer"><span class="source">Fonte: README.md · vars.yml secondary_networks</span><span>17</span></div>
     </section>
@@ -1275,7 +1265,7 @@
             <li>Namespaces das NFs permitem workloads privilegiados</li>
             <li>A UPF exige <code>NET_ADMIN</code>, TUN e encaminhamento IP</li>
           </ul>
-          <p class="muted" style="margin-top: auto;">O isolamento hoje = namespaces + limites de bridge, não políticas leste-oeste.</p>
+          <p class="muted" style="margin-top: auto;">O isolamento hoje = namespaces + limites de bridge, não NetworkPolicies entre pods.</p>
         </div>
       </div>
       <div class="footer"><span class="source">Fonte: packages/blueprints/ns-and-secrets/namespaces.yaml</span><span>19</span></div>
@@ -1297,15 +1287,17 @@
           <text class="tiny" x="165" y="315" text-anchor="middle">5g-core</text>
 
           <rect class="node node-green" x="430" y="95" rx="15" width="280" height="180"/>
-          <text class="label" x="570" y="148" text-anchor="middle">OCUDU CU</text>
-          <text class="small" x="570" y="187" text-anchor="middle">N2 .1.3 · F1-C .2.2</text>
-          <text class="small" x="570" y="220" text-anchor="middle">E2 .3.2</text>
-          <text class="tiny" x="570" y="250" text-anchor="middle">ran</text>
+          <text class="label" x="570" y="140" text-anchor="middle">OCUDU CU</text>
+          <text class="small" x="570" y="175" text-anchor="middle">N2 10.200.1.3</text>
+          <text class="small" x="570" y="204" text-anchor="middle">F1-C 10.200.2.2</text>
+          <text class="small" x="570" y="233" text-anchor="middle">E2 10.200.3.2</text>
+          <text class="tiny" x="570" y="262" text-anchor="middle">ran</text>
 
           <rect class="node node-green" x="430" y="340" rx="15" width="280" height="180"/>
-          <text class="label" x="570" y="393" text-anchor="middle">OCUDU DU</text>
-          <text class="small" x="570" y="432" text-anchor="middle">F1-C .2.3 · E2 .3.3</text>
-          <text class="tiny" x="570" y="478" text-anchor="middle">ran</text>
+          <text class="label" x="570" y="390" text-anchor="middle">OCUDU DU</text>
+          <text class="small" x="570" y="428" text-anchor="middle">F1-C 10.200.2.3</text>
+          <text class="small" x="570" y="457" text-anchor="middle">E2 10.200.3.3</text>
+          <text class="tiny" x="570" y="490" text-anchor="middle">ran</text>
 
           <rect class="node node-purple" x="1060" y="196" rx="15" width="300" height="150"/>
           <text class="label" x="1210" y="247" text-anchor="middle">RIC e2term</text>
@@ -1578,87 +1570,87 @@
     </section>
 
     <section class="slide accent-rose" data-title="Pedido de ajuda: srsUE">
-      <p class="eyebrow">Pedido de ajuda · srsUE</p>
-      <h2>Sidecar ZMQ no mesmo netns do DU — o attach nunca completa</h2>
-      <div class="content" style="display: flex; flex-direction: column; gap: 1.4%;">
+      <p class="eyebrow">Pedido de ajuda · srsUE · 2 corridas 14/08 (04:11Z e 12:07Z) · mesmo IDLE</p>
+      <h2>ZMQ ESTAB no localhost; PHY-SA nunca sai de IDLE</h2>
+      <div class="content" style="display: flex; flex-direction: column; gap: 1%;">
         <div class="chip-row">
-          <span class="chip rose">srsUE sidecar</span>
-          <span class="chip">ZMQ 127.0.0.1:2000/2001</span>
-          <span class="chip green">odu</span>
-          <span class="chip purple">F1-C 10.200.2.x · F1-U UDP 2153</span>
-          <span class="chip green">CU</span>
-          <span class="chip amber">N2 AMF 10.200.1.2</span>
+          <span class="chip rose">srsUE 25.10.0 sidecar</span>
+          <span class="chip">ZMQ 127.0.0.1 ESTAB</span>
+          <span class="chip green">F1 + NG + KPM</span>
+          <span class="chip amber">CU ues=0</span>
+          <span class="chip rose">verify-ue 18/18 Failed</span>
         </div>
         <div class="grid-2" style="flex: 1; min-height: 0; align-items: stretch;">
           <div class="table-wrap">
             <table class="version-table" aria-label="Configuração de rádio e UE">
-              <thead><tr><th>Parâmetro</th><th>Valor</th></tr></thead>
+              <thead><tr><th>Parâmetro</th><th>Valor no pod</th></tr></thead>
               <tbody>
-                <tr><td>Banda / ARFCN</td><td class="mono">n3 · dl_arfcn 368500</td></tr>
-                <tr><td>Largura / SCS</td><td class="mono">20 MHz · 15 kHz</td></tr>
-                <tr><td>PRB / CORESET0 / PRACH</td><td class="mono">106 · index 12 · config 1</td></tr>
-                <tr><td>Taxa de amostragem</td><td class="mono">23.04e6</td></tr>
-                <tr><td>ZMQ cruzado</td><td class="mono">DU tx:2000 rx:2001 · UE tx:2001 rx:2000</td></tr>
-                <tr><td>IMSI / APN</td><td class="mono">001010000000001 · internet</td></tr>
+                <tr><td>Banda / DL / SSB</td><td class="mono">n3 · ARFCN 368500 (1842.5 MHz) · SSB 368410 · UL 1747.5 MHz</td></tr>
+                <tr><td>Célula</td><td class="mono">20 MHz · SCS 15 · nrb106 · pci=1 · TAC 1 · PLMN 00101 · 1T1R</td></tr>
+                <tr><td>CORESET0 / PRACH</td><td class="mono">index 12 · prach_config_index 1 · root_seq 1 · ss0_index 0</td></tr>
+                <tr><td>srate / ZMQ</td><td class="mono">DU 23.04 · UE 23.04e6 · DU tx:2000 rx:2001 · UE tx:2001 rx:2000</td></tr>
+                <tr><td>Ganhos / LTE</td><td class="mono">DU tx/rx 75 · UE tx 80 rx 40 · rat.eutra nof_carriers=0</td></tr>
+                <tr><td>USIM / APN</td><td class="mono">IMSI 001010000000001 · milenage · APN internet · RRC rel 15</td></tr>
+                <tr><td>Imagens</td><td class="mono">ocudu@427fc5ef · srsue@577aff78 · tag latest</td></tr>
               </tbody>
             </table>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 4%;">
+          <div style="display: flex; flex-direction: column; gap: 2.5%;">
             <article class="card compact">
-              <span class="kicker">Versões</span>
+              <span class="kicker">Stack no pod</span>
               <ul class="clean">
-                <li>OCUDU <code>release_26_04</code></li>
-                <li>srsUE: branch padrão do srsRAN_4G · <strong>não fixada</strong> (<code>git clone --depth 1</code>)</li>
-                <li>Open5GS 2.7.x · fonte não fixada</li>
+                <li>OCUDU <code>release_26_04</code> pinado · DU <code>all_level=info</code> · <code>phy_rx_symbols_prach: false</code></li>
+                <li>srsUE <code>Version 25.10.0</code> · srsRAN_4G <code>git clone --depth 1</code> <strong>não pinado</strong> · <code>phy_level=debug</code></li>
+                <li>Sidecar privileged + <code>stdin/tty</code> no mesmo netns · wait LISTEN-only + 40 s (não <code>/dev/tcp</code>)</li>
+                <li>Open5GS 2.7.x · MongoDB IMSI count <strong>1</strong></li>
               </ul>
             </article>
             <article class="card compact">
-              <span class="kicker">Gate verify-ue</span>
-              <p>Exige <strong>RRC Connected</strong> e <strong>PDU Session Established</strong> nos logs do sidecar. Sem PHY sync não há PRACH, RRC nem NAS.</p>
+              <span class="kicker">Já funciona (não é o bloqueio)</span>
+              <p>AMF gNB-N2 <code>10.200.1.3</code> · F1 Setup · célula ativada · E2 KPM no xApp · ZMQ ESTAB nos dois sentidos. ClusterIP entre pods só faz handshake (~100 B) e já foi descartado.</p>
             </article>
           </div>
         </div>
-        <div class="callout rose">O rádio é virtual: não há USRP. Na corrida 14/08 04h o ZMQ ESTAB depois do F1, mas o PHY ficou IDLE — o bloqueio passou da porta para sync de célula.</div>
+        <div class="callout rose">Pergunta: OCUDU <code>release_26_04</code> + srsUE <code>25.10.0</code>, n3 / 368500 / SSB 368410 / CORESET0 12 / srate 23.04e6 — depois do F1 o PHY deveria ver MIB, ou este par ZMQ não transmite IQ?</div>
       </div>
-      <div class="footer"><span class="source">Fontes: helm/ran/values.yaml · configmap-ocudu-configs.yaml · dockerfiles/Dockerfile.srsue</span><span>27</span></div>
+      <div class="footer"><span class="source">Fontes: helm/ran · ue.conf/du.yml no pod · srsue --version · captura 14/08 12:07Z</span><span>27</span></div>
     </section>
 
     <section class="slide accent-amber" data-title="Evidência do attach srsUE">
-      <p class="eyebrow">Captura 14/08 04:11Z · LISTEN-only + F1 OK · docs/UE_ATTACH_CAPTURE-2026-08-14T041120Z.txt</p>
-      <h2>ZMQ conecta; PHY não sai de IDLE / PLMN-SEARCH</h2>
+      <p class="eyebrow">Corrida 14/08 12:05–12:59Z · pod ocudu-du-6994549cbb-lfsc5 · verify-ue Failed 18/18</p>
+      <h2>Célula no ar 55 s antes do UE; PHY emite IDLE uma vez e cala</h2>
       <div class="content grid-2" style="align-items: stretch;">
         <article class="card">
-          <span class="kicker">O que o force-fresh corrigiu</span>
+          <span class="kicker">Linha do tempo (UTC)</span>
           <ul class="clean">
-            <li><code>mongodb-init</code> Complete em 9 s (<code>oran-lab-settings</code> optional + apply local)</li>
-            <li>NADs Multus recriados em <code>near-rt-ric</code>/<code>ran</code> (e2term tinha <code>e2br-net not found</code>)</li>
-            <li>F1 Setup OK; <code>Cell scheduling was activated</code> às <code>04:04:52</code></li>
-            <li>srsUE: wait <strong>LISTEN-only</strong> + 40 s; sockets ESTAB em <code>:2000</code>/<code>:2001</code></li>
-            <li>Subscriber MongoDB IMSI <code>001010000000001</code> presente; AMF viu gNB N2</li>
+            <li><code>12:05:09</code> AMF gNB-N2 accept · CU NG Setup OK</li>
+            <li><code>12:05:59</code> DU ZMQ bind <code>:2000</code> / connect <code>:2001</code></li>
+            <li><code>12:06:05</code> F1 Setup OK · <code>Cell scheduling was activated</code> · F1 anuncia <code>scs15</code>/<code>nrb106</code></li>
+            <li><code>12:06:19</code> container srsue Running · <code>startedAt</code> fixo · <code>restartCount=0</code></li>
+            <li><code>12:06:59</code> wait LISTEN-only + 40 s · <code>Opening 1 channels … zmq</code></li>
+            <li><code>12:07:00</code> <code>PHY-SA SYNC state=IDLE tti=0</code> · <code>Discarding samples and sending tx_end</code> — <strong>únicas 2 linhas PHY-SA em 52 min</strong></li>
+            <li><code>12:07:07</code> <code>Attaching UE…</code> · NAS5G <code>DEREGISTERED / PLMN-SEARCH</code> até o SIGTERM</li>
+            <li><code>12:59:30</code> <code>kill 1</code>: <code>Switching off</code> · detach NAS em estado <code>NULL</code> · <code>Couldn't stop after 5s. Forcing exit.</code> · PID 1 continua <code>srsue</code>, mute, Ready, ~20% CPU</li>
           </ul>
         </article>
         <article class="card">
-          <span class="kicker">Onde o attach ainda falha</span>
+          <span class="kicker">Ausências (nenhum destes aparece)</span>
           <ul class="clean">
-            <li>PHY-SA: <code>SYNC state=IDLE</code>; sem MIB/SIB/PSS/SSS/PRACH</li>
-            <li>NAS5G: <code>DEREGISTERED / PLMN-SEARCH</code> desde <code>04:05:50</code></li>
-            <li><code>ue_mac.pcap</code> e <code>ue_nas.pcap</code> com <strong>0 bytes</strong></li>
-            <li>AMF sem Registration Request; CU sem NAS de UE</li>
-            <li>Gate xApp falhou no KPM indication (CU já envia E2 indication depois)</li>
+            <li>MIB / SIB / PSS / SSS / PRACH / Found Cell / RRC Connected / PDU Session</li>
+            <li>AMF Registration Request · CU <code>num_f1ap_ues=num_rrc_ues=num_ngap_ues=0</code> o intervalo todo</li>
+            <li>pcaps <code>ue_mac.pcap</code> / <code>ue_nas.pcap</code> = <strong>24 B</strong> (só header DLT 149/148, gravados no kill)</li>
+            <li>RLC/GW <code>0.00 Mbps</code> a 1 Hz até o SIGTERM · dump do gate <code>--tail=200</code> não vê o PHY-SA das 12:07</li>
+          </ul>
+          <span class="kicker" style="margin-top: 3%;">Descartado (esta corrida e a das 04:11Z)</span>
+          <ul class="clean">
+            <li>Deadlock <code>/dev/tcp:2000</code> — wait foi <code>/proc/net/tcp</code> estado <code>0A</code></li>
+            <li>ZMQ só handshake — <code>ss</code> ESTAB <code>odu:2000↔UE</code> e <code>odu:2001↔UE</code></li>
+            <li>Subscriber / N2 / F1 / E2 — MongoDB=1, AMF viu o gNB, xApp recebe KPM</li>
+            <li><code>kill 1</code> no sidecar <code>stdin/tty</code> — processo não sai; kube não reinicia o container</li>
           </ul>
         </article>
       </div>
-      <div class="grid-2" style="margin-top: 1.2%;">
-        <article class="card compact">
-          <span class="kicker">Hipótese TCP/:2000</span>
-          <p><strong>Descartada nesta corrida:</strong> o sidecar não fez <code>/dev/tcp</code>; ZMQ ESTAB nos dois sentidos. O bloqueio agora é sync de célula / IQ, não deadlock de porta.</p>
-        </article>
-        <article class="card compact">
-          <span class="kicker">Pergunta para quem já rodou o par</span>
-          <p>OCUDU <code>release_26_04</code> + srsUE <code>25.10</code> (commit <code>6bcbd9e</code>) com band 3 / ARFCN 368500 / <code>coreset0_index 12</code> / <code>srate 23.04e6</code> — alguém viu MIB depois do F1?</p>
-        </article>
-      </div>
-      <div class="footer"><span class="source">Fontes: UE_ATTACH_CAPTURE-2026-08-14T041120Z.txt · .nephio-deploy.log · collect-ue-diagnostics.sh</span><span>28</span></div>
+      <div class="footer"><span class="source">Fontes: kubectl logs srsue+odu+cu+amf · collect-ue-diagnostics.sh · .nephio-deploy.log 10:07 −03</span><span>28</span></div>
     </section>
 
     <section class="slide accent-rose" data-title="Limites de escopo">
@@ -1701,8 +1693,7 @@
     </section>
 
     <section class="slide accent-purple" data-title="Próximos passos">
-      <p class="eyebrow">Roteiro</p>
-      <h2>De um laboratório estático a uma plataforma O-RAN dinâmica</h2>
+      <h2>Próximos passos</h2>
       <div class="content grid-2">
         <article class="card compact">
           <span class="kicker">01 · Ciclo de vida dinâmico do gNB</span>
