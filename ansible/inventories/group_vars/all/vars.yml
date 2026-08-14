@@ -219,7 +219,7 @@ verify_stack:
   e2_recovery_wait_retries: 30
   e2_recovery_wait_delay: 10
   # UE attach gate
-  ue_attach_wait_retries: 36
+  ue_attach_wait_retries: 18
   ue_attach_wait_delay: 10
   # Fail the deploy if UE attach is not confirmed (set false to only warn)
   ue_attach_required: true

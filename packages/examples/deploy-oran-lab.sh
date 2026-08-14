@@ -20,7 +20,7 @@
 #   KUBECONFIG_MGMT  management kubeconfig (default: ./kubeconfig-mgmt)
 #   KUBECONFIG_WL    workload kubeconfig (default: ./kubeconfig)
 #   PACKAGE_TIMEOUT  seconds to wait per package (default: 900)
-#   XAPP_LIFECYCLE_RETRIES attempts for route lifecycle stages (default: 36)
+#   XAPP_LIFECYCLE_RETRIES attempts for route lifecycle stages (default: 18)
 #   XAPP_LIFECYCLE_DELAY seconds between route lifecycle checks (default: 5)
 #   XAPP_INDICATION_RETRIES attempts for the KPM indication gate (default: 10)
 #   XAPP_INDICATION_DELAY seconds between KPM indication checks (default: 10)
@@ -35,14 +35,14 @@ KUBECONFIG_MGMT="${KUBECONFIG_MGMT:-$ROOT/kubeconfig-mgmt}"
 KUBECONFIG_WL="${KUBECONFIG_WL:-${KUBECONFIG:-$ROOT/kubeconfig}}"
 PACKAGE_TIMEOUT="${PACKAGE_TIMEOUT:-900}"
 HEARTBEAT_SECS="${HEARTBEAT_SECS:-30}"
-XAPP_LIFECYCLE_RETRIES="${XAPP_LIFECYCLE_RETRIES:-36}"
+XAPP_LIFECYCLE_RETRIES="${XAPP_LIFECYCLE_RETRIES:-18}"
 XAPP_LIFECYCLE_DELAY="${XAPP_LIFECYCLE_DELAY:-5}"
 XAPP_INDICATION_RETRIES="${XAPP_INDICATION_RETRIES:-10}"
 XAPP_INDICATION_DELAY="${XAPP_INDICATION_DELAY:-10}"
 E2_WAIT_RETRIES="${E2_WAIT_RETRIES:-30}"
 E2_WAIT_DELAY="${E2_WAIT_DELAY:-10}"
 E2_RECOVERY_ENABLED="${E2_RECOVERY_ENABLED:-true}"
-UE_WAIT_RETRIES="${UE_WAIT_RETRIES:-36}"
+UE_WAIT_RETRIES="${UE_WAIT_RETRIES:-18}"
 UE_WAIT_DELAY="${UE_WAIT_DELAY:-10}"
 UE_ATTACH_REQUIRED="${UE_ATTACH_REQUIRED:-true}"
 VARIANTS="$ROOT/packages/variants/oran-lab-packagevariants.yaml"
@@ -203,7 +203,9 @@ dump_job() {
   local job="$1" namespace="$2"
   kwl get job "$job" -n "$namespace" -o wide >&2 || true
   kwl get pods -n "$namespace" -l "job-name=$job" -o wide >&2 || true
-  kwl logs -n "$namespace" "job/$job" --tail=80 >&2 || true
+  kwl logs -n "$namespace" "job/$job" 2>/dev/null \
+    | grep -E 'ERROR:|^xApp |^Waiting |^attempt |^Using |^Preserving |^Restarting |A1MEDIATOR|E2EventInstanceId|12050 |platform routes' \
+    >&2 || kwl logs -n "$namespace" "job/$job" --tail=40 >&2 || true
 }
 
 job_condition() {
@@ -402,16 +404,48 @@ package_present() {
       package_present 5g-core
       ;;
     5g-core)        kwl get deployment amf -n 5g-core >/dev/null 2>&1 ;;
-    mongodb-init)   kwl get job mongodb-init -n 5g-core >/dev/null 2>&1 ;;
+    mongodb-init)   job_condition mongodb-init 5g-core Complete ;;
     near-rt-ric)    kwl get deployment ric-e2term -n near-rt-ric >/dev/null 2>&1 ;;
     ran)            kwl get deployment ocudu-cu -n ran >/dev/null 2>&1 ;;
-    verify-e2)      kwl get job verify-e2 -n oran-verify >/dev/null 2>&1 ;;
+    verify-e2)      job_condition verify-e2 oran-verify Complete ;;
     xapp-simple-mon) kwl get deployment r4-simple-mon -n ricxapp >/dev/null 2>&1 ;;
-    xapp-lifecycle) kwl get job xapp-lifecycle -n oran-verify >/dev/null 2>&1 ;;
-    verify-ue)      kwl get job verify-ue -n oran-verify >/dev/null 2>&1 ;;
+    xapp-lifecycle) job_condition xapp-lifecycle oran-verify Complete ;;
+    verify-ue)      job_condition verify-ue oran-verify Complete ;;
     monitoring)     kwl get deployment monitoring-grafana -n monitoring >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
+}
+
+gate_job_exists() {
+  case "$1" in
+    mongodb-init)   kwl get job mongodb-init -n 5g-core >/dev/null 2>&1 ;;
+    verify-e2)      kwl get job verify-e2 -n oran-verify >/dev/null 2>&1 ;;
+    xapp-lifecycle) kwl get job xapp-lifecycle -n oran-verify >/dev/null 2>&1 ;;
+    verify-ue)      kwl get job verify-ue -n oran-verify >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+srsue_attached() {
+  local logs
+  logs="$(kwl logs -n ran deployment/ocudu-du -c srsue --tail=500 2>/dev/null || true)"
+  grep -Fq 'RRC Connected' <<<"${logs}" \
+    && grep -Fq 'PDU Session Established' <<<"${logs}"
+}
+
+# srsUE can deadlock ZMQ IQ if it attaches before the cell is active, then
+# stay in NAS PLMN-SEARCH with no PRACH. Restart only the sidecar so the live
+# DU/F1/E2 session is left alone.
+resync_srsue_sidecar() {
+  if srsue_attached; then
+    echo "==> srsUE already attached"
+    return 0
+  fi
+  echo "==> srsUE has no RRC/PDU session; restarting sidecar on the live DU cell"
+  kwl exec -n ran deploy/ocudu-du -c srsue -- kill 1 >/dev/null 2>&1 || true
+  sleep 8
+  kwl wait --for=condition=Ready pod -l app=ocudu-du -n ran --timeout=180s \
+    >/dev/null 2>&1 || true
 }
 
 wait_for_object() {
@@ -728,6 +762,8 @@ wait_for_package() {
       kwl_wait_job "job/xapp-lifecycle complete" xapp-lifecycle oran-verify
       ;;
     verify-ue)
+      apply_verification_settings
+      resync_srsue_sidecar
       wait_for_object job verify-ue oran-verify
       kwl_wait_job "job/verify-ue complete" verify-ue oran-verify
       ;;
@@ -940,11 +976,31 @@ for package in "${PACKAGES[@]}"; do
 
   if ! $FORCE_FRESH && [[ "$package" == "xapp-lifecycle" ]] && \
      package_present "$package"; then
-    echo "==> Re-running xApp lifecycle recovery on the existing deployment"
+    echo "==> Re-running xApp lifecycle recovery from this checkout"
     apply_xapp_lifecycle_settings
-    kwl delete job xapp-lifecycle -n oran-verify --ignore-not-found
+    pause_variants
+    fresh_revision "$package"
+    wait_for_expected_sync
     wait_for_package "$package"
-    DEPLOY_CHANGED=true
+    timing_end "package" ok
+    continue
+  fi
+
+  if ! $FORCE_FRESH && gate_job_exists "$package" && ! package_present "$package"; then
+    echo "==> Re-running $package from this checkout (gate job is not Complete)"
+    if [[ "$package" == "xapp-lifecycle" ]]; then
+      apply_xapp_lifecycle_settings
+    fi
+    if [[ "$package" == "verify-ue" || "$package" == "verify-e2" ]]; then
+      apply_verification_settings
+    fi
+    if [[ "$package" == "verify-ue" ]]; then
+      resync_srsue_sidecar
+    fi
+    pause_variants
+    fresh_revision "$package"
+    wait_for_expected_sync
+    wait_for_package "$package"
     timing_end "package" ok
     continue
   fi
@@ -954,6 +1010,11 @@ for package in "${PACKAGES[@]}"; do
     wait_for_package "$package"
     timing_end "package" ok
     continue
+  fi
+
+  if [[ "$package" == "verify-ue" ]]; then
+    apply_verification_settings
+    resync_srsue_sidecar
   fi
 
   revision=""

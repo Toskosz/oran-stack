@@ -26,14 +26,14 @@
     # Live log for this long task (Ansible buffers module stdout until the job ends).
     deploy_log: "{{ playbook_dir }}/../../.nephio-deploy.log"
     deploy_package_timeout: 900
-    deploy_xapp_lifecycle_retries: 36
+    deploy_xapp_lifecycle_retries: 18
     deploy_xapp_lifecycle_delay: 5
     deploy_xapp_indication_retries: 10
     deploy_xapp_indication_delay: 10
     deploy_e2_wait_retries: 30
     deploy_e2_wait_delay: 10
     deploy_e2_recovery_enabled: true
-    deploy_ue_wait_retries: 36
+    deploy_ue_wait_retries: 18
     deploy_ue_wait_delay: 10
     deploy_ue_attach_required: true
     deploy_force_fresh: false

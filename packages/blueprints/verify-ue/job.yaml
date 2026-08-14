@@ -69,14 +69,14 @@ spec:
             - -c
             - |
               set -euo pipefail
-              WAIT_RETRIES="${UE_WAIT_RETRIES:-36}"
+              WAIT_RETRIES="${UE_WAIT_RETRIES:-18}"
               WAIT_DELAY="${UE_WAIT_DELAY:-10}"
               UE_ATTACH_REQUIRED="${UE_ATTACH_REQUIRED:-true}"
               echo "Waiting for srsUE RRC Connected + PDU Session Established..."
               for i in $(seq 1 "${WAIT_RETRIES}"); do
                 LOGS=$(kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=200 2>/dev/null || true)
-                if echo "${LOGS}" | grep -q 'RRC Connected' \
-                   && echo "${LOGS}" | grep -q 'PDU Session Established'; then
+                if grep -Fq 'RRC Connected' <<<"${LOGS}" \
+                   && grep -Fq 'PDU Session Established' <<<"${LOGS}"; then
                   echo "UE OK — RRC Connected and PDU Session Established"
                   exit 0
                 fi
