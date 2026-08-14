@@ -623,11 +623,16 @@ wait_for_package() {
       done
       apply_xapp_lifecycle_settings
       apply_verification_settings
+      echo "==> Applying oran-lab-settings from this checkout"
+      kwl apply -f "$ROOT/packages/blueprints/ns-and-secrets/settings.yaml"
+      wait_for_object configmap oran-lab-settings 5g-core
+      wait_for_object configmap oran-lab-settings oran-verify
       ;;
     5g-core)
       wait_for_object statefulset mongodb 5g-core
       ;;
     mongodb-init)
+      wait_for_object configmap oran-lab-settings 5g-core
       wait_for_object job mongodb-init 5g-core
       kwl_rollout_status "statefulset/mongodb rollout" \
         statefulset/mongodb -n 5g-core
@@ -699,7 +704,7 @@ pause_variants() {
   # Mark recovery active before the first mutation so EXIT restoration also
   # runs after a partial patch/delete failure.
   VARIANTS_PAUSED=true
-  local variants
+  local variants pending deadline
   variants="$(kmgmt get packagevariants -n "$PORCH_NAMESPACE" \
     -o name | awk '/packagevariant\/oran-lab-/')"
   if [[ -n "$variants" ]]; then
@@ -708,6 +713,23 @@ pause_variants() {
       kmgmt patch -n "$PORCH_NAMESPACE" "$variant" --type=merge \
         -p '{"spec":{"deletionPolicy":"orphan"}}'
     done <<<"$variants"
+    # deletionPolicy defaults to delete. If the controller sees Delete before
+    # orphan, it removes packages from oran-lab git and Config Sync prunes
+    # 5g-core/RAN while later gates are still waiting.
+    deadline=$((SECONDS + 60))
+    pending="pending"
+    while (( SECONDS < deadline )); do
+      pending="$(kmgmt get packagevariants -n "$PORCH_NAMESPACE" \
+        -o jsonpath='{range .items[*]}{.metadata.name}={.spec.deletionPolicy}{"\n"}{end}' \
+        | awk '/^oran-lab-/ && $0 !~ /=orphan$/')"
+      [[ -z "$pending" ]] && break
+      sleep 2
+    done
+    if [[ -n "$pending" ]]; then
+      echo "PackageVariants not orphan before delete:" >&2
+      echo "$pending" >&2
+      return 1
+    fi
     kmgmt delete -f "$VARIANTS" -n "$PORCH_NAMESPACE" --ignore-not-found
   fi
 }

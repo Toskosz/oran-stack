@@ -170,11 +170,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: oran-lab-settings
+                optional: true
           command:
             - /bin/bash
             - -c
             - |
               set -euo pipefail
+              UE_IMSI="${UE_IMSI:-001010000000001}"
+              UE_K="${UE_K:-465B5CE8B199B49FAA5F0A2EE238A6BC}"
+              UE_OPC="${UE_OPC:-E8ED289DEBA952E4283B54E88E6183CA}"
+              UE_APN="${UE_APN:-internet}"
               NS=5g-core
               echo "Waiting for mongodb-0 Ready..."
               kubectl wait --for=condition=Ready pod/mongodb-0 -n "$NS" --timeout=300s

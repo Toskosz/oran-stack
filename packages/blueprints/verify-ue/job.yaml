@@ -63,6 +63,7 @@ spec:
                 optional: true
             - configMapRef:
                 name: oran-lab-settings
+                optional: true
           command:
             - /bin/bash
             - -c
