@@ -624,11 +624,10 @@
 </head>
 <body>
   <main class="deck" id="deck" aria-live="polite">
-    <section class="slide title-slide accent-cyan active" data-title="Rede da Stack O-RAN">
-      <p class="eyebrow">oran-stack · arquitetura técnica</p>
-      <h1>Stack O-RAN<br><span class="highlight">Rede</span></h1>
+    <section class="slide title-slide accent-cyan active" data-title="Stack O-RAN">
+      <p class="eyebrow">relatório de implantação</p>
+      <h1>Stack O-RAN</h1>
       <div class="title-rule"></div>
-      <p class="lead">Como um laboratório 5G SA nativo de Kubernetes separa o tráfego comum da nuvem das interfaces SCTP do plano de controle.</p>
       <div class="footer"><span>oran-stack · rede</span><span>01</span></div>
     </section>
 
@@ -660,35 +659,102 @@
       <div class="footer"><span class="source">Fonte: README.md · Arquitetura</span><span>02</span></div>
     </section>
 
-    <section class="slide accent-green" data-title="Como o Kubernetes é usado">
-      <p class="eyebrow">Papel da plataforma</p>
-      <h2>Kubernetes é a camada de execução e integração</h2>
-      <div class="content grid-4">
+    <section class="slide accent-amber" data-title="Duas opções de infraestrutura">
+      <p class="eyebrow">Opções de deploy</p>
+      <h2>A mesma rede de workload em dois ambientes</h2>
+      <div class="content grid-2">
         <article class="card">
-          <span class="kicker">01 · Executar</span>
-          <h3>Agenda funções de rede</h3>
-          <p class="muted">Deployments executam Open5GS, RIC, CU/DU, sidecar da UE, xApps e monitoramento.</p>
+          <span class="kicker">Opção A · GCP</span>
+          <span class="number">3 VMs</span>
+          <h3>oran-cp1 + oran-w1 + oran-mgmt</h3>
+          <ul class="clean">
+            <li><code>oran-cp1</code>: plano de controle do cluster de workload</li>
+            <li><code>oran-w1</code>: worker com núcleo 5G, RIC, RAN, xApp e monitoramento</li>
+            <li><code>oran-mgmt</code>: cluster Nephio/Porch de gerenciamento</li>
+          </ul>
         </article>
         <article class="card">
-          <span class="kicker">02 · Conectar</span>
-          <h3>Fornece serviços e DNS</h3>
-          <p class="muted">Services ClusterIP e headless fornecem descoberta estável para SBI, RMR, PFCP e bancos de dados.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">03 · Compor</span>
-          <h3>Combina tipos de rede</h3>
-          <p class="muted">Flannel é a rede primária; Multus adiciona interfaces OVS; a UPF usa <code>hostNetwork</code>.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">04 · Operar</span>
-          <h3>Reconcilia o estado desejado</h3>
-          <p class="muted">Nephio e Config Sync aplicam manifestos; probes, Jobs, ConfigMaps, Secrets e PVCs sustentam o ciclo de vida.</p>
+          <span class="kicker">Opção B · Casa / BYO</span>
+          <span class="number">2 hosts</span>
+          <h3>cp1 + w1 na mesma LAN</h3>
+          <ul class="clean">
+            <li><code>cp1</code>: plano de controle do cluster de workload</li>
+            <li><code>w1</code>: worker com núcleo 5G, RIC, RAN, xApp e monitoramento</li>
+          </ul>
         </article>
       </div>
-      <div class="callout" style="margin-top: 1.5%;">
-        Kubernetes orquestra as funções; caminhos OVS dedicados preservam o comportamento dos protocolos de telecom quando a rede padrão de pods é inadequada.
+      <div class="callout amber" style="margin-top: 1.5%;">
+        O controlador Ansible/WSL2 fica fora dos dois clusters Kubernetes.
       </div>
-      <div class="footer"><span class="source">Fontes: README.md · docs/NEPHIO.md · templates Helm</span><span>03</span></div>
+      <div class="footer"><span class="source">Fontes: GCP_RUNBOOK.md · HOME_LAB_DHCP.md</span><span>03</span></div>
+    </section>
+
+    <section class="slide accent-green" data-title="Tamanho das instâncias">
+      <p class="eyebrow">Dimensionamento</p>
+      <h2>O worker concentra a carga; 4 vCPU é o piso</h2>
+      <div class="content grid-3">
+        <article class="card">
+          <span class="kicker">Workload · cp1</span>
+          <span class="number">2 vCPU</span>
+          <h3>8 GB · <code>e2-standard-2</code></h3>
+          <p>Plano de controle kubeadm. Disco 50 GB pd-ssd. Sem funções de rede.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Workload · w1</span>
+          <span class="number">4 vCPU</span>
+          <h3>16 GB · <code>e2-standard-4</code></h3>
+          <p>Núcleo 5G, RIC, RAN, xApp e monitoramento no mesmo nó. Disco 50 GB pd-ssd.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Gerenciamento · mgmt</span>
+          <span class="number">4 vCPU</span>
+          <h3>16 GB · <code>e2-standard-4</code></h3>
+          <p>Nephio e Porch. Disco 80 GB pd-ssd. Só na opção GCP.</p>
+        </article>
+      </div>
+      <div class="footer"><span class="source">Fontes: ansible/roles/gcp_vm/defaults · vars.yml · LAB_SERVER_VPN.md · LEARNINGS.md §40</span><span>04</span></div>
+    </section>
+
+    <section class="slide accent-purple" data-title="Arquitetura com clusters separados">
+      <p class="eyebrow">Gerenciamento e workload</p>
+      <h2>O Nephio roda num cluster; as funções de rede, noutro</h2>
+      <div class="content diagram" role="img" aria-label="O controlador Ansible conecta-se aos clusters de gerenciamento e workload; o gerenciamento aplica a configuração ao workload">
+        <svg viewBox="0 0 1400 560" aria-hidden="true">
+          <defs>
+            <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#606b75"/>
+            </marker>
+            <marker id="arrow4p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#486796"/>
+            </marker>
+          </defs>
+          <rect class="node node-blue" x="40" y="172" rx="16" width="295" height="180"/>
+          <text class="label" x="188" y="228" text-anchor="middle">Controlador Ansible</text>
+          <text class="small" x="188" y="267" text-anchor="middle">WSL2 / host do operador</text>
+          <text class="small" x="188" y="300" text-anchor="middle">Fora do Kubernetes</text>
+
+          <rect class="node node-purple" x="555" y="52" rx="16" width="350" height="200"/>
+          <text class="label" x="730" y="110" text-anchor="middle">Cluster de gerenciamento</text>
+          <text class="small" x="730" y="150" text-anchor="middle">Porch · PackageVariants</text>
+          <text class="small" x="730" y="182" text-anchor="middle">Config Sync · repositórios Git</text>
+          <text class="tiny" x="730" y="220" text-anchor="middle">Sem malha Multus / OVS</text>
+
+          <rect class="node node-cyan" x="1050" y="172" rx="16" width="310" height="240"/>
+          <text class="label" x="1205" y="230" text-anchor="middle">Cluster de workload</text>
+          <text class="small" x="1205" y="270" text-anchor="middle">Núcleo 5G · RIC · RAN</text>
+          <text class="small" x="1205" y="302" text-anchor="middle">xApps · monitoramento</text>
+          <text class="tiny" x="1205" y="348" text-anchor="middle">Flannel + Multus + OVS</text>
+          <text class="tiny" x="1205" y="376" text-anchor="middle">NetworkAttachmentDefinitions</text>
+
+          <path class="line line-blue" d="M335 222 C420 148, 465 140, 555 140" marker-end="url(#arrow4)"/>
+          <text class="tiny" x="445" y="122" text-anchor="middle">SSH 22 · API 6443</text>
+          <path class="line line-blue" d="M335 303 C600 456, 838 473, 1050 336" marker-end="url(#arrow4)"/>
+          <text class="tiny" x="690" y="475" text-anchor="middle">SSH 22 · kubectl 6443</text>
+          <path class="line line-purple" d="M905 150 C965 150, 990 190, 1050 230" marker-end="url(#arrow4p)"/>
+          <text class="tiny" x="980" y="135" text-anchor="middle">Config Sync</text>
+        </svg>
+      </div>
+      <div class="footer"><span class="source">Fonte: README.md · docs/NEPHIO.md</span><span>05</span></div>
     </section>
 
     <section class="slide" data-title="Como o Ansible é usado">
@@ -719,7 +785,38 @@
       <div class="callout blue" style="margin-top: 1.5%;">
         Limite de responsabilidade: Ansible gerencia hosts e infraestrutura dos clusters; Nephio e Config Sync gerenciam os recursos das funções de rede.
       </div>
-      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision.yml · ansible/roles · README.md</span><span>04</span></div>
+      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision.yml · ansible/roles · README.md</span><span>06</span></div>
+    </section>
+
+    <section class="slide accent-green" data-title="Como o Kubernetes é usado">
+      <p class="eyebrow">Papel da plataforma</p>
+      <h2>Kubernetes é a camada de execução e integração</h2>
+      <div class="content grid-4">
+        <article class="card">
+          <span class="kicker">01 · Executar</span>
+          <h3>Agenda funções de rede</h3>
+          <p class="muted">Deployments executam Open5GS, RIC, CU/DU, sidecar da UE, xApps e monitoramento.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">02 · Conectar</span>
+          <h3>Fornece serviços e DNS</h3>
+          <p class="muted">Services ClusterIP e headless fornecem descoberta estável para SBI, RMR, PFCP e bancos de dados.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">03 · Compor</span>
+          <h3>Combina tipos de rede</h3>
+          <p class="muted">Flannel é a rede primária; Multus adiciona interfaces OVS; a UPF usa <code>hostNetwork</code>.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">04 · Operar</span>
+          <h3>Reconcilia o estado desejado</h3>
+          <p class="muted">Nephio e Config Sync aplicam manifestos; probes, Jobs, ConfigMaps, Secrets e PVCs sustentam o ciclo de vida.</p>
+        </article>
+      </div>
+      <div class="callout" style="margin-top: 1.5%;">
+        Kubernetes orquestra as funções; caminhos OVS dedicados preservam o comportamento dos protocolos de telecom quando a rede padrão de pods é inadequada.
+      </div>
+      <div class="footer"><span class="source">Fontes: README.md · docs/NEPHIO.md · templates Helm</span><span>07</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Cadeia Nephio e GitOps">
@@ -760,7 +857,7 @@
       <div class="callout" style="margin-top: 1.5%;">
         Porch versiona e publica pacotes; Config Sync reconcilia continuamente o estado resultante no Git com o cluster de workload.
       </div>
-      <div class="footer"><span class="source">Fonte: docs/NEPHIO.md · packages/variants</span><span>05</span></div>
+      <div class="footer"><span class="source">Fonte: docs/NEPHIO.md · packages/variants</span><span>08</span></div>
     </section>
 
     <section class="slide" data-title="Como o Helm é usado">
@@ -791,42 +888,7 @@
       <div class="callout blue" style="margin-top: 1.5%;">
         O caminho legado Ansible → Helm está obsoleto; ele não deve controlar os mesmos objetos que o Nephio.
       </div>
-      <div class="footer"><span class="source">Fonte: scripts/render-nephio-packages.sh · README.md</span><span>06</span></div>
-    </section>
-
-    <section class="slide accent-cyan" data-title="Ferramentas de rede do Kubernetes">
-      <p class="eyebrow">CNI e comutação</p>
-      <h2>Quatro ferramentas compõem a rede de workload</h2>
-      <div class="content grid-4">
-        <article class="card">
-          <span class="kicker">CNI primária</span>
-          <h3>Flannel</h3>
-          <span class="number mono">10.244/16</span>
-          <p class="muted">Fornece a interface primária de cada pod e o overlay VXLAN para tráfego TCP e UDP comum.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">Meta-CNI</span>
-          <h3>Multus</h3>
-          <span class="number">NICs extras</span>
-          <p class="muted">Lê anotações dos pods e conecta redes adicionais sem substituir o Flannel.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">CNI secundária</span>
-          <h3>OVS-CNI</h3>
-          <span class="number">NADs</span>
-          <p class="muted">Conecta interfaces dos pods a bridges OVS nomeadas usando NetworkAttachmentDefinitions.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">Switch virtual</span>
-          <h3>Open vSwitch</h3>
-          <span class="number">3 bridges</span>
-          <p class="muted">Hospeda <code>n2br</code>, <code>f1cbr</code> e <code>e2br</code>; VXLAN as estende entre os nós.</p>
-        </article>
-      </div>
-      <div class="callout" style="margin-top: 1.5%;">
-        Flannel transporta tráfego nativo de nuvem; Multus + OVS-CNI + Open vSwitch transportam interfaces SCTP com IP estático.
-      </div>
-      <div class="footer"><span class="source">Fonte: ansible/inventories/group_vars/all/vars.yml · role ovs_vxlan</span><span>07</span></div>
+      <div class="footer"><span class="source">Fonte: scripts/render-nephio-packages.sh · README.md</span><span>09</span></div>
     </section>
 
     <section class="slide accent-amber" data-title="Docker e Docker Hub">
@@ -855,7 +917,7 @@
       <div class="callout amber" style="margin-top: 1.5%;">
         <code>build_images.yml</code> executa localmente, enquanto o GitOps distribui as credenciais de pull aos namespaces necessários.
       </div>
-      <div class="footer"><span class="source">Fonte: ansible/playbooks/build_images.yml · role container_images</span><span>08</span></div>
+      <div class="footer"><span class="source">Fonte: ansible/playbooks/build_images.yml · role container_images</span><span>10</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Versões de software de terceiros">
@@ -903,36 +965,7 @@
           </div>
         </div>
       </div>
-      <div class="footer"><span class="source">Fontes: README.md · vars.yml · padrões de nephio_bootstrap · valores Helm · Dockerfiles</span><span>09</span></div>
-    </section>
-
-    <section class="slide accent-green" data-title="Jobs de verificação">
-      <p class="eyebrow">Gates de implantação</p>
-      <h2>Jobs do Kubernetes comprovam o funcionamento ponta a ponta</h2>
-      <div class="content grid-3">
-        <article class="card">
-          <span class="kicker">Gate 1 · E2</span>
-          <h3>verify-e2</h3>
-          <p>Consulta o e2mgr pelo ID do gNB configurado.</p>
-          <p class="muted">Se o e2term estiver saudável, mas o registro estiver ausente, pode reiniciar a CU e depois a DU uma vez antes de falhar.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">Gate 2 · xApp</span>
-          <h3>xapp-lifecycle</h3>
-          <p>Exercita AppMgr, RTMgr, assinaturas e rotas RMR.</p>
-          <p class="muted">A condição final de sucesso inclui o recebimento de uma indicação KPM.</p>
-        </article>
-        <article class="card">
-          <span class="kicker">Gate 3 · UE</span>
-          <h3>verify-ue</h3>
-          <p>Lê os logs do sidecar srsUE.</p>
-          <p class="muted">Exige <strong>RRC Connected</strong> e <strong>PDU Session Established</strong>.</p>
-        </article>
-      </div>
-      <div class="callout" style="margin-top: 1.5%;">
-        Os Jobs executam em <code>oran-verify</code> com service accounts de escopo limitado e bloqueiam a progressão dos pacotes quando um gate obrigatório falha.
-      </div>
-      <div class="footer"><span class="source">Fonte: packages/blueprints/verify-e2 · xapp-lifecycle · verify-ue</span><span>10</span></div>
+      <div class="footer"><span class="source">Fontes: README.md · vars.yml · padrões de nephio_bootstrap · valores Helm · Dockerfiles</span><span>11</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Scripts de implantação: plataforma">
@@ -975,7 +1008,7 @@
           <article class="card compact"><span class="kicker">BYO / VPN</span><strong>Pule a criação das VMs; forneça um inventário</strong></article>
         </div>
       </div>
-      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision*.yml · bootstrap-nephio.yml · build_images.yml</span><span>11</span></div>
+      <div class="footer"><span class="source">Fontes: ansible/playbooks/provision*.yml · bootstrap-nephio.yml · build_images.yml</span><span>12</span></div>
     </section>
 
     <section class="slide accent-green" data-title="Scripts de implantação: workloads">
@@ -1008,82 +1041,42 @@
           </article>
         </div>
       </div>
+      <div class="footer"><span class="source">Fontes: workload-gitops.yml · deploy-nephio-nfs.yml · verify-only.yml</span><span>13</span></div>
+    </section>
+
+    <section class="slide accent-cyan" data-title="Ferramentas de rede do Kubernetes">
+      <p class="eyebrow">CNI e comutação</p>
+      <h2>Quatro ferramentas compõem a rede de workload</h2>
+      <div class="content grid-4">
+        <article class="card">
+          <span class="kicker">CNI primária</span>
+          <h3>Flannel</h3>
+          <span class="number mono">10.244/16</span>
+          <p class="muted">Fornece a interface primária de cada pod e o overlay VXLAN para tráfego TCP e UDP comum.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Meta-CNI</span>
+          <h3>Multus</h3>
+          <span class="number">NICs extras</span>
+          <p class="muted">Lê anotações dos pods e conecta redes adicionais sem substituir o Flannel.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">CNI secundária</span>
+          <h3>OVS-CNI</h3>
+          <span class="number">NADs</span>
+          <p class="muted">Conecta interfaces dos pods a bridges OVS nomeadas usando NetworkAttachmentDefinitions.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Switch virtual</span>
+          <h3>Open vSwitch</h3>
+          <span class="number">3 bridges</span>
+          <p class="muted">Hospeda <code>n2br</code>, <code>f1cbr</code> e <code>e2br</code>; VXLAN as estende entre os nós.</p>
+        </article>
+      </div>
       <div class="callout" style="margin-top: 1.5%;">
-        A ordem importa: a infraestrutura e os dois kubeconfigs devem existir antes que <code>deploy-nephio-nfs.yml</code> possa publicar qualquer pacote.
+        Flannel transporta tráfego nativo de nuvem; Multus + OVS-CNI + Open vSwitch transportam interfaces SCTP com IP estático.
       </div>
-      <div class="footer"><span class="source">Fontes: workload-gitops.yml · deploy-nephio-nfs.yml · verify-only.yml</span><span>12</span></div>
-    </section>
-
-    <section class="slide accent-amber" data-title="Duas opções de infraestrutura">
-      <p class="eyebrow">Opções de deploy</p>
-      <h2>A mesma rede de workload em dois ambientes</h2>
-      <div class="content grid-2">
-        <article class="card">
-          <span class="kicker">Opção A · GCP</span>
-          <span class="number">3 VMs</span>
-          <h3>oran-cp1 + oran-w1 + oran-mgmt</h3>
-          <ul class="clean">
-            <li><code>oran-cp1</code>: plano de controle do cluster de workload</li>
-            <li><code>oran-w1</code>: worker com núcleo 5G, RIC, RAN, xApp e monitoramento</li>
-            <li><code>oran-mgmt</code>: cluster Nephio/Porch de gerenciamento</li>
-          </ul>
-        </article>
-        <article class="card">
-          <span class="kicker">Opção B · Casa / BYO</span>
-          <span class="number">2 hosts</span>
-          <h3>cp1 + w1 na mesma LAN</h3>
-          <ul class="clean">
-            <li><code>cp1</code>: plano de controle do cluster de workload</li>
-            <li><code>w1</code>: worker com núcleo 5G, RIC, RAN, xApp e monitoramento</li>
-          </ul>
-        </article>
-      </div>
-      <div class="callout amber" style="margin-top: 1.5%;">
-        O controlador Ansible/WSL2 fica fora dos dois clusters Kubernetes.
-      </div>
-      <div class="footer"><span class="source">Fontes: GCP_RUNBOOK.md · HOME_LAB_DHCP.md</span><span>13</span></div>
-    </section>
-
-    <section class="slide accent-purple" data-title="Arquitetura com clusters separados">
-      <p class="eyebrow">Gerenciamento versus workload</p>
-      <h2>Nephio controla um cluster de workload separado</h2>
-      <div class="content diagram" role="img" aria-label="O controlador Ansible conecta-se aos clusters de gerenciamento e workload; o gerenciamento aplica a configuração ao workload">
-        <svg viewBox="0 0 1400 560" aria-hidden="true">
-          <defs>
-            <marker id="arrow4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#606b75"/>
-            </marker>
-            <marker id="arrow4p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#486796"/>
-            </marker>
-          </defs>
-          <rect class="node node-blue" x="40" y="172" rx="16" width="295" height="180"/>
-          <text class="label" x="188" y="228" text-anchor="middle">Controlador Ansible</text>
-          <text class="small" x="188" y="267" text-anchor="middle">WSL2 / host do operador</text>
-          <text class="small" x="188" y="300" text-anchor="middle">Fora do Kubernetes</text>
-
-          <rect class="node node-purple" x="555" y="52" rx="16" width="350" height="200"/>
-          <text class="label" x="730" y="110" text-anchor="middle">Cluster de gerenciamento</text>
-          <text class="small" x="730" y="150" text-anchor="middle">Porch · PackageVariants</text>
-          <text class="small" x="730" y="182" text-anchor="middle">Config Sync · repositórios Git</text>
-          <text class="tiny" x="730" y="220" text-anchor="middle">Sem malha Multus / OVS</text>
-
-          <rect class="node node-cyan" x="1050" y="172" rx="16" width="310" height="240"/>
-          <text class="label" x="1205" y="230" text-anchor="middle">Cluster de workload</text>
-          <text class="small" x="1205" y="270" text-anchor="middle">Núcleo 5G · RIC · RAN</text>
-          <text class="small" x="1205" y="302" text-anchor="middle">xApps · monitoramento</text>
-          <text class="tiny" x="1205" y="348" text-anchor="middle">Flannel + Multus + OVS</text>
-          <text class="tiny" x="1205" y="376" text-anchor="middle">NetworkAttachmentDefinitions</text>
-
-          <path class="line line-blue" d="M335 222 C420 148, 465 140, 555 140" marker-end="url(#arrow4)"/>
-          <text class="tiny" x="445" y="122" text-anchor="middle">SSH 22 · API 6443</text>
-          <path class="line line-blue" d="M335 303 C600 456, 838 473, 1050 336" marker-end="url(#arrow4)"/>
-          <text class="tiny" x="690" y="475" text-anchor="middle">SSH 22 · kubectl 6443</text>
-          <path class="line line-purple" d="M905 150 C965 150, 990 190, 1050 230" marker-end="url(#arrow4p)"/>
-          <text class="tiny" x="980" y="135" text-anchor="middle">Config Sync</text>
-        </svg>
-      </div>
-      <div class="footer"><span class="source">Fonte: README.md · docs/NEPHIO.md</span><span>14</span></div>
+      <div class="footer"><span class="source">Fonte: ansible/inventories/group_vars/all/vars.yml · role ovs_vxlan</span><span>14</span></div>
     </section>
 
     <section class="slide accent-cyan" data-title="Rede Kubernetes em dois planos">
@@ -1255,7 +1248,6 @@
           <text class="small" x="700" y="180" text-anchor="middle">VXLAN · VNI derivado do nome da bridge</text>
           <text class="small" x="700" y="298" text-anchor="middle">VXLAN · uma porta por nó remoto</text>
           <text class="small" x="700" y="416" text-anchor="middle">VXLAN · IP de underlay estável obrigatório</text>
-          <text class="tiny" x="700" y="505" text-anchor="middle">Laboratório de nó único: as bridges permanecem; o laço de túneis fica vazio</text>
         </svg>
       </div>
       <div class="footer"><span class="source">Fonte: ansible/roles/ovs_vxlan/tasks/create_vxlan.yml</span><span>18</span></div>
@@ -1394,90 +1386,10 @@
       <div class="footer"><span class="source">Fontes: helm/ran · helm/5g-core/deployment-upf.yaml · values.yaml</span><span>21</span></div>
     </section>
 
-    <section class="slide accent-rose" data-title="Pedido de ajuda: srsUE">
-      <p class="eyebrow">Pedido de ajuda · srsUE</p>
-      <h2>Sidecar ZMQ no mesmo netns do DU — o attach nunca completa</h2>
-      <div class="content" style="display: flex; flex-direction: column; gap: 1.4%;">
-        <div class="chip-row">
-          <span class="chip rose">srsUE sidecar</span>
-          <span class="chip">ZMQ 127.0.0.1:2000/2001</span>
-          <span class="chip green">odu</span>
-          <span class="chip purple">F1-C 10.200.2.x · F1-U UDP 2153</span>
-          <span class="chip green">CU</span>
-          <span class="chip amber">N2 AMF 10.200.1.2</span>
-        </div>
-        <div class="grid-2" style="flex: 1; min-height: 0; align-items: stretch;">
-          <div class="table-wrap">
-            <table class="version-table" aria-label="Configuração de rádio e UE">
-              <thead><tr><th>Parâmetro</th><th>Valor</th></tr></thead>
-              <tbody>
-                <tr><td>Banda / ARFCN</td><td class="mono">n3 · dl_arfcn 368500</td></tr>
-                <tr><td>Largura / SCS</td><td class="mono">20 MHz · 15 kHz</td></tr>
-                <tr><td>PRB / CORESET0 / PRACH</td><td class="mono">106 · index 12 · config 1</td></tr>
-                <tr><td>Taxa de amostragem</td><td class="mono">23.04e6</td></tr>
-                <tr><td>ZMQ cruzado</td><td class="mono">DU tx:2000 rx:2001 · UE tx:2001 rx:2000</td></tr>
-                <tr><td>IMSI / APN</td><td class="mono">001010000000001 · internet</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 4%;">
-            <article class="card compact">
-              <span class="kicker">Versões</span>
-              <ul class="clean">
-                <li>OCUDU <code>release_26_04</code></li>
-                <li>srsUE: branch padrão do srsRAN_4G · <strong>não fixada</strong> (<code>git clone --depth 1</code>)</li>
-                <li>Open5GS 2.7.x · fonte não fixada</li>
-              </ul>
-            </article>
-            <article class="card compact">
-              <span class="kicker">Gate verify-ue</span>
-              <p>Exige <strong>RRC Connected</strong> e <strong>PDU Session Established</strong> nos logs do sidecar. Sem PHY sync não há PRACH, RRC nem NAS.</p>
-            </article>
-          </div>
-        </div>
-        <div class="callout rose">O rádio é virtual: não há USRP. IQ só flui se o ZMQ localhost no pod DU estiver vivo depois do F1.</div>
-      </div>
-      <div class="footer"><span class="source">Fontes: helm/ran/values.yaml · configmap-ocudu-configs.yaml · dockerfiles/Dockerfile.srsue</span><span>22</span></div>
-    </section>
-
-    <section class="slide accent-amber" data-title="Evidência do attach srsUE">
-      <p class="eyebrow">Captura 2026-08-13 · .nephio-deploy.log</p>
-      <h2>F1 e o scheduler sobem; o PHY do UE não sincroniza</h2>
-      <div class="content grid-2" style="align-items: stretch;">
-        <article class="card">
-          <span class="kicker">Fatos observados</span>
-          <ul class="clean">
-            <li>F1 Setup <strong>completou</strong>; <code>Cell scheduling was activated</code> às <code>14:49:28</code></li>
-            <li>F1 anunciou <code>scs15</code> / <code>nrb106</code> — bate com <code>nof_prb = 106</code></li>
-            <li>srsUE ficou em <strong>Attaching UE…</strong> / NAS <strong>Switching on</strong> desde ~14:50</li>
-            <li><strong>Nenhum PRACH</strong> no DU; nenhum RRC; AMF não viu Registration Request</li>
-            <li><code>verify-ue</code> Failed 0/1 após ~12 min (<code>verify-ue-7qn4g</code> / <code>5vxv8</code> em <code>w1</code>)</li>
-            <li>Essa corrida <strong>não republicou</strong> o pacote <code>ran</code></li>
-          </ul>
-        </article>
-        <div style="display: flex; flex-direction: column; gap: 4%;">
-          <article class="card compact">
-            <span class="kicker">Hipótese · deadlock ZMQ</span>
-            <p>O rádio ZMQ é <strong>pull</strong>: o UE só gera ticks se a célula já estiver agendando. Um TCP connect em <code>:2000</code> antes do F1 é tratado como cliente de rádio e trava o IQ (<code>Waiting for data</code> dos dois lados) mesmo com sockets <code>ESTAB</code>.</p>
-          </article>
-          <article class="card compact">
-            <span class="kicker">O que o git tem agora</span>
-            <p>O sidecar espera só <code>LISTEN</code> em <code>/proc/net/tcp</code> + <code>ueStartDelaySec: 40</code>. <strong>Esse wait não estava no cluster desta captura.</strong></p>
-          </article>
-        </div>
-      </div>
-      <div class="callout amber" style="margin-top: 1.4%;">
-        Ainda falta (próxima captura com logs debug): linhas PHY de cell search; quem ocupava 2000/2001 no start do srsUE; SHA exato do srsRAN_4G; se o attach ainda falha <strong>depois</strong> de republicar <code>ran</code>.
-        Alguém já levou <strong>OCUDU 26.04 + srsUE ZMQ sidecar no mesmo pod</strong> até RRC/PDU?
-      </div>
-      <div class="footer"><span class="source">Fontes: .nephio-deploy.log · docs/LEARNINGS.md §25 · helm/ran/templates/deployments.yaml</span><span>23</span></div>
-    </section>
-
     <section class="slide accent-amber" data-title="Malha SBI do núcleo 5G">
       <p class="eyebrow">Serviços do núcleo</p>
       <h2>A descoberta HTTP/2 permanece nativa do Kubernetes</h2>
-      <div class="content grid-2" style="grid-template-columns: 1.25fr 0.75fr;">
-        <div class="diagram" role="img" aria-label="As funções de rede Open5GS conectam-se via Services Kubernetes e NRF">
+      <div class="content diagram" role="img" aria-label="As funções de rede Open5GS conectam-se via Services Kubernetes e NRF">
           <svg viewBox="0 0 800 520" aria-hidden="true">
             <defs>
               <marker id="arrow12" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#7a7569"/></marker>
@@ -1500,21 +1412,8 @@
             <path class="line line-amber" d="M400 423 L400 350" marker-end="url(#arrow12)"/>
             <path class="line line-amber" d="M610 398 L467 315" marker-end="url(#arrow12)"/>
           </svg>
-        </div>
-        <div style="display: flex; flex-direction: column; justify-content: center; gap: 5%;">
-          <div class="card">
-            <span class="kicker">SBI</span>
-            <span class="number mono">7777/TCP</span>
-            <p>Services ClusterIP, DNS dos pods, HTTP/2</p>
-          </div>
-          <div class="card">
-            <span class="kicker">N4 · SMF → UPF</span>
-            <span class="number mono">8805/UDP</span>
-            <p>Controle de sessão PFCP</p>
-          </div>
-        </div>
       </div>
-      <div class="footer"><span class="source">Fonte: helm/5g-core templates</span><span>24</span></div>
+      <div class="footer"><span class="source">Fonte: helm/5g-core templates</span><span>22</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Internos do Near-RT RIC">
@@ -1572,7 +1471,7 @@
         </svg>
       </div>
       <div class="callout" style="margin-top: 1%;">O RMR usa a rede primária de pods e descoberta via Service headless; o SCTP E2 permanece em <code>e2br</code>.</div>
-      <div class="footer"><span class="source">Fontes: helm/near-rt-ric · helm/xapps</span><span>25</span></div>
+      <div class="footer"><span class="source">Fontes: helm/near-rt-ric · helm/xapps</span><span>23</span></div>
     </section>
 
     <section class="slide accent-cyan" data-title="Registro E2">
@@ -1622,7 +1521,7 @@
       <div class="callout" style="margin-top: 1.2%;">
         <code>gnb_001_001_00019b</code> CONNECTED prova o Setup E2 — não o caminho de indicações KPM (<code>12050</code>).
       </div>
-      <div class="footer"><span class="source">Fonte: docs/E2_REGISTRATION_SESSION_2026-07-10.md · helm/near-rt-ric · packages/blueprints/verify-e2</span><span>26</span></div>
+      <div class="footer"><span class="source">Fonte: docs/E2_REGISTRATION_SESSION_2026-07-10.md · helm/near-rt-ric · packages/blueprints/verify-e2</span><span>24</span></div>
     </section>
 
     <section class="slide" data-title="Mapa de portas">
@@ -1646,7 +1545,120 @@
           </tbody>
         </table>
       </div>
-      <div class="footer"><span class="source">Fontes: values Helm e templates de Service / Deployment</span><span>27</span></div>
+      <div class="footer"><span class="source">Fontes: values Helm e templates de Service / Deployment</span><span>25</span></div>
+    </section>
+
+    <section class="slide accent-green" data-title="Jobs de verificação">
+      <p class="eyebrow">Gates de implantação</p>
+      <h2>Jobs do Kubernetes comprovam o funcionamento ponta a ponta</h2>
+      <div class="content grid-3">
+        <article class="card">
+          <span class="kicker">Gate 1 · E2</span>
+          <h3>verify-e2</h3>
+          <p>Consulta o e2mgr pelo ID do gNB configurado.</p>
+          <p class="muted">Se o e2term estiver saudável, mas o registro estiver ausente, pode reiniciar a CU e depois a DU uma vez antes de falhar.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Gate 2 · xApp</span>
+          <h3>xapp-lifecycle</h3>
+          <p>Exercita AppMgr, RTMgr, assinaturas e rotas RMR.</p>
+          <p class="muted">A condição final de sucesso inclui o recebimento de uma indicação KPM.</p>
+        </article>
+        <article class="card">
+          <span class="kicker">Gate 3 · UE</span>
+          <h3>verify-ue</h3>
+          <p>Lê os logs do sidecar srsUE.</p>
+          <p class="muted">Exige <strong>RRC Connected</strong> e <strong>PDU Session Established</strong>.</p>
+        </article>
+      </div>
+      <div class="callout" style="margin-top: 1.5%;">
+        Os Jobs executam em <code>oran-verify</code> com service accounts de escopo limitado e bloqueiam a progressão dos pacotes quando um gate obrigatório falha.
+      </div>
+      <div class="footer"><span class="source">Fonte: packages/blueprints/verify-e2 · xapp-lifecycle · verify-ue</span><span>26</span></div>
+    </section>
+
+    <section class="slide accent-rose" data-title="Pedido de ajuda: srsUE">
+      <p class="eyebrow">Pedido de ajuda · srsUE</p>
+      <h2>Sidecar ZMQ no mesmo netns do DU — o attach nunca completa</h2>
+      <div class="content" style="display: flex; flex-direction: column; gap: 1.4%;">
+        <div class="chip-row">
+          <span class="chip rose">srsUE sidecar</span>
+          <span class="chip">ZMQ 127.0.0.1:2000/2001</span>
+          <span class="chip green">odu</span>
+          <span class="chip purple">F1-C 10.200.2.x · F1-U UDP 2153</span>
+          <span class="chip green">CU</span>
+          <span class="chip amber">N2 AMF 10.200.1.2</span>
+        </div>
+        <div class="grid-2" style="flex: 1; min-height: 0; align-items: stretch;">
+          <div class="table-wrap">
+            <table class="version-table" aria-label="Configuração de rádio e UE">
+              <thead><tr><th>Parâmetro</th><th>Valor</th></tr></thead>
+              <tbody>
+                <tr><td>Banda / ARFCN</td><td class="mono">n3 · dl_arfcn 368500</td></tr>
+                <tr><td>Largura / SCS</td><td class="mono">20 MHz · 15 kHz</td></tr>
+                <tr><td>PRB / CORESET0 / PRACH</td><td class="mono">106 · index 12 · config 1</td></tr>
+                <tr><td>Taxa de amostragem</td><td class="mono">23.04e6</td></tr>
+                <tr><td>ZMQ cruzado</td><td class="mono">DU tx:2000 rx:2001 · UE tx:2001 rx:2000</td></tr>
+                <tr><td>IMSI / APN</td><td class="mono">001010000000001 · internet</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4%;">
+            <article class="card compact">
+              <span class="kicker">Versões</span>
+              <ul class="clean">
+                <li>OCUDU <code>release_26_04</code></li>
+                <li>srsUE: branch padrão do srsRAN_4G · <strong>não fixada</strong> (<code>git clone --depth 1</code>)</li>
+                <li>Open5GS 2.7.x · fonte não fixada</li>
+              </ul>
+            </article>
+            <article class="card compact">
+              <span class="kicker">Gate verify-ue</span>
+              <p>Exige <strong>RRC Connected</strong> e <strong>PDU Session Established</strong> nos logs do sidecar. Sem PHY sync não há PRACH, RRC nem NAS.</p>
+            </article>
+          </div>
+        </div>
+        <div class="callout rose">O rádio é virtual: não há USRP. Na corrida 14/08 04h o ZMQ ESTAB depois do F1, mas o PHY ficou IDLE — o bloqueio passou da porta para sync de célula.</div>
+      </div>
+      <div class="footer"><span class="source">Fontes: helm/ran/values.yaml · configmap-ocudu-configs.yaml · dockerfiles/Dockerfile.srsue</span><span>27</span></div>
+    </section>
+
+    <section class="slide accent-amber" data-title="Evidência do attach srsUE">
+      <p class="eyebrow">Captura 14/08 04:11Z · LISTEN-only + F1 OK · docs/UE_ATTACH_CAPTURE-2026-08-14T041120Z.txt</p>
+      <h2>ZMQ conecta; PHY não sai de IDLE / PLMN-SEARCH</h2>
+      <div class="content grid-2" style="align-items: stretch;">
+        <article class="card">
+          <span class="kicker">O que o force-fresh corrigiu</span>
+          <ul class="clean">
+            <li><code>mongodb-init</code> Complete em 9 s (<code>oran-lab-settings</code> optional + apply local)</li>
+            <li>NADs Multus recriados em <code>near-rt-ric</code>/<code>ran</code> (e2term tinha <code>e2br-net not found</code>)</li>
+            <li>F1 Setup OK; <code>Cell scheduling was activated</code> às <code>04:04:52</code></li>
+            <li>srsUE: wait <strong>LISTEN-only</strong> + 40 s; sockets ESTAB em <code>:2000</code>/<code>:2001</code></li>
+            <li>Subscriber MongoDB IMSI <code>001010000000001</code> presente; AMF viu gNB N2</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="kicker">Onde o attach ainda falha</span>
+          <ul class="clean">
+            <li>PHY-SA: <code>SYNC state=IDLE</code>; sem MIB/SIB/PSS/SSS/PRACH</li>
+            <li>NAS5G: <code>DEREGISTERED / PLMN-SEARCH</code> desde <code>04:05:50</code></li>
+            <li><code>ue_mac.pcap</code> e <code>ue_nas.pcap</code> com <strong>0 bytes</strong></li>
+            <li>AMF sem Registration Request; CU sem NAS de UE</li>
+            <li>Gate xApp falhou no KPM indication (CU já envia E2 indication depois)</li>
+          </ul>
+        </article>
+      </div>
+      <div class="grid-2" style="margin-top: 1.2%;">
+        <article class="card compact">
+          <span class="kicker">Hipótese TCP/:2000</span>
+          <p><strong>Descartada nesta corrida:</strong> o sidecar não fez <code>/dev/tcp</code>; ZMQ ESTAB nos dois sentidos. O bloqueio agora é sync de célula / IQ, não deadlock de porta.</p>
+        </article>
+        <article class="card compact">
+          <span class="kicker">Pergunta para quem já rodou o par</span>
+          <p>OCUDU <code>release_26_04</code> + srsUE <code>25.10</code> (commit <code>6bcbd9e</code>) com band 3 / ARFCN 368500 / <code>coreset0_index 12</code> / <code>srate 23.04e6</code> — alguém viu MIB depois do F1?</p>
+        </article>
+      </div>
+      <div class="footer"><span class="source">Fontes: UE_ATTACH_CAPTURE-2026-08-14T041120Z.txt · .nephio-deploy.log · collect-ue-diagnostics.sh</span><span>28</span></div>
     </section>
 
     <section class="slide accent-rose" data-title="Limites de escopo">
@@ -1685,7 +1697,7 @@
           </ul>
         </div>
       </div>
-      <div class="footer"><span class="source">Fonte: revisão da configuração do repositório</span><span>28</span></div>
+      <div class="footer"><span class="source">Fonte: revisão da configuração do repositório</span><span>29</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Próximos passos">
@@ -1716,14 +1728,14 @@
       <div class="callout" style="margin-top: 1.5%;">
         Estado-alvo: implantação a frio, nós dinâmicos, vários xApps e indicações KPM contínuas — sem reparo manual com <code>kubectl</code>.
       </div>
-      <div class="footer"><span class="source">Fonte: docs/NEXT_STEPS.md</span><span>29</span></div>
+      <div class="footer"><span class="source">Fonte: docs/NEXT_STEPS.md</span><span>30</span></div>
     </section>
 
   </main>
 
   <nav class="nav" aria-label="Navegação dos slides">
     <button id="prev" type="button" aria-label="Slide anterior" title="Slide anterior (←)">←</button>
-    <span class="counter" id="counter">1 / 29</span>
+    <span class="counter" id="counter">1 / 30</span>
     <button id="next" type="button" aria-label="Próximo slide" title="Próximo slide (→ ou Espaço)">→</button>
   </nav>
 
