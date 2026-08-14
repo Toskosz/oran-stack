@@ -52,7 +52,7 @@ data:
       all_level: debug
       f1ap_level: debug
       f1ap_json_enabled: true
-      ngap_level: info
+      ngap_level: debug
 
   du.yml.tpl: |
     gnb_du_id: ${GNB_DU_ID}
@@ -129,14 +129,18 @@ data:
     nof_prb = 106
 
     [pcap]
-    enable = none
+    enable = mac,nas
     mac_filename = /mnt/srsran/logs/ue_mac.pcap
     mac_nr_filename = /mnt/srsran/logs/ue_mac_nr.pcap
     nas_filename = /mnt/srsran/logs/ue_nas.pcap
 
     [log]
-    all_level = info
-    phy_lib_level = none
+    all_level = debug
+    phy_level = debug
+    phy_lib_level = info
+    mac_level = info
+    rrc_level = debug
+    nas_level = debug
     all_hex_limit = 32
     filename = /dev/stdout
     file_max_size = -1

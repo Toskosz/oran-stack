@@ -12,6 +12,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "pods/log"]
   verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["get", "list"]
@@ -80,14 +83,75 @@ spec:
                 sleep "${WAIT_DELAY}"
               done
               echo "ERROR: UE attach not confirmed"
-              echo "--- srsUE log tail ---"
-              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=80 || true
-              echo "--- DU log tail ---"
-              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c ocudu-du --tail=80 || true
+              echo
+              echo "======== timeline ========"
+              echo "--- srsUE wait / attach ---"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=500 2>/dev/null \
+                | grep -Ei 'waiting for DU ZMQ|DU ZMQ listening|startup banner|utc=|wait=|Attaching|Switching on|starting srsue' \
+                || echo "(no timeline matches in srsUE logs)"
+              echo "--- DU F1 / scheduler ---"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c ocudu-du --tail=2000 2>/dev/null \
+                | grep -E 'F1 Setup: Procedure completed|Cell scheduling was activated' \
+                || echo "(no F1/SCHED completion lines)"
+              echo
+              echo "======== srsUE (tail 500, then filtered) ========"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=500 2>/dev/null || true
+              echo "--- srsUE grep PHY|RRC|NAS|PRACH|MIB|SIB|cell|sync|zmq|error ---"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c srsue --tail=500 2>/dev/null \
+                | grep -Ei 'PHY|RRC|NAS|PRACH|MIB|SIB|cell|sync|zmq|error' \
+                || echo "(no matches)"
+              echo
+              echo "======== DU (filtered; no F1 JSON) ========"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-du -c ocudu-du --tail=4000 2>/dev/null \
+                | grep -Ei 'SCHED|zmq|PRACH|Cell scheduling|F1 Setup|Waiting for data' \
+                || echo "(no matches)"
+              echo
+              echo "======== CU (NGAP / NAS / Registration / UE) ========"
+              kubectl logs -n "${RAN_NS}" deployment/ocudu-cu --tail=2000 2>/dev/null \
+                | grep -Ei 'NGAP|NAS|Registration|UE' \
+                || echo "(no matches)"
+              echo
+              echo "======== AMF (imsi / Registration / gNB-N2) ========"
+              kubectl logs -n 5g-core deployment/amf --tail=2000 2>/dev/null \
+                | grep -Ei 'imsi|Registration|gNB-N2' \
+                || echo "(no matches)"
+              echo
+              echo "======== ZMQ sockets (read-only; no TCP connect to 2000/2001) ========"
+              kubectl exec -n "${RAN_NS}" deploy/ocudu-du -c ocudu-du -- sh -c \
+                'echo "---- ss -tnp 2000/2001 ----"; ss -tnp 2>/dev/null | grep -E ":2000|:2001" || echo "(no ss matches)"; echo "---- /proc/net/tcp 07D0/07D1 ----"; grep -E ":07D0|:07D1" /proc/net/tcp || true' \
+                || echo "(exec failed)"
+              echo
+              echo "======== config ue.conf ========"
+              kubectl exec -n "${RAN_NS}" deploy/ocudu-du -c srsue -- cat /mnt/srsran/configs/ue.conf \
+                || echo "(exec failed)"
+              echo
+              echo "======== config du.yml ru_sdr / cell_cfg ========"
+              kubectl exec -n "${RAN_NS}" deploy/ocudu-du -c ocudu-du -- sh -c \
+                'awk "/^ru_sdr:/ {p=1} /^cell_cfg:/ {p=1} /^[a-z]/ && !/^ru_sdr:/ && !/^cell_cfg:/ {p=0} p" /mnt/ocudu/configs/du.yml' \
+                || echo "(exec failed)"
+              echo
+              echo "======== subscriber MongoDB ========"
+              echo "IMSI=${UE_IMSI:-001010000000001}"
+              kubectl exec -n 5g-core mongodb-0 -c mongodb -- \
+                mongosh "mongodb://localhost:27017/open5gs?directConnection=true" --quiet --eval \
+                "db.subscribers.countDocuments({imsi:\"${UE_IMSI:-001010000000001}\"})" \
+                || echo "(mongodb exec failed)"
+              echo
+              echo "======== images ========"
+              kubectl get pod -n "${RAN_NS}" -l app=ocudu-du -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.containerStatuses[*]}{.name}{" "}{.image}{" "}{.imageID}{"\n"}{end}{end}' \
+                || true
+              echo
+              kubectl get deploy -n "${RAN_NS}" ocudu-du ocudu-cu -o wide || true
+              echo
+              echo "======== pcap emptyDir ========"
+              kubectl exec -n "${RAN_NS}" deploy/ocudu-du -c srsue -- sh -c 'ls -l /mnt/srsran/logs 2>/dev/null || true' \
+                || true
+              echo
               echo "Checklist:"
               echo "- ZMQ endpoints must use 127.0.0.1 inside the CU/DU sidecar pod."
               echo "- coreset0_index must be 12 and UE nof_prb must be 106 (20 MHz)."
-              echo "- MongoDB must contain subscriber IMSI ${UE_IMSI}."
+              echo "- MongoDB must contain subscriber IMSI ${UE_IMSI:-001010000000001}."
+              echo "- Do not TCP-probe 127.0.0.1:2000 (nc /dev/tcp); that deadlocks ZMQ IQ."
               if [[ "${UE_ATTACH_REQUIRED}" == "true" ]]; then
                 exit 1
               fi

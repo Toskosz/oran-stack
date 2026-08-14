@@ -57,3 +57,6 @@ ansible/output-*.txt
 # Local Nephio deploy wait timings
 .nephio-timing.sqlite
 .nephio-timing.sqlite-*
+
+# srsUE attach diagnostic captures (regenerate with collect-ue-diagnostics.sh)
+docs/UE_ATTACH_CAPTURE-*.txt

@@ -24,12 +24,17 @@
 - name: Collect UE diagnostics when attach did not complete
   when: not (_ue_attached | bool)
   block:
-    - name: Dump DU log tail
+    - name: Dump structured UE attach diagnostics
       ansible.builtin.command:
-        cmd: >
-          kubectl --kubeconfig={{ _kubeconfig }} logs -n {{ namespaces.ran }}
-          deploy/ocudu-du --tail=30
-      register: _du_log
+        argv:
+          - "{{ playbook_dir }}/../../scripts/collect-ue-diagnostics.sh"
+          - --no-file
+      environment:
+        KUBECONFIG: "{{ _kubeconfig }}"
+        RAN_NS: "{{ namespaces.ran }}"
+        CORE_NS: "{{ namespaces.core | default('5g-core') }}"
+        UE_IMSI: "001010000000001"
+      register: _ue_diag
       changed_when: false
       failed_when: false
 
@@ -39,17 +44,14 @@
           UE did NOT complete attach within
           {{ verify_stack.ue_attach_wait_retries | int * verify_stack.ue_attach_wait_delay | int }}s.
 
-          UE log tail:
-          {{ _ue_logs.stdout | default('') | regex_search('(?s).{0,1200}$') }}
-
-          DU log tail:
-          {{ _du_log.stdout | default('') }}
+          {{ _ue_diag.stdout | default('') }}
 
           If the UE is stuck at 'Switching on' with no PRACH in the DU:
             1. Confirm ZMQ is localhost sidecar (127.0.0.1 in ocudu-configs) —
                cross-pod ClusterIP ZMQ only handshakes and never streams IQ.
             2. Confirm coreset0_index=12 and UE nof_prb=106 (20 MHz).
             3. Confirm MongoDB has the subscriber (deploy_5g_core mongodb_init).
+            4. Do not TCP-probe 127.0.0.1:2000 (nc /dev/tcp); that deadlocks ZMQ IQ.
       when: verify_stack.ue_attach_required | bool
 
     - name: Warn (non-fatal) that UE attach is unconfirmed

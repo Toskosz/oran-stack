@@ -54,7 +54,7 @@ data:
       all_level: debug
       f1ap_level: debug
       f1ap_json_enabled: true
-      ngap_level: info
+      ngap_level: debug
 
   du.yml.tpl: |
     gnb_du_id: ${GNB_DU_ID}
@@ -131,14 +131,18 @@ data:
     nof_prb = 106
 
     [pcap]
-    enable = none
+    enable = mac,nas
     mac_filename = /mnt/srsran/logs/ue_mac.pcap
     mac_nr_filename = /mnt/srsran/logs/ue_mac_nr.pcap
     nas_filename = /mnt/srsran/logs/ue_nas.pcap
 
     [log]
-    all_level = info
-    phy_lib_level = none
+    all_level = debug
+    phy_level = debug
+    phy_lib_level = info
+    mac_level = info
+    rrc_level = debug
+    nas_level = debug
     all_hex_limit = 32
     filename = /dev/stdout
     file_max_size = -1
@@ -589,6 +593,21 @@ spec:
               done
               echo "DU ZMQ listening — waiting 40s for cell to activate..."
               sleep 40
+              echo "==== srsUE startup banner ===="
+              echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "wait=LISTEN-only (/proc/net/tcp state 0A); not /dev/tcp"
+              echo "zmq_tx_port=${port} hex=${hex}"
+              /usr/local/bin/srsue --version 2>/dev/null || true
+              rx_hex=$(printf '%04X' 2001)
+              echo "---- /proc/net/tcp ${port}/2001 (${hex}/${rx_hex}) ----"
+              awk -v a="${hex}" -v b="${rx_hex}" '
+                $2 ~ ":"a"$" || $2 ~ ":"b"$" || $3 ~ ":"a"$" || $3 ~ ":"b"$" { print }
+              ' /proc/net/tcp || true
+              echo "---- ss listen (no connect to ZMQ) ----"
+              ss -lnt 2>/dev/null || netstat -lnt 2>/dev/null || true
+              echo "---- ss established 2000/2001 ----"
+              ss -tnp 2>/dev/null | grep -E ':2000|:2001' || true
+              echo "==== starting srsue ===="
               exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
           securityContext:
             privileged: true

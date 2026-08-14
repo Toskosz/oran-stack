@@ -398,6 +398,21 @@ spec:
               done
               echo "DU ZMQ listening — waiting {{ .Values.ueStartDelaySec }}s for cell to activate..."
               sleep {{ .Values.ueStartDelaySec }}
+              echo "==== srsUE startup banner ===="
+              echo "utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "wait=LISTEN-only (/proc/net/tcp state 0A); not /dev/tcp"
+              echo "zmq_tx_port=${port} hex=${hex}"
+              /usr/local/bin/srsue --version 2>/dev/null || true
+              rx_hex=$(printf '%04X' {{ .Values.zmq.duRxPort }})
+              echo "---- /proc/net/tcp ${port}/{{ .Values.zmq.duRxPort }} (${hex}/${rx_hex}) ----"
+              awk -v a="${hex}" -v b="${rx_hex}" '
+                $2 ~ ":"a"$" || $2 ~ ":"b"$" || $3 ~ ":"a"$" || $3 ~ ":"b"$" { print }
+              ' /proc/net/tcp || true
+              echo "---- ss listen (no connect to ZMQ) ----"
+              ss -lnt 2>/dev/null || netstat -lnt 2>/dev/null || true
+              echo "---- ss established 2000/2001 ----"
+              ss -tnp 2>/dev/null | grep -E ':{{ .Values.zmq.duTxPort }}|:{{ .Values.zmq.duRxPort }}' || true
+              echo "==== starting srsue ===="
               exec /usr/local/bin/srsue /mnt/srsran/configs/ue.conf
           securityContext:
             privileged: true
