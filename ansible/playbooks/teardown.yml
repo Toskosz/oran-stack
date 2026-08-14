@@ -8,23 +8,62 @@
 #   vagrant destroy -f          # to also destroy the VMs
 #
 # WARNING: This is DESTRUCTIVE. It will:
-#   - Uninstall all three Helm releases (deletes all K8s resources + PVCs)
-#   - Delete the 5g-core, near-rt-ric, and ran namespaces
+#   - Stop Config Sync (RootSync) so GitOps cannot recreate namespaces
+#   - Uninstall Helm releases (legacy path; no-op when NFs were GitOps-applied)
+#   - Delete the 5g-core, near-rt-ric, ran, ricxapp, monitoring, oran-verify
+#     namespaces
 #   - Run kubeadm reset --force on all nodes
 #   - Remove CNI state, iptables rules, and kubeconfigs from the nodes
 #   - Remove the local ./kubeconfig file
 #
-# any_errors_fatal: false is used for Helm uninstalls so a missing release
-# (e.g. partial deployment) does not abort the teardown.
+# any_errors_fatal: false is used so a missing release or absent RootSync
+# (e.g. partial / Helm-only deployment) does not abort the teardown.
 # ============================================================================
 ---
-- name: Uninstall Helm releases (monitoring → xapp → RAN → RIC → core)
+- name: Stop GitOps, uninstall releases, delete namespaces
   hosts: localhost
   connection: local
   gather_facts: false
   any_errors_fatal: false
+  vars:
+    _kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+    _teardown_namespaces:
+      - "{{ namespaces.monitoring }}"
+      - "{{ namespaces.xapp }}"
+      - "{{ namespaces.ran }}"
+      - "{{ namespaces.ric }}"
+      - "{{ namespaces.core }}"
+      - oran-verify
 
   tasks:
+    # Config Sync owns the NF namespaces (ns-and-secrets in oran-lab). Deleting
+    # them while RootSync is still reconciling leaves them Terminating: the
+    # reconciler recreates child objects faster than the namespace can drain.
+    - name: Delete Config Sync RootSync (stop GitOps reconciliation)
+      kubernetes.core.k8s:
+        state: absent
+        kubeconfig: "{{ _kubeconfig }}"
+        api_version: configsync.gke.io/v1beta1
+        kind: RootSync
+        name: "{{ nephio_rootsync_name }}"
+        namespace: "{{ nephio_rootsync_namespace }}"
+        wait: true
+        wait_timeout: 180
+      ignore_errors: true
+
+    - name: Wait until Config Sync root reconciler pods are gone
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ _kubeconfig }}"
+        kind: Pod
+        namespace: "{{ nephio_rootsync_namespace }}"
+        label_selectors:
+          - "configsync.gke.io/sync-name={{ nephio_rootsync_name }}"
+      register: _rootsync_pods
+      until: (_rootsync_pods.resources | default([])) | length == 0
+      retries: 36
+      delay: 5
+      ignore_errors: true
+
     - name: Uninstall monitoring Helm release
       kubernetes.core.helm:
         name:              "{{ helm_releases.monitoring }}"
@@ -32,7 +71,7 @@
         state: absent
         wait: true
         wait_timeout: "120s"
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
       ignore_errors: true
 
     - name: Uninstall xApp Helm release
@@ -42,7 +81,7 @@
         state: absent
         wait: true
         wait_timeout: "120s"
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
       ignore_errors: true
 
     - name: Uninstall ran Helm release
@@ -52,7 +91,7 @@
         state: absent
         wait: true
         wait_timeout: "120s"
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
       ignore_errors: true
 
     - name: Uninstall near-rt-ric Helm release
@@ -62,7 +101,7 @@
         state: absent
         wait: true
         wait_timeout: "120s"
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
       ignore_errors: true
 
     - name: Uninstall 5g-core Helm release
@@ -72,74 +111,43 @@
         state: absent
         wait: true
         wait_timeout: "180s"
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
       ignore_errors: true
 
     # Delete namespaces so PVCs (MongoDB data) are also removed.
-    - name: Delete monitoring namespace
+    - name: Delete NF namespaces
       kubernetes.core.k8s:
         state: absent
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
+        kubeconfig: "{{ _kubeconfig }}"
         definition:
           apiVersion: v1
           kind: Namespace
           metadata:
-            name: "{{ namespaces.monitoring }}"
+            name: "{{ item }}"
         wait: true
-        wait_timeout: 60
+        wait_timeout: "{{ 120 if item == namespaces.core else 60 }}"
+      loop: "{{ _teardown_namespaces }}"
       ignore_errors: true
 
-    - name: Delete ricxapp namespace
-      kubernetes.core.k8s:
-        state: absent
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ namespaces.xapp }}"
-        wait: true
-        wait_timeout: 60
+    # Last resort if a controller left a finalizer after RootSync stopped.
+    - name: Force-finalize namespaces still stuck Terminating
+      ansible.builtin.shell: |
+        set -uo pipefail
+        KC="{{ _kubeconfig }}"
+        NS="{{ item }}"
+        ts=$(kubectl --kubeconfig="$KC" get ns "$NS" \
+          -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || true)
+        if [ -z "${ts}" ]; then
+          exit 0
+        fi
+        kubectl --kubeconfig="$KC" get ns "$NS" -o json \
+          | python3 -c 'import json,sys; d=json.load(sys.stdin); d["spec"]["finalizers"]=[]; json.dump(d, sys.stdout)' \
+          | kubectl --kubeconfig="$KC" replace --raw "/api/v1/namespaces/${NS}/finalize" -f -
+      args:
+        executable: /bin/bash
+      loop: "{{ _teardown_namespaces }}"
       ignore_errors: true
-
-    - name: Delete ran namespace
-      kubernetes.core.k8s:
-        state: absent
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ namespaces.ran }}"
-        wait: true
-        wait_timeout: 60
-      ignore_errors: true
-
-    - name: Delete near-rt-ric namespace
-      kubernetes.core.k8s:
-        state: absent
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ namespaces.ric }}"
-        wait: true
-        wait_timeout: 60
-      ignore_errors: true
-
-    - name: Delete 5g-core namespace
-      kubernetes.core.k8s:
-        state: absent
-        kubeconfig: "{{ playbook_dir }}/../../kubeconfig"
-        definition:
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: "{{ namespaces.core }}"
-        wait: true
-        wait_timeout: 120
-      ignore_errors: true
+      changed_when: stdout | default('') | length > 0
 
 - name: Reset kubeadm cluster on all nodes
   hosts: k8s_cluster
