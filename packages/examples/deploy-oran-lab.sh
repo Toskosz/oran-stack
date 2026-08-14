@@ -596,6 +596,44 @@ wait_for_expected_sync() {
   return 1
 }
 
+# Recreate Multus NetworkAttachmentDefinitions after namespace recreation.
+# Provisioning (kubeadm_control_plane) creates these once; Config Sync does not
+# own them, so a force-fresh that empties/recreates ns leaves e2term/CU/DU stuck
+# on "e2br-net not found".
+ensure_multus_nads() {
+  local ns nad bridge subnet start end
+  echo "==> Ensuring Multus NetworkAttachmentDefinitions"
+  for ns in 5g-core near-rt-ric ran; do
+    kwl get namespace "$ns" >/dev/null 2>&1 || continue
+    for spec in \
+      'n2br-net:n2br:10.200.1.0/24:10.200.1.2:10.200.1.254' \
+      'f1cbr-net:f1cbr:10.200.2.0/24:10.200.2.2:10.200.2.254' \
+      'e2br-net:e2br:10.200.3.0/24:10.200.3.2:10.200.3.254'; do
+      IFS=: read -r nad bridge subnet start end <<<"$spec"
+      kwl apply -f - <<EOF
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ${nad}
+  namespace: ${ns}
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "ovs",
+      "bridge": "${bridge}",
+      "ipam": {
+        "type": "host-local",
+        "subnet": "${subnet}",
+        "rangeStart": "${start}",
+        "rangeEnd": "${end}"
+      }
+    }
+EOF
+    done
+  done
+}
+
 wait_for_package() {
   local package="$1"
   echo "==> Waiting for $package on workload cluster"
@@ -627,6 +665,10 @@ wait_for_package() {
       kwl apply -f "$ROOT/packages/blueprints/ns-and-secrets/settings.yaml"
       wait_for_object configmap oran-lab-settings 5g-core
       wait_for_object configmap oran-lab-settings oran-verify
+      # Force-fresh recreates namespaces; Multus NADs are cluster-local and are
+      # not in oran-lab git, so reinstate the OVS attachments the provisioner
+      # created (same bridges/subnets as ansible/inventories/group_vars/all).
+      ensure_multus_nads
       ;;
     5g-core)
       wait_for_object statefulset mongodb 5g-core
