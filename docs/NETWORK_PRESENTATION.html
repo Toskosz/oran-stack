@@ -1087,19 +1087,19 @@
 
     <section class="slide accent-cyan" data-title="Rede Kubernetes em dois planos">
       <p class="eyebrow">CNI e comutação</p>
-      <h2>Dois caminhos de dados atendem a protocolos distintos</h2>
+      <h2>Dois planos transportam fluxos independentes</h2>
       <div class="content">
         <div class="lane">
           <div class="lane-header">
             <div>
               <span class="chip blue">CNI primária</span>
               <div class="lane-title" style="margin-top: 0.65em;">Flannel</div>
-              <div class="muted mono">10.244.0.0/16</div>
+              <div class="muted mono">10.244.0.0/16 · em paralelo</div>
             </div>
             <div class="lane-flow">
-              <div class="lane-node">SBI HTTP/2</div><span class="lane-arrow">→</span>
-              <div class="lane-node">RMR</div><span class="lane-arrow">→</span>
-              <div class="lane-node">F1-U / N3 UDP</div><span class="lane-arrow">→</span>
+              <div class="lane-node">SBI<br><span class="muted">HTTP/2</span></div>
+              <div class="lane-node">RMR<br><span class="muted">mensageria do RIC</span></div>
+              <div class="lane-node">F1-U / N3<br><span class="muted">UDP</span></div>
               <div class="lane-node">DNS dos pods</div>
             </div>
           </div>
@@ -1109,13 +1109,12 @@
             <div>
               <span class="chip cyan">CNI secundária</span>
               <div class="lane-title" style="margin-top: 0.65em;">Multus + OVS</div>
-              <div class="muted mono">10.200.1–3.0/24</div>
+              <div class="muted mono">IPs estáticos · redes isoladas</div>
             </div>
             <div class="lane-flow">
-              <div class="lane-node">N2 / NGAP</div><span class="lane-arrow">→</span>
-              <div class="lane-node">F1-C</div><span class="lane-arrow">→</span>
-              <div class="lane-node">E2AP</div><span class="lane-arrow">→</span>
-              <div class="lane-node">IPs estáticos dos pods</div>
+              <div class="lane-node">N2 / NGAP<br><span class="muted mono">n2br · 10.200.1.0/24</span></div>
+              <div class="lane-node">F1-C<br><span class="muted mono">f1cbr · 10.200.2.0/24</span></div>
+              <div class="lane-node">E2AP<br><span class="muted mono">e2br · 10.200.3.0/24</span></div>
             </div>
           </div>
         </div>
@@ -1202,47 +1201,6 @@
       <div class="footer"><span class="source">Fonte: README.md · vars.yml secondary_networks</span><span>17</span></div>
     </section>
 
-    <section class="slide" data-title="VXLAN entre nós">
-      <p class="eyebrow">Extensão da malha OVS</p>
-      <h2>Cada bridge recebe um túnel para cada peer</h2>
-      <div class="content diagram" role="img" aria-label="Três túneis VXLAN OVS conectando os nós cp1 e w1">
-        <svg viewBox="0 0 1400 560" aria-hidden="true">
-          <defs>
-            <marker id="arrow8b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#004080"/></marker>
-            <marker id="arrow8p" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#486796"/></marker>
-            <marker id="arrow8c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#00669c"/></marker>
-          </defs>
-          <rect class="node" x="45" y="30" rx="18" width="410" height="490"/>
-          <text class="label" x="250" y="80" text-anchor="middle">cp1</text>
-          <text class="small" x="250" y="110" text-anchor="middle">control_plane_ip</text>
-          <rect class="node node-blue" x="105" y="160" rx="12" width="290" height="78"/>
-          <text class="label" x="250" y="208" text-anchor="middle">n2br</text>
-          <rect class="node node-purple" x="105" y="278" rx="12" width="290" height="78"/>
-          <text class="label" x="250" y="326" text-anchor="middle">f1cbr</text>
-          <rect class="node node-cyan" x="105" y="396" rx="12" width="290" height="78"/>
-          <text class="label" x="250" y="444" text-anchor="middle">e2br</text>
-
-          <rect class="node" x="945" y="30" rx="18" width="410" height="490"/>
-          <text class="label" x="1150" y="80" text-anchor="middle">w1</text>
-          <text class="small" x="1150" y="110" text-anchor="middle">ansible_host / node IP</text>
-          <rect class="node node-blue" x="1005" y="160" rx="12" width="290" height="78"/>
-          <text class="label" x="1150" y="208" text-anchor="middle">n2br</text>
-          <rect class="node node-purple" x="1005" y="278" rx="12" width="290" height="78"/>
-          <text class="label" x="1150" y="326" text-anchor="middle">f1cbr</text>
-          <rect class="node node-cyan" x="1005" y="396" rx="12" width="290" height="78"/>
-          <text class="label" x="1150" y="444" text-anchor="middle">e2br</text>
-
-          <path class="line line-blue" d="M395 199 L1005 199" marker-start="url(#arrow8b)" marker-end="url(#arrow8b)"/>
-          <path class="line line-purple" d="M395 317 L1005 317" marker-start="url(#arrow8p)" marker-end="url(#arrow8p)"/>
-          <path class="line line-cyan" d="M395 435 L1005 435" marker-start="url(#arrow8c)" marker-end="url(#arrow8c)"/>
-          <text class="small" x="700" y="180" text-anchor="middle">VXLAN · VNI derivado do nome da bridge</text>
-          <text class="small" x="700" y="298" text-anchor="middle">VXLAN · uma porta por nó remoto</text>
-          <text class="small" x="700" y="416" text-anchor="middle">VXLAN · IP de underlay estável obrigatório</text>
-        </svg>
-      </div>
-      <div class="footer"><span class="source">Fonte: ansible/roles/ovs_vxlan/tasks/create_vxlan.yml</span><span>18</span></div>
-    </section>
-
     <section class="slide accent-purple" data-title="Namespaces e isolamento">
       <p class="eyebrow">Limites do Kubernetes</p>
       <h2>Namespaces organizam a stack — não fazem firewall</h2>
@@ -1268,7 +1226,7 @@
           <p class="muted" style="margin-top: auto;">O isolamento hoje = namespaces + limites de bridge, não NetworkPolicies entre pods.</p>
         </div>
       </div>
-      <div class="footer"><span class="source">Fonte: packages/blueprints/ns-and-secrets/namespaces.yaml</span><span>19</span></div>
+      <div class="footer"><span class="source">Fonte: packages/blueprints/ns-and-secrets/namespaces.yaml</span><span>18</span></div>
     </section>
 
     <section class="slide accent-cyan" data-title="Interfaces do plano de controle">
@@ -1321,7 +1279,7 @@
           <text class="tiny" x="900" y="490" text-anchor="middle">SCTP 36421 · e2br</text>
         </svg>
       </div>
-      <div class="footer"><span class="source">Fontes: helm/ran/configmap-ocudu-configs.yaml · deployment-amf.yaml</span><span>20</span></div>
+      <div class="footer"><span class="source">Fontes: helm/ran/configmap-ocudu-configs.yaml · deployment-amf.yaml</span><span>19</span></div>
     </section>
 
     <section class="slide accent-green" data-title="Caminho do plano de usuário">
@@ -1375,7 +1333,7 @@
           <text class="small" x="580" y="449" text-anchor="middle">F1-U e N3 usam caminhos primários Flannel / host — ambos são UDP</text>
         </svg>
       </div>
-      <div class="footer"><span class="source">Fontes: helm/ran · helm/5g-core/deployment-upf.yaml · values.yaml</span><span>21</span></div>
+      <div class="footer"><span class="source">Fontes: helm/ran · helm/5g-core/deployment-upf.yaml · values.yaml</span><span>20</span></div>
     </section>
 
     <section class="slide accent-amber" data-title="Malha SBI do núcleo 5G">
@@ -1405,7 +1363,7 @@
             <path class="line line-amber" d="M610 398 L467 315" marker-end="url(#arrow12)"/>
           </svg>
       </div>
-      <div class="footer"><span class="source">Fonte: helm/5g-core templates</span><span>22</span></div>
+      <div class="footer"><span class="source">Fonte: helm/5g-core templates</span><span>21</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Internos do Near-RT RIC">
@@ -1463,57 +1421,43 @@
         </svg>
       </div>
       <div class="callout" style="margin-top: 1%;">O RMR usa a rede primária de pods e descoberta via Service headless; o SCTP E2 permanece em <code>e2br</code>.</div>
-      <div class="footer"><span class="source">Fontes: helm/near-rt-ric · helm/xapps</span><span>23</span></div>
+      <div class="footer"><span class="source">Fontes: helm/near-rt-ric · helm/xapps</span><span>22</span></div>
     </section>
 
     <section class="slide accent-cyan" data-title="Registro E2">
-      <p class="eyebrow">Near-RT RIC · Setup E2</p>
-      <h2>SCTP estabelecido não registra o gNB</h2>
-      <div class="content">
+      <p class="eyebrow">Near-RT RIC · problema e correção</p>
+      <h2>SCTP era apenas a primeira etapa do registro E2</h2>
+      <div class="content" style="display: flex; flex-direction: column; gap: 2%;">
         <div class="lane">
           <div class="lane-flow">
-            <div class="lane-node">CU<br><span class="muted"><code>10.200.3.2</code> · E2AP</span></div>
+            <div class="lane-node"><strong>1 · Transporte</strong><br><span class="muted">CU → e2term · SCTP <code>36421</code></span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node">e2term<br><span class="muted">SCTP <code>36421</code></span></div>
+            <div class="lane-node"><strong>2 · Roteamento</strong><br><span class="muted">e2term → e2mgr · RMR</span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node">e2mgr<br><span class="muted">RMR <code>12001</code></span></div>
+            <div class="lane-node"><strong>3 · Estado</strong><br><span class="muted">e2mgr → DBAAS · RNIB</span></div>
             <span class="lane-arrow">→</span>
-            <div class="lane-node">DBAAS<br><span class="muted">SDL <code>MSETMPUB</code></span></div>
-            <span class="lane-arrow">→</span>
-            <div class="lane-node">CU<br><span class="muted">E2SetupResponse</span></div>
+            <div class="lane-node"><strong>4 · Confirmação</strong><br><span class="muted"><code>CONNECTED</code> + E2SetupResponse</span></div>
           </div>
         </div>
-        <div class="grid-2" style="margin-top: 1.4%;">
-          <article class="card compact" style="border-top: 0.35rem solid var(--cyan);">
-            <span class="kicker">Defeito 1 · identidade RMR</span>
-            <h3><code>RMR_SRC_ID=ric-e2mgr</code></h3>
-            <p class="muted">Sem isso, o RMR usa o hostname do pod. As rotas do rtmgr exigem o remetente <code>ric-e2mgr:3801</code>; o e2mgr fica com <code>open=0 / succ=0</code> rumo ao e2term.</p>
+        <div class="grid-2" style="flex: 1; align-items: stretch;">
+          <article class="card compact" style="border-top: 0.35rem solid var(--rose);">
+            <span class="kicker">Falha 1 · etapa 2</span>
+            <h3>Identidade RMR incorreta</h3>
+            <p>O e2mgr usava o hostname variável do pod, mas as rotas esperavam <code>ric-e2mgr</code>.</p>
+            <p class="muted"><strong>Correção:</strong> definir <code>RMR_SRC_ID=ric-e2mgr</code>.</p>
           </article>
-          <article class="card compact" style="border-top: 0.35rem solid var(--purple);">
-            <span class="kicker">Defeito 2 · backend RNIB</span>
-            <h3>DBAAS OSC, não Redis de estoque</h3>
-            <p class="muted"><code>redis:6-alpine</code> não implementa <code>MSETMPUB</code>. O e2mgr falha a escrita CONNECTED e retorna sem enviar <code>12002</code>. A imagem é <code>ric-plt-dbaas:0.6.5</code>.</p>
-          </article>
-        </div>
-        <div class="grid-3" style="margin-top: 1.4%;">
-          <article class="card compact">
-            <span class="kicker">Dois planos, dois IPs</span>
-            <p class="muted"><code>local-ip</code> do e2term é o IP Flannel do pod. SCTP E2AP usa <code>10.200.3.4</code> em <code>e2br</code>. Trocar os dois quebra o keepalive.</p>
-          </article>
-          <article class="card compact">
-            <span class="kicker">TCP ≠ RMR saudável</span>
-            <p class="muted">Conectar em <code>ric-e2term:38000</code> só prova o listener. Rotas, identidade de origem e RNIB ainda podem falhar em silêncio.</p>
-          </article>
-          <article class="card compact">
-            <span class="kicker">A CU não retenta</span>
-            <p class="muted"><code>wait-for-e2t</code> atrasa o start. Se o E2T existe e o gNB não, <code>verify-e2</code> reinicia CU e depois DU <strong>uma vez</strong>.</p>
+          <article class="card compact" style="border-top: 0.35rem solid var(--rose);">
+            <span class="kicker">Falha 2 · etapa 3</span>
+            <h3>Redis incompatível com o RNIB</h3>
+            <p>O Redis genérico não implementava o comando O-RAN <code>MSETMPUB</code>; o estado <code>CONNECTED</code> não era salvo.</p>
+            <p class="muted"><strong>Correção:</strong> usar <code>ric-plt-dbaas:0.6.5</code>.</p>
           </article>
         </div>
+        <div class="callout" style="margin-top: 1%;">
+          <p style="margin: 0;"><strong>Como interpretar:</strong> <code>SCTP ESTABLISHED</code> prova o transporte; <code>gnb_001_001_00019b CONNECTED</code> prova o Setup E2; <code>RIC Indication Received</code> prova o caminho KPM completo.</p>
+        </div>
       </div>
-      <div class="callout" style="margin-top: 1.2%;">
-        <code>gnb_001_001_00019b</code> CONNECTED prova o Setup E2 — não o caminho de indicações KPM (<code>12050</code>).
-      </div>
-      <div class="footer"><span class="source">Fonte: docs/E2_REGISTRATION_SESSION_2026-07-10.md · helm/near-rt-ric · packages/blueprints/verify-e2</span><span>24</span></div>
+      <div class="footer"><span class="source">Fonte: docs/E2_REGISTRATION_SESSION_2026-07-10.md · helm/near-rt-ric · packages/blueprints/verify-e2</span><span>23</span></div>
     </section>
 
     <section class="slide" data-title="Mapa de portas">
@@ -1537,7 +1481,7 @@
           </tbody>
         </table>
       </div>
-      <div class="footer"><span class="source">Fontes: values Helm e templates de Service / Deployment</span><span>25</span></div>
+      <div class="footer"><span class="source">Fontes: values Helm e templates de Service / Deployment</span><span>24</span></div>
     </section>
 
     <section class="slide accent-green" data-title="Jobs de verificação">
@@ -1566,91 +1510,78 @@
       <div class="callout" style="margin-top: 1.5%;">
         Os Jobs executam em <code>oran-verify</code> com service accounts de escopo limitado e bloqueiam a progressão dos pacotes quando um gate obrigatório falha.
       </div>
-      <div class="footer"><span class="source">Fonte: packages/blueprints/verify-e2 · xapp-lifecycle · verify-ue</span><span>26</span></div>
+      <div class="footer"><span class="source">Fonte: packages/blueprints/verify-e2 · xapp-lifecycle · verify-ue</span><span>25</span></div>
     </section>
 
-    <section class="slide accent-rose" data-title="Pedido de ajuda: srsUE">
-      <p class="eyebrow">Pedido de ajuda · srsUE · 2 corridas 14/08 (04:11Z e 12:07Z) · mesmo IDLE</p>
-      <h2>ZMQ ESTAB no localhost; PHY-SA nunca sai de IDLE</h2>
-      <div class="content" style="display: flex; flex-direction: column; gap: 1%;">
-        <div class="chip-row">
-          <span class="chip rose">srsUE 25.10.0 sidecar</span>
-          <span class="chip">ZMQ 127.0.0.1 ESTAB</span>
-          <span class="chip green">F1 + NG + KPM</span>
-          <span class="chip amber">CU ues=0</span>
-          <span class="chip rose">verify-ue 18/18 Failed</span>
+    <section class="slide accent-rose" data-title="Resultado da integração">
+      <p class="eyebrow">Resultado final do laboratório</p>
+      <h2>Toda a stack integrou; somente o UE não conectou</h2>
+      <div class="content" style="display: flex; flex-direction: column; gap: 3%;">
+        <div class="grid-4" style="flex: 1; align-items: stretch;">
+          <article class="card compact">
+            <span class="kicker">5G Core</span>
+            <span class="number highlight-green">OK</span>
+            <p>Open5GS saudável, assinante cadastrado e AMF aceitando o gNB.</p>
+          </article>
+          <article class="card compact">
+            <span class="kicker">RAN</span>
+            <span class="number highlight-green">OK</span>
+            <p>NG Setup e F1 Setup concluídos; DU com célula ativa.</p>
+          </article>
+          <article class="card compact">
+            <span class="kicker">Near-RT RIC</span>
+            <span class="number highlight-green">OK</span>
+            <p>gNB registrado por E2 e indicações KPM recebidas pelo xApp.</p>
+          </article>
+          <article class="card compact" style="border: 3px solid var(--rose);">
+            <span class="kicker">UE simulado</span>
+            <span class="number highlight-rose">FALHOU</span>
+            <p>ZMQ conectado, mas sem sincronismo com a célula NR.</p>
+          </article>
         </div>
-        <div class="grid-2" style="flex: 1; min-height: 0; align-items: stretch;">
-          <div class="table-wrap">
-            <table class="version-table" aria-label="Configuração de rádio e UE">
-              <thead><tr><th>Parâmetro</th><th>Valor no pod</th></tr></thead>
-              <tbody>
-                <tr><td>Banda / DL / SSB</td><td class="mono">n3 · ARFCN 368500 (1842.5 MHz) · SSB 368410 · UL 1747.5 MHz</td></tr>
-                <tr><td>Célula</td><td class="mono">20 MHz · SCS 15 · nrb106 · pci=1 · TAC 1 · PLMN 00101 · 1T1R</td></tr>
-                <tr><td>CORESET0 / PRACH</td><td class="mono">index 12 · prach_config_index 1 · root_seq 1 · ss0_index 0</td></tr>
-                <tr><td>srate / ZMQ</td><td class="mono">DU 23.04 · UE 23.04e6 · DU tx:2000 rx:2001 · UE tx:2001 rx:2000</td></tr>
-                <tr><td>Ganhos / LTE</td><td class="mono">DU tx/rx 75 · UE tx 80 rx 40 · rat.eutra nof_carriers=0</td></tr>
-                <tr><td>USIM / APN</td><td class="mono">IMSI 001010000000001 · milenage · APN internet · RRC rel 15</td></tr>
-                <tr><td>Imagens</td><td class="mono">ocudu@427fc5ef · srsue@577aff78 · tag latest</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 2.5%;">
-            <article class="card compact">
-              <span class="kicker">Stack no pod</span>
-              <ul class="clean">
-                <li>OCUDU <code>release_26_04</code> pinado · DU <code>all_level=info</code> · <code>phy_rx_symbols_prach: false</code></li>
-                <li>srsUE <code>Version 25.10.0</code> · srsRAN_4G <code>git clone --depth 1</code> <strong>não pinado</strong> · <code>phy_level=debug</code></li>
-                <li>Sidecar privileged + <code>stdin/tty</code> no mesmo netns · wait LISTEN-only + 40 s (não <code>/dev/tcp</code>)</li>
-                <li>Open5GS 2.7.x · MongoDB IMSI count <strong>1</strong></li>
-              </ul>
-            </article>
-            <article class="card compact">
-              <span class="kicker">Já funciona (não é o bloqueio)</span>
-              <p>AMF gNB-N2 <code>10.200.1.3</code> · F1 Setup · célula ativada · E2 KPM no xApp · ZMQ ESTAB nos dois sentidos. ClusterIP entre pods só faz handshake (~100 B) e já foi descartado.</p>
-            </article>
-          </div>
+        <div class="callout rose">
+          <p style="margin: 0;">
+            <strong>Esperado:</strong> sincronizar célula → enviar PRACH → estabelecer RRC → registrar no AMF → criar sessão PDU.<br>
+            <strong>Observado:</strong> o fluxo parou antes do primeiro passo; por isso o único gate reprovado foi <code>verify-ue</code>.
+          </p>
         </div>
-        <div class="callout rose">Pergunta: OCUDU <code>release_26_04</code> + srsUE <code>25.10.0</code>, n3 / 368500 / SSB 368410 / CORESET0 12 / srate 23.04e6 — depois do F1 o PHY deveria ver MIB, ou este par ZMQ não transmite IQ?</div>
       </div>
-      <div class="footer"><span class="source">Fontes: helm/ran · ue.conf/du.yml no pod · srsue --version · captura 14/08 12:07Z</span><span>27</span></div>
+      <div class="footer"><span class="source">Fontes: kubectl logs AMF/CU/DU/srsUE · verify-e2 · verify-ue · captura 14/08 12:07Z</span><span>26</span></div>
     </section>
 
-    <section class="slide accent-amber" data-title="Evidência do attach srsUE">
-      <p class="eyebrow">Corrida 14/08 12:05–12:59Z · pod ocudu-du-6994549cbb-lfsc5 · verify-ue Failed 18/18</p>
-      <h2>Célula no ar 55 s antes do UE; PHY emite IDLE uma vez e cala</h2>
+    <section class="slide accent-amber" data-title="Diagnóstico da conexão do UE">
+      <p class="eyebrow">Por que o UE não conectou?</p>
+      <h2>O socket abriu, mas o UE não encontrou a célula</h2>
       <div class="content grid-2" style="align-items: stretch;">
         <article class="card">
-          <span class="kicker">Linha do tempo (UTC)</span>
+          <span class="kicker">Ponto exato da falha</span>
           <ul class="clean">
-            <li><code>12:05:09</code> AMF gNB-N2 accept · CU NG Setup OK</li>
-            <li><code>12:05:59</code> DU ZMQ bind <code>:2000</code> / connect <code>:2001</code></li>
-            <li><code>12:06:05</code> F1 Setup OK · <code>Cell scheduling was activated</code> · F1 anuncia <code>scs15</code>/<code>nrb106</code></li>
-            <li><code>12:06:19</code> container srsue Running · <code>startedAt</code> fixo · <code>restartCount=0</code></li>
-            <li><code>12:06:59</code> wait LISTEN-only + 40 s · <code>Opening 1 channels … zmq</code></li>
-            <li><code>12:07:00</code> <code>PHY-SA SYNC state=IDLE tti=0</code> · <code>Discarding samples and sending tx_end</code> — <strong>únicas 2 linhas PHY-SA em 52 min</strong></li>
-            <li><code>12:07:07</code> <code>Attaching UE…</code> · NAS5G <code>DEREGISTERED / PLMN-SEARCH</code> até o SIGTERM</li>
-            <li><code>12:59:30</code> <code>kill 1</code>: <code>Switching off</code> · detach NAS em estado <code>NULL</code> · <code>Couldn't stop after 5s. Forcing exit.</code> · PID 1 continua <code>srsue</code>, mute, Ready, ~20% CPU</li>
+            <li><strong class="highlight-green">1 · Transporte:</strong> ZMQ/TCP <code>ESTAB</code> nas portas 2000 e 2001</li>
+            <li><strong class="highlight-rose">2 · Sincronismo PHY:</strong> UE permanece em <code>IDLE</code></li>
+            <li><strong>3 · Acesso aleatório:</strong> nenhum PRACH enviado</li>
+            <li><strong>4 · Controle:</strong> nenhum RRC Connected</li>
+            <li><strong>5 · Core:</strong> nenhum Registration Request ou sessão PDU</li>
           </ul>
+          <div class="callout rose" style="margin-top: 5%;">
+            <p style="margin: 0;">ZMQ <code>ESTAB</code> prova que os sockets existem, mas não prova que o UE recebeu amostras IQ válidas e decodificou a célula.</p>
+          </div>
         </article>
         <article class="card">
-          <span class="kicker">Ausências (nenhum destes aparece)</span>
-          <ul class="clean">
-            <li>MIB / SIB / PSS / SSS / PRACH / Found Cell / RRC Connected / PDU Session</li>
-            <li>AMF Registration Request · CU <code>num_f1ap_ues=num_rrc_ues=num_ngap_ues=0</code> o intervalo todo</li>
-            <li>pcaps <code>ue_mac.pcap</code> / <code>ue_nas.pcap</code> = <strong>24 B</strong> (só header DLT 149/148, gravados no kill)</li>
-            <li>RLC/GW <code>0.00 Mbps</code> a 1 Hz até o SIGTERM · dump do gate <code>--tail=200</code> não vê o PHY-SA das 12:07</li>
+          <span class="kicker">Erro observado nos logs</span>
+          <p class="mono"><strong>PHY-SA SYNC state=IDLE tti=0</strong></p>
+          <p class="mono">Discarding samples and sending tx_end</p>
+          <p class="mono">NAS5G: DEREGISTERED / PLMN-SEARCH</p>
+          <ul class="clean" style="margin-top: 4%;">
+            <li>Sem PSS/SSS, MIB, SIB ou <code>Found Cell</code></li>
+            <li>CU permaneceu com <code>num_rrc_ues=0</code></li>
+            <li>AMF não recebeu tentativa de registro do UE</li>
           </ul>
-          <span class="kicker" style="margin-top: 3%;">Descartado (esta corrida e a das 04:11Z)</span>
-          <ul class="clean">
-            <li>Deadlock <code>/dev/tcp:2000</code> — wait foi <code>/proc/net/tcp</code> estado <code>0A</code></li>
-            <li>ZMQ só handshake — <code>ss</code> ESTAB <code>odu:2000↔UE</code> e <code>odu:2001↔UE</code></li>
-            <li>Subscriber / N2 / F1 / E2 — MongoDB=1, AMF viu o gNB, xApp recebe KPM</li>
-            <li><code>kill 1</code> no sidecar <code>stdin/tty</code> — processo não sai; kube não reinicia o container</li>
-          </ul>
+          <div class="callout amber" style="margin-top: 4%;">
+            <p style="margin: 0;"><strong>Causa localizada, mas não encerrada:</strong> incompatibilidade ou configuração no caminho PHY/IQ entre OCUDU <code>release_26_04</code> e srsUE <code>25.10.0</code>. Os dados não provam ainda qual parâmetro ou implementação é a causa raiz.</p>
+          </div>
         </article>
       </div>
-      <div class="footer"><span class="source">Fontes: kubectl logs srsue+odu+cu+amf · collect-ue-diagnostics.sh · .nephio-deploy.log 10:07 −03</span><span>28</span></div>
+      <div class="footer"><span class="source">Fontes: logs srsUE/CU/AMF · sockets ZMQ · collect-ue-diagnostics.sh · duas corridas em 14/08</span><span>27</span></div>
     </section>
 
     <section class="slide accent-rose" data-title="Limites de escopo">
@@ -1689,44 +1620,54 @@
           </ul>
         </div>
       </div>
-      <div class="footer"><span class="source">Fonte: revisão da configuração do repositório</span><span>29</span></div>
+      <div class="footer"><span class="source">Fonte: revisão da configuração do repositório</span><span>28</span></div>
     </section>
 
     <section class="slide accent-purple" data-title="Próximos passos">
       <h2>Próximos passos</h2>
-      <div class="content grid-2">
+      <div class="content grid-3">
         <article class="card compact">
-          <span class="kicker">01 · Ciclo de vida dinâmico do gNB</span>
-          <h3>Descobrir nós em tempo de execução</h3>
-          <p class="muted">Usar o e2mgr como fonte de verdade, alocar IDs de gNB e endereços Multus únicos, e verificar um conjunto conectado esperado em vez de um ID fixo.</p>
+          <span class="kicker">01 · Rede do workload</span>
+          <h3>IPAM e NADs via GitOps</h3>
+          <p class="muted">Eliminar IPs estáticos, fixar versões do CNI e criar o gate <code>verify-net</code>.</p>
         </article>
         <article class="card compact">
-          <span class="kicker">02 · Entrega RMR durável</span>
-          <h3>Estabilizar o roteamento de indicações</h3>
-          <p class="muted">Corrigir a configuração de identidade de RTMgr, SubMgr, A1Mediator e RMR para que as rotas <code>12050</code> sobrevivam sem laços de re-POST ou reinícios do E2Term.</p>
+          <span class="kicker">02 · gNB dinâmico</span>
+          <h3>Remover IDs fixos</h3>
+          <p class="muted">Descobrir nós no e2mgr e alocar identidade e IP únicos por instância.</p>
         </article>
         <article class="card compact">
-          <span class="kicker">03 · Vários xApps simultâneos</span>
-          <h3>Adicionar aprendizado seguro no RTMgr</h3>
-          <p class="muted">Dar a cada xApp um release e FQDN de Service únicos, adicionar descoberta de rotas a quente e preservar indicações dos xApps existentes durante o onboarding.</p>
+          <span class="kicker">03 · RMR</span>
+          <h3>Rotas KPM duráveis</h3>
+          <p class="muted">Corrigir RTMgr/A1 e remover re-POSTs e reinícios manuais.</p>
         </article>
         <article class="card compact">
-          <span class="kicker">04 · Avaliação E2 do CU-CP</span>
-          <h3>Reavaliar o suporte RAN mais recente</h3>
-          <p class="muted">Catalogar métricas KPM do CU-CP, comparar o comportamento de CU-CP e CU-UP, e definir um padrão respaldado por versão para a seleção de nós pelo xApp.</p>
+          <span class="kicker">04 · Múltiplos xApps</span>
+          <h3>Onboarding sem interrupção</h3>
+          <p class="muted">Adicionar releases únicos e aprendizado de rotas a quente.</p>
+        </article>
+        <article class="card compact">
+          <span class="kicker">05 · E2 e plano de usuário</span>
+          <h3>CU-CP e UPF de produção</h3>
+          <p class="muted">Validar KPM no CU-CP e retirar o UPF de <code>hostNetwork</code>.</p>
+        </article>
+        <article class="card compact">
+          <span class="kicker">06 · Infraestrutura</span>
+          <h3>Adicionar Proxmox</h3>
+          <p class="muted">Manter GCP e oferecer private cloud com caminho para SR-IOV.</p>
         </article>
       </div>
       <div class="callout" style="margin-top: 1.5%;">
-        Estado-alvo: implantação a frio, nós dinâmicos, vários xApps e indicações KPM contínuas — sem reparo manual com <code>kubectl</code>.
+        <p style="margin: 0;">Meta: cold deploy reproduzível, rede elástica e KPM contínuo — sem reparos manuais com <code>kubectl</code>.</p>
       </div>
-      <div class="footer"><span class="source">Fonte: docs/NEXT_STEPS.md</span><span>30</span></div>
+      <div class="footer"><span class="source">Fonte: docs/NEXT_STEPS.md</span><span>29</span></div>
     </section>
 
   </main>
 
   <nav class="nav" aria-label="Navegação dos slides">
     <button id="prev" type="button" aria-label="Slide anterior" title="Slide anterior (←)">←</button>
-    <span class="counter" id="counter">1 / 30</span>
+    <span class="counter" id="counter">1 / 29</span>
     <button id="next" type="button" aria-label="Próximo slide" title="Próximo slide (→ ou Espaço)">→</button>
   </nav>
 
