@@ -73,23 +73,21 @@ spec:
             - -c
             - |
               set -euo pipefail
-              WAIT_RETRIES="${WAIT_RETRIES:-36}"
+              WAIT_RETRIES="${WAIT_RETRIES:-18}"
               WAIT_DELAY="${WAIT_DELAY:-5}"
               INDICATION_RETRIES="${INDICATION_RETRIES:-10}"
               INDICATION_DELAY="${INDICATION_DELAY:-10}"
               XAPP_SINCE=""
               XAPP_RMR="service-ricxapp-${XAPP_DEPLOYMENT}-rmr.${XAPP_NS}:4561"
-
-              cleanup() {
-                kubectl delete pod xapp-route-keep -n "${XAPP_NS}" \
-                  --ignore-not-found --wait=false >/dev/null 2>&1 || true
-              }
-              trap cleanup EXIT
-
-              xapp_logs() {
-                kubectl logs -n "${XAPP_NS}" deployment/"${XAPP_DEPLOYMENT}" \
-                  -c xapp --tail=300 2>/dev/null || true
-              }
+              EP="service-ricxapp-${XAPP_DEPLOYMENT}-rmr.${XAPP_NS}"
+              RTMGR="http://ric-rtmgr.${RIC_NS}:3800/ric/v1/handles/xapp-subscription-handle"
+              # 1 Hz KPM is ~7 lines/indication. 20000 lines covers ~45 min, so
+              # AppMgr/subscribe lines are still visible after xapp-simple-mon
+              # and Config Sync. Do not use --tail=300: that window is only
+              # ~40s of indications and hides the one-time register line.
+              XAPP_LOG_TAIL=20000
+              XAPP_LOG_FILE="$(mktemp)"
+              trap 'rm -f "${XAPP_LOG_FILE:-}"' EXIT
 
               newest_pod() {
                 kubectl get pods -n "$1" -l "app=$2" \
@@ -106,6 +104,84 @@ spec:
                   -o jsonpath='{.items[-1:].status.startTime}'
               }
 
+              xapp_logs() {
+                local pod
+                pod="$(newest_pod "${XAPP_NS}" "${XAPP_DEPLOYMENT}")"
+                if [[ -z "${pod}" ]]; then
+                  return 0
+                fi
+                kubectl logs -n "${XAPP_NS}" "pod/${pod}" -c xapp \
+                  --tail="${XAPP_LOG_TAIL}" 2>/dev/null || true
+              }
+
+              refresh_xapp_log() {
+                xapp_logs >"${XAPP_LOG_FILE}"
+              }
+
+              # grep -q on a pipe exits at the first match and SIGPIPEs the
+              # writer. With pipefail that is a failed check even when the
+              # string is present (register is near line 4 of a 10k-line log).
+              log_has() {
+                grep -Fq "$1" "$2"
+              }
+
+              text_has() {
+                grep -Fq "$1" <<<"$2"
+              }
+
+              text_has_re() {
+                grep -Eq "$1" <<<"$2"
+              }
+
+              dump_excerpt_file() {
+                local file="$1" total
+                total="$(wc -l <"${file}")"
+                if (( total <= 80 )); then
+                  cat "${file}"
+                  return 0
+                fi
+                echo "(log excerpt: first 40 and last 40 of ${total} lines)"
+                set +o pipefail
+                head -n 40 "${file}"
+                echo "..."
+                tail -n 40 "${file}"
+                set -o pipefail
+              }
+
+              xapp_has_registration() {
+                log_has "appmgr register" "${XAPP_LOG_FILE}" \
+                  && log_has "HTTP 201" "${XAPP_LOG_FILE}"
+              }
+
+              xapp_has_clean_kpm() {
+                log_has "RIC Indication Received" "${XAPP_LOG_FILE}" \
+                  && log_has "Successfully subscribed" "${XAPP_LOG_FILE}" \
+                  && ! log_has "ApiException" "${XAPP_LOG_FILE}" \
+                  && ! grep -Eq 'HTTP[[:space:]]*503' "${XAPP_LOG_FILE}"
+              }
+
+              parse_subid() {
+                grep -Eo 'mapping: .* -> [0-9]+' "${XAPP_LOG_FILE}" \
+                  | awk '{print $NF}' | tail -1 || true
+              }
+
+              start_route_keep() {
+                echo "Preserving subscription routes for E2EventInstanceId ${SUBID}..."
+                kubectl delete pod xapp-route-keep -n "${XAPP_NS}" \
+                  --ignore-not-found --wait=true --timeout=60s >/dev/null 2>&1 || true
+                kubectl run xapp-route-keep -n "${XAPP_NS}" --restart=Never \
+                  --image=curlimages/curl:8.5.0 --command -- \
+                  sh -c "while true; do
+                    curl -sf -X POST '${RTMGR}' \
+                      -H 'Content-Type: application/json' \
+                      -d '{\"address\":\"${EP}\",\"port\":4561,\"subscription_id\":${SUBID}}' \
+                      >/dev/null || true
+                    sleep 1
+                  done"
+                kubectl wait --for=condition=Ready pod/xapp-route-keep \
+                  -n "${XAPP_NS}" --timeout=60s
+              }
+
               rtmgr_logs() {
                 local since="${1:-}"
                 if [[ -n "${since}" ]]; then
@@ -120,12 +196,12 @@ spec:
               wait_for_xapp_log() {
                 local description="$1"
                 shift
-                local logs="" pattern i matched
+                local pattern i matched
                 for i in $(seq 1 "${WAIT_RETRIES}"); do
-                  logs="$(xapp_logs)"
+                  refresh_xapp_log
                   matched=true
                   for pattern in "$@"; do
-                    if ! printf '%s\n' "${logs}" | grep -Fq "${pattern}"; then
+                    if ! log_has "${pattern}" "${XAPP_LOG_FILE}"; then
                       matched=false
                     fi
                   done
@@ -137,7 +213,7 @@ spec:
                   sleep "${WAIT_DELAY}"
                 done
                 echo "ERROR: xApp ${description} not confirmed" >&2
-                printf '%s\n' "${logs}" >&2
+                dump_excerpt_file "${XAPP_LOG_FILE}" >&2
                 return 1
               }
 
@@ -148,7 +224,7 @@ spec:
                   logs="$(rtmgr_logs)"
                   # Success is the case-sensitive name lookup. rtmgr only
                   # dumps "Endpoints: map[" when that lookup fails.
-                  if printf '%s\n' "${logs}" | grep -Fq 'name: A1MEDIATOR'; then
+                  if text_has 'name: A1MEDIATOR' "${logs}"; then
                     echo "A1MEDIATOR attached on ${RTMGR_POD}"
                     return 0
                   fi
@@ -189,8 +265,9 @@ spec:
                 echo "Waiting for RTMgr to push platform routes to the xApp..."
                 for i in $(seq 1 "${WAIT_RETRIES}"); do
                   RTMGR_LOGS="$(rtmgr_logs)"
-                  if printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
-                    "Update Routes to Endpoint: ${XAPP_RMR} successful"; then
+                  if text_has \
+                    "Update Routes to Endpoint: ${XAPP_RMR} successful" \
+                    "${RTMGR_LOGS}"; then
                     echo "platform routes confirmed on ${RTMGR_POD}"
                     return 0
                   fi
@@ -207,14 +284,18 @@ spec:
                 echo "Waiting for RTMgr subscription indication routes since ${since:-pod start}..."
                 for i in $(seq 1 "${WAIT_RETRIES}"); do
                   RTMGR_LOGS="$(rtmgr_logs "${since}")"
-                  if printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
+                  if text_has \
                        "RoutingManager->SubManager Add Request Success" \
-                     && printf '%s\n' "${RTMGR_LOGS}" | grep -Fq \
+                       "${RTMGR_LOGS}" \
+                     && text_has \
                        "Update Routes to Endpoint: ${XAPP_RMR} successful" \
-                     && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
+                       "${RTMGR_LOGS}" \
+                     && text_has_re \
                        "Update Routes to Endpoint: ${XAPP_RMR} successful.*OK\\(# of Entries:9([^0-9]|$)" \
-                     && printf '%s\n' "${RTMGR_LOGS}" | grep -Eq \
-                       "Update Routes to Endpoint: ric-e2term:38000 successful.*OK\\(# of Entries:9([^0-9]|$)"; then
+                       "${RTMGR_LOGS}" \
+                     && text_has_re \
+                       "Update Routes to Endpoint: ric-e2term:38000 successful.*OK\\(# of Entries:9([^0-9]|$)" \
+                       "${RTMGR_LOGS}"; then
                     echo "12050 routes confirmed on ${RTMGR_POD}"
                     return 0
                   fi
@@ -247,9 +328,8 @@ spec:
                 echo "Waiting for non-zero E2EventInstanceId..."
                 SUBID=""
                 for i in $(seq 1 30); do
-                  XAPP_LOGS="$(xapp_logs)"
-                  SUBID="$(printf '%s\n' "${XAPP_LOGS}" |
-                    grep -Eo 'mapping: .* -> [0-9]+' | awk '{print $NF}' | tail -1 || true)"
+                  refresh_xapp_log
+                  SUBID="$(parse_subid)"
                   if [[ -n "${SUBID}" && "${SUBID}" != "0" ]]; then
                     echo "E2EventInstanceId ${SUBID}"
                     return 0
@@ -260,8 +340,34 @@ spec:
                 return 1
               }
 
-              echo "Waiting for initial AppMgr registration..."
-              wait_for_xapp_log "AppMgr registration" "appmgr register" "HTTP 201"
+              echo "Waiting for a clean KPM subscription or AppMgr registration..."
+              registered=false
+              for i in $(seq 1 "${WAIT_RETRIES}"); do
+                refresh_xapp_log
+                SUBID="$(parse_subid)"
+                # Prefer an already-working xApp. Bouncing RTMgr here would
+                # drop a live subscription and is the common one-go path
+                # after xapp-simple-mon has already started indications.
+                if xapp_has_clean_kpm \
+                   && [[ -n "${SUBID}" && "${SUBID}" != "0" ]]; then
+                  echo "xApp already has clean KPM (E2EventInstanceId ${SUBID}); skipping RTMgr bounce"
+                  start_route_keep
+                  echo "xApp OK — clean subscription and KPM indication received"
+                  exit 0
+                fi
+                if xapp_has_registration; then
+                  echo "xApp AppMgr registration confirmed"
+                  registered=true
+                  break
+                fi
+                echo "attempt ${i}/${WAIT_RETRIES}: waiting for AppMgr registration or KPM"
+                sleep "${WAIT_DELAY}"
+              done
+              if ! ${registered}; then
+                echo "ERROR: xApp AppMgr registration not confirmed" >&2
+                dump_excerpt_file "${XAPP_LOG_FILE}" >&2
+                exit 1
+              fi
 
               ensure_a1_headless
               echo "Waiting for A1Mediator to be ready before RTMgr restart..."
@@ -294,7 +400,7 @@ spec:
                 wait_for_12050_routes "${XAPP_SINCE}"
                 if ! wait_for_nonzero_subid; then
                   echo "ERROR: non-zero E2EventInstanceId not found" >&2
-                  printf '%s\n' "${XAPP_LOGS}" >&2
+                  dump_excerpt_file "${XAPP_LOG_FILE}" >&2
                   kubectl logs -n "${RIC_NS}" "pod/${RTMGR_POD}" -c rtmgr \
                     --since-time="${XAPP_SINCE}" --tail=80 >&2 || true
                   kubectl logs -n "${RIC_NS}" deployment/ric-submgr -c submgr \
@@ -303,27 +409,12 @@ spec:
                 fi
               fi
 
-              EP="service-ricxapp-${XAPP_DEPLOYMENT}-rmr.${XAPP_NS}"
-              RTMGR="http://ric-rtmgr.${RIC_NS}:3800/ric/v1/handles/xapp-subscription-handle"
-              cleanup
-              kubectl run xapp-route-keep -n "${XAPP_NS}" --restart=Never \
-                --image=curlimages/curl:8.5.0 --command -- \
-                sh -c "while true; do
-                  curl -sf -X POST '${RTMGR}' \
-                    -H 'Content-Type: application/json' \
-                    -d '{\"address\":\"${EP}\",\"port\":4561,\"subscription_id\":${SUBID}}' \
-                    >/dev/null || true
-                  sleep 1
-                done"
-              kubectl wait --for=condition=Ready pod/xapp-route-keep \
-                -n "${XAPP_NS}" --timeout=60s
+              start_route_keep
 
               echo "Waiting for an E2SM-KPM indication..."
               for i in $(seq 1 "${INDICATION_RETRIES}"); do
-                XAPP_LOGS="$(xapp_logs)"
-                if printf '%s\n' "${XAPP_LOGS}" | grep -Fq "RIC Indication Received" \
-                   && ! printf '%s\n' "${XAPP_LOGS}" | grep -Fq "ApiException" \
-                   && ! printf '%s\n' "${XAPP_LOGS}" | grep -Fq "503"; then
+                refresh_xapp_log
+                if xapp_has_clean_kpm; then
                   echo "xApp OK — clean subscription and KPM indication received"
                   exit 0
                 fi
@@ -332,7 +423,7 @@ spec:
               done
 
               echo "ERROR: xApp did not receive a clean KPM indication" >&2
-              printf '%s\n' "${XAPP_LOGS}" >&2
+              dump_excerpt_file "${XAPP_LOG_FILE}" >&2
               kubectl logs -n "${RIC_NS}" deployment/ric-rtmgr -c rtmgr \
-                --since=10m 2>/dev/null >&2 || true
+                --since=10m 2>/dev/null | tail -80 >&2 || true
               exit 1
