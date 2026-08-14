@@ -27,7 +27,7 @@ That works for the single-gNB lab. It does **not** work if gNBs are spawned and 
 ### Also required beyond the ID string
 
 - Unique `gnb_id` per live gNB (never reuse default `411` for two concurrent nodes).
-- Unique Multus/OVS IP and NAD allocation (today CU/DU E2 IPs are fixed).
+- Unique Multus/OVS IP and NAD allocation (today CU/DU E2 IPs are fixed). Blocked on cluster-wide IPAM — see **Professionalize the workload network**.
 - RIC lifecycle: E2 Setup creates RNIB entries; teardown must leave clean disconnect state so xApps do not target ghosts.
 - Verification: replace “wait for this one ID” with “expected set CONNECTED” or “at least N nodes”.
 
@@ -242,3 +242,183 @@ metrics and simplify node-id expectations.
 Either (a) a short note here / in LEARNINGS that CU-CP KPM remains empty on the
 pinned version (no chart change), or (b) Helm + xApp values updated to a proven
 CU-CP metric set with cold-deploy indications working against the CU-CP node id.
+
+---
+
+## UPF: sair de `hostNetwork` para attachment de produção
+
+### Context
+
+O UPF Open5GS hoje usa `hostNetwork: true` e `privileged` para criar `ogstun`
+no namespace de rede do nó, deixar o iptables do worker ver a TUN e receber
+GTP-U (UDP 2152) no IP do host. Isso faz o plano de usuário funcionar no lab
+(`10.45.0.0/16` → DNN `internet`). Não é o desenho de produção.
+
+O próprio chart (`helm/5g-core/templates/deployment-upf.yaml`) chama isso de
+aproximação de laboratório.
+
+### What production looks like
+
+- Interfaces 3GPP próprias (N3 GTP-U, N4 PFCP, N6 DNN), não o IP primário do worker.
+- Multus + SR-IOV / DPDK / VF — não `hostNetwork`.
+- Encaminhamento GTP no kernel (`gtp5g`), eBPF ou user-space DPDK — não TUN + iptables do nó.
+- Pod sem `privileged` / `NET_ADMIN` no host.
+
+### Next step
+
+This is step 4 of **Professionalize the workload network**. Do not start here
+before cluster-wide IPAM and NF config-from-allocated-IP work for N2/F1/E2.
+
+1. Documentar o gap lab vs produção (este item).
+2. Avaliar UPF com NAD dedicado (N3/N6) em vez de `hostNetwork` — OVS bridges
+   `n3br` / `n6br` on current GCP/`e2-*` hardware; SR-IOV only when the
+   provider has VFs (private cloud / Proxmox).
+3. Só então retirar `privileged` + `hostNetwork` do chart.
+
+### Acceptance
+
+GTP-U do CU chega ao UPF por interface N3 anexada (não IP do nó); `ogstun` /
+forwarding não dependem do netns do worker; Pod UPF deixa de ser `hostNetwork`.
+
+---
+
+## Professionalize the workload network
+
+### Context
+
+The lab keeps SCTP (N2, F1-C, E2AP) off Flannel and kube-proxy via Multus + OVS
+bridges (`n2br`, `f1cbr`, `e2br`) and **static** secondary IPs in Helm values
+and Multus `ips:` annotations (`secondaryNetworks.*.*IP` in `vars.yml` /
+chart values). That split is correct for long-lived SCTP. It is not an elastic
+address plan: replica count is effectively 1, peer IPs are copied into CU/DU/AMF
+config by hand, and a second gNB cannot join without editing the same numbers.
+
+NADs created by `kubeadm_control_plane` already declare `host-local` IPAM on
+each `10.200.x.0/24`, but pods override it with pinned addresses. `host-local`
+is per-node: two pods on `cp1` and `w1` can receive the same IP on the VXLAN
+L2. The static pins exist to avoid that collision.
+
+Related gaps:
+
+- NAD and OVS bridge lifecycle live in Ansible (`provision.yml` /
+  `ovs_vxlan`), not in Nephio packages. Ansible is supposed to own hosts;
+  GitOps is supposed to own network functions.
+- Multus (manifest `master`) and the Ubuntu Open vSwitch package are unpinned
+  (see `docs/NETWORK_PRESENTATION.html` software inventory).
+- UPF uses `hostNetwork` (section above).
+- Dynamic gNB (first section) cannot allocate unique Multus IPs.
+- No verify Job checks that secondary interfaces or SCTP associations exist.
+- Deploy providers are **GCP VM create** or **pre-existing BYO hosts**. There
+  is no first-class private-cloud path. BYO (`hosts.ini`, `HOME_LAB_DHCP.md`)
+  assumes machines already exist; it does not provision them.
+
+### Invariant
+
+Do not put N2 / F1-C / E2AP back on ClusterIP or kube-proxy. Elasticity is a
+new NF instance with a unique 3GPP identity and a unique secondary IP, not
+`replicas: N` on one address. HTTP/2 (SBI), RMR, and UDP (F1-U, N4) may stay
+on the primary CNI.
+
+### Sequence (do in order)
+
+1. **Cluster-wide IPAM** — Whereabouts on the existing OVS NADs, or the Nephio
+   resource-backend IPAM already pulled by `bootstrap-nephio.yml` and not used
+   for these pools. Reserve a small well-known range for AMF N2 and e2term E2;
+   allocate the rest of each `/24` to RAN. Drop `"ips": [...]` from pod
+   annotations. Do not use `host-local` across VXLAN.
+
+2. **NF config from the allocated IP** — today the same address is duplicated
+   in the Multus annotation, container env, and OCUDU/Open5GS YAML. After IPAM,
+   an init/entrypoint must read `k8s.v1.cni.cncf.io/network-status` and
+   `envsubst` bind/peer addresses before the NF starts. GitOps alternative:
+   Nephio IPAM fills kpt setters before Config Sync applies. Without this step,
+   removing static `ips:` breaks N2/F1/E2 (CU still dials `10.200.1.2`).
+
+3. **NADs in GitOps + pin CNI** — move NetworkAttachmentDefinition manifests
+   into `packages/blueprints` (or a `workload-cni` package). Ansible keeps
+   kernel modules, host OVS, and VXLAN tunnels. Pin Multus and Open vSwitch
+   versions. A PackageVariant that clones a gNB must be able to request
+   another NAD/pool without re-running `provision.yml`.
+
+4. **UPF off `hostNetwork`** — add `n3br` / `n6br` OVS bridges (same pattern
+   as SCTP). Attach N3 (GTP-U) and N6 (DNN); keep TUN inside the pod netns;
+   leave N4 (PFCP/UDP) on ClusterIP. Drop `hostNetwork` so a second UPF does
+   not collide on host UDP/2152. SR-IOV / `gtp5g` / DPDK only when the
+   hypervisor exposes VFs — not on GCP `e2-*`. Details and acceptance: **UPF**
+   section above.
+
+5. **`verify-net` Job** — fail the deploy if a required NAD IP is missing, if
+   `ovs-vsctl` has no VXLAN per bridge, if `/proc/net/sctp/assocs` lacks N2 /
+   F1 / E2 `ESTABLISHED`, or if AMF and CU are not on the same `n2br` L2.
+   `verify-e2` / `verify-ue` do not cover this.
+
+6. **Dynamic gNB** — only after (1) and (2). PackageVariant per gNB (`gnb_id`
+   + IPs from the pool). xApp/e2mgr list `CONNECTED` nodes. Do not grow a
+   static list in `vars.yml`. Details: first section.
+
+7. **NetworkPolicy on Flannel only** — restrict SBI, RMR, and metrics on the
+   primary CNI. Kubernetes NetworkPolicy does not see Multus/OVS interfaces;
+   N2/F1/E2 isolation stays “one bridge per 3GPP reference point”. Document
+   that split; do not pretend one policy model covers both planes.
+
+### Defer until hardware or a later milestone
+
+| Item | Why not now |
+|------|-------------|
+| SR-IOV / DPDK / VF | GCP `e2-*` and typical home NICs have no VFs |
+| BGP instead of OVS VXLAN | Replaces the underlay; VXLAN already isolates SCTP |
+| AMF Set + SCTP load balancer | Needs an SCTP-aware LB; GCP forwarding rules do not |
+| e2term pool | Needs IPAM plus e2mgr dispatching nodes |
+| HPA on AMF / CU / DU | Still wrong for SCTP identity |
+
+### Private cloud (Proxmox as the first target)
+
+GCP (`gcp-vm-create.yml` / `GCP_RUNBOOK.md`) provisions VMs. BYO only consumes
+already-installed Ubuntu hosts. A professional network plan needs a **third
+provider**: private cloud, with Proxmox as the first implementation.
+
+Treat it as a peer of GCP, not as another `hosts.ini`:
+
+1. **Provision VMs** — Ansible (e.g. `community.general.proxmox` /
+   `community.proxmox`) or Terraform creates `cp1`, `w1`, and `mgmt` with
+   cloud-init, SSH keys, and sizes analogous to `e2-standard-2` /
+   `e2-standard-4`. Generate inventory the same way GCP does. Do not require
+   operators to pre-create guests by hand.
+
+2. **Underlay networking** — map Proxmox bridges/VLANs (and later SDN) to
+   kubeadm node IPs so OVS VXLAN outer addresses stay stable. Private-cloud
+   DHCP/dnsmasq must reserve those IPs (same failure mode as
+   `HOME_LAB_DHCP.md`, but owned by the hypervisor). Optional second bridge
+   for cluster underlay vs management.
+
+3. **Runbook** — `docs/PROXMOX_RUNBOOK.md` (or a provider-neutral private-cloud
+   runbook) covering create → provision → GitOps → teardown, parallel to
+   `GCP_RUNBOOK.md`. Keep `provision.yml` / Nephio playbooks provider-agnostic;
+   isolate Proxmox to a create/teardown role plus inventory.
+
+4. **Hardware that GCP `e2-*` cannot offer** — Proxmox is the path to PCI
+   passthrough / SR-IOV for UPF N3/N6 and, if needed, RAN user plane. Gate
+   that on the IPAM + NAD work above; do not special-case SR-IOV only on
+   Proxmox while GCP remains `hostNetwork`.
+
+5. **Keep GCP working** — private cloud is an additional target. Provider
+   differences (storage, extra disks, security groups vs Proxmox firewall,
+   nested virt) belong in the create role and the runbook, not in Helm
+   charts.
+
+Other private-cloud APIs (oVirt, Harvester, OpenStack) should reuse the same
+inventory contract once Proxmox lands.
+
+### Acceptance
+
+- Secondary IPs come from cluster-wide IPAM; Helm values no longer pin
+  `secondaryNetworks.*.*IP` for RAN.
+- AMF, CU, DU, and e2term bind and dial the addresses actually attached by
+  Multus.
+- NAD manifests are versioned in GitOps; Multus and OVS versions are pinned.
+- UPF GTP-U uses an attached N3 interface, not the worker node IP.
+- `verify-net` gates cold deploy.
+- Cold deploy succeeds on **GCP and Proxmox** from a documented runbook
+  without hand-built VMs or hand-edited secondary IPs.
+- A second gNB PackageVariant can take unique Multus IPs without editing
+  `vars.yml`.
