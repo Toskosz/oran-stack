@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kpm-mon-tmt
+  labels:
+    app: kpm-mon-tmt
+    release: kpm-mon-tmt
+    app.kubernetes.io/name: kpm-mon-tmt
+    app.kubernetes.io/managed-by: Nephio
+    nephio.org/site: nmi
+  annotations:
+    nephio.org/package-revision: blueprint-v1
+    nephio.org/demo-state: student-lab-ready
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kpm-mon-tmt
+      release: kpm-mon-tmt
+  template:
+    metadata:
+      labels:
+        app: kpm-mon-tmt
+        release: kpm-mon-tmt
+        app.kubernetes.io/name: kpm-mon-tmt
+        app.kubernetes.io/managed-by: Nephio
+        nephio.org/site: nmi
+      annotations:
+        checksum/runtime-override: 4ff2ae9d3b75edaeffdea94998d42d25622d43f684edc9d10a0467897c26c699
+        nephio.org/package-revision: blueprint-v1
+        nephio.org/demo-state: student-lab-ready
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: oran-k8s-w02
+      hostname: kpm-mon-tmt
+      initContainers:
+        - name: wait-for-gnb
+          image: curlimages/curl@sha256:08e466006f0860e54fc299378de998935333e0e130a15f6f98482e9f8dab3058
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: E2_NODE_ID
+              value: gnbd_001_001_00019b_e2
+            - name: E2MGR_URI
+              value: http://ric-e2mgr.near-rt-ric:3800/v1/nodeb/states
+          command:
+            - sh
+            - -c
+            - |
+              GNB="${E2_NODE_ID}"
+              echo "Waiting for connected gNB ${GNB} in e2mgr..."
+              until curl -sf "${E2MGR_URI}" | \
+                sed 's/},{"inventoryName"/}\n{"inventoryName"/g' | \
+                grep -F "\"inventoryName\":\"${GNB}\"" | \
+                grep -Fq '"connectionStatus":"CONNECTED"'; do
+                echo "gNB is absent or disconnected, retrying in 10s..."
+                sleep 10
+              done
+              echo "gNB ${GNB} connected — starting xApp"
+      containers:
+        - name: xapp
+          image: docker.io/x0tok/oran-xapps@sha256:752c9edc56b8644c78a1fc81d1106d0c34e02a55b48b58f880eaaf3240519a71
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - |
+              exec ./kpm_mon_tmt_xapp.py \
+                --metrics="${KPM_METRIC}" \
+                --kpm_report_style=1 \
+                --rmr_port=4561 \
+                --http_server_port=8091 \
+                --e2_node_id="${E2_NODE_ID}" \
+                --ran_func_id=2 \
+                --report_period="${KPM_REPORT_PERIOD}" \
+                --granul_period="${KPM_REPORT_PERIOD}"
+          ports:
+            - name: rmr
+              containerPort: 4561
+              protocol: TCP
+            - name: http
+              containerPort: 8091
+              protocol: TCP
+          env:
+            - name: E2_NODE_ID
+              value: gnbd_001_001_00019b_e2
+            - name: KPM_METRIC
+              value: DRB.PacketSuccessRateUlgNBUu
+            - name: KPM_REPORT_PERIOD
+              value: "1000"
+            - name: RMR_RTG_SVC
+              value: ""
+            - name: RMR_FLAGS
+              value: "1"
+            - name: XAPP_NAME
+              value: kpm-mon-tmt
+            - name: XAPP_NAMESPACE
+              value: ricxapp
+            - name: XAPP_IP
+              value: service-ricxapp-kpm-mon-tmt-rmr.ricxapp
+            - name: XAPP_RMR_ENDPOINT
+              value: service-ricxapp-kpm-mon-tmt-rmr.ricxapp:4561
+            - name: XAPP_HTTP_ENDPOINT
+              value: service-ricxapp-kpm-mon-tmt-http.ricxapp:8091
+            - name: XAPP_ADVERTISED_RMR_PORT
+              value: "4561"
+            - name: XAPP_ADVERTISED_HTTP_PORT
+              value: "8091"
+            - name: SUB_MGR_URI
+              value: http://ric-submgr.near-rt-ric:8088/ric/v1
+            - name: APP_MGR_REGISTER_URI
+              value: http://ric-appmgr.near-rt-ric:8080/ric/v1/register
+            - name: PYTHONFAULTHANDLER
+              value: "1"
+            - name: NEPHIO_PACKAGE_REVISION
+              value: blueprint-v1
+            - name: NEPHIO_DEMO_STATE
+              value: student-lab-ready
+          volumeMounts:
+            - name: runtime-override
+              mountPath: /opt/xApps/lib/xAppBase.py
+              subPath: xAppBase.py
+              readOnly: true
+      volumes:
+        - name: runtime-override
+          configMap:
+            name: kpm-mon-tmt-runtime

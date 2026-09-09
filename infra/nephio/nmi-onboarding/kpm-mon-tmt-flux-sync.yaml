@@ -1,0 +1,21 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kpm-mon-tmt
+  namespace: flux-system
+spec:
+  interval: 1m
+  timeout: 5m
+  retryInterval: 20s
+  wait: true
+  prune: true
+  path: ./kpm-mon-tmt-nmi
+  sourceRef:
+    kind: GitRepository
+    name: nmi
+  serviceAccountName: kpm-mon-tmt-deployer
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: kpm-mon-tmt
+      namespace: ricxapp

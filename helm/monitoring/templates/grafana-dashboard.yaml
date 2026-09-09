@@ -242,7 +242,7 @@ data:
           "type": "timeseries",
           "title": "UE Downlink Throughput — E2SM-KPM",
           "description": "DRB.UEThpDl decoded by the monitoring xApps. Generate traffic through tun_srsue to make this series rise.",
-          "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
           "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
           "fieldConfig": {
             "defaults": {
@@ -256,6 +256,35 @@ data:
               "expr": "oran_kpm_drb_ue_throughput_dl_kbps",
               "legendFormat": "{{ "{{" }}service{{ "}}" }} / {{ "{{" }}e2_node{{ "}}" }} / {{ "{{" }}scope{{ "}}" }}",
               "refId": "A"
+            }
+          ],
+          "datasource": { "type": "prometheus", "uid": "prometheus" }
+        },
+
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "UL Packet Success Rate — E2SM-KPM",
+          "description": "DRB.PacketSuccessRateUlgNBUu is dimensionless (OCUDU/3GPP unit \"-\"): integer UL PDCP SDU success rate at the Uu interface, not kbps.",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "min": 0,
+              "custom": { "lineWidth": 3, "fillOpacity": 12, "spanNulls": false }
+            }
+          },
+          "targets": [
+            {
+              "expr": "oran_kpm_drb_packet_success_rate_ul",
+              "legendFormat": "{{ "{{" }}service{{ "}}" }} / {{ "{{" }}e2_node{{ "}}" }} / {{ "{{" }}scope{{ "}}" }}",
+              "refId": "A"
+            },
+            {
+              "expr": "oran_kpm_mon_tmt_success_rate_average",
+              "legendFormat": "kpm-mon-tmt moving average",
+              "refId": "B"
             }
           ],
           "datasource": { "type": "prometheus", "uid": "prometheus" }

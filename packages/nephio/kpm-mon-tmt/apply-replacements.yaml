@@ -1,0 +1,173 @@
+apiVersion: fn.kpt.dev/v1alpha1
+kind: ApplyReplacements
+metadata:
+  name: specialize-kpm-mon-tmt
+  annotations:
+    config.kubernetes.io/local-config: "true"
+replacements:
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/site]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - metadata.labels.[nephio.org/site]
+          - spec.template.metadata.labels.[nephio.org/site]
+      - select:
+          kind: Service
+        fieldPaths:
+          - metadata.labels.[nephio.org/site]
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-node]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.nodeSelector.[kubernetes.io/hostname]
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-image]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].image
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/e2-node-id]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.initContainers.[name=wait-for-gnb].env.[name=E2_NODE_ID].value
+          - spec.template.spec.containers.[name=xapp].env.[name=E2_NODE_ID].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/kpm-metric]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=KPM_METRIC].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/kpm-report-period]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=KPM_REPORT_PERIOD].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/rmr-flags]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=RMR_FLAGS].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/e2mgr-uri]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.initContainers.[name=wait-for-gnb].env.[name=E2MGR_URI].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-name]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_NAME].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-ip]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_IP].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-rmr-endpoint]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_RMR_ENDPOINT].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-http-endpoint]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_HTTP_ENDPOINT].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-advertised-rmr-port]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_ADVERTISED_RMR_PORT].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/xapp-advertised-http-port]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=XAPP_ADVERTISED_HTTP_PORT].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/submgr-uri]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=SUB_MGR_URI].value
+  - source:
+      kind: WorkloadCluster
+      name: workload-cluster
+      fieldPath: metadata.annotations.[oran.unb.br/appmgr-register-uri]
+    targets:
+      - select:
+          kind: Deployment
+          name: kpm-mon-tmt
+        fieldPaths:
+          - spec.template.spec.containers.[name=xapp].env.[name=APP_MGR_REGISTER_URI].value

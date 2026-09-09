@@ -1,0 +1,43 @@
+apiVersion: config.porch.kpt.dev/v1alpha1
+kind: PackageVariant
+metadata:
+  name: kpm-mon-tmt-nmi
+  namespace: default
+spec:
+  upstream:
+    repo: team-blueprints
+    package: kpm-mon-tmt
+    workspaceName: v1
+  downstream:
+    repo: nmi
+    package: kpm-mon-tmt-nmi
+  annotations:
+    approval.nephio.org/policy: initial
+  injectors:
+    - name: nmi
+  pipeline:
+    mutators:
+      - name: specialize-nmi-workload
+        image: ghcr.io/kptdev/krm-functions-catalog/set-annotations:v0.1.4
+        selectors:
+          - apiVersion: infra.nephio.org/v1alpha1
+            kind: WorkloadCluster
+            name: workload-cluster
+        configMap:
+          oran.unb.br/site: nmi
+          oran.unb.br/architecture: amd64
+          oran.unb.br/xapp-node: oran-k8s-w02
+          oran.unb.br/xapp-image: REPLACE_WITH_MULTIARCH_IMAGE_DIGEST
+          oran.unb.br/e2-node-id: gnbd_001_001_00019b_e2
+          oran.unb.br/kpm-metric: DRB.PacketSuccessRateUlgNBUu
+          oran.unb.br/kpm-report-period: "2000"
+          oran.unb.br/rmr-flags: "1"
+          oran.unb.br/e2mgr-uri: http://ric-e2mgr.near-rt-ric:3800/v1/nodeb/states
+          oran.unb.br/xapp-name: kpm-mon-tmt
+          oran.unb.br/xapp-ip: service-ricxapp-kpm-mon-tmt-rmr.ricxapp
+          oran.unb.br/xapp-rmr-endpoint: service-ricxapp-kpm-mon-tmt-rmr.ricxapp:4561
+          oran.unb.br/xapp-http-endpoint: service-ricxapp-kpm-mon-tmt-http.ricxapp:8091
+          oran.unb.br/xapp-advertised-rmr-port: "4561"
+          oran.unb.br/xapp-advertised-http-port: "8091"
+          oran.unb.br/submgr-uri: http://ric-submgr.near-rt-ric:8088/ric/v1
+          oran.unb.br/appmgr-register-uri: http://ric-appmgr.near-rt-ric:8080/ric/v1/register

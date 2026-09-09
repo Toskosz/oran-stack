@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricxapp-kpm-mon-tmt-rmr
+  labels:
+    app: kpm-mon-tmt
+    app.kubernetes.io/name: kpm-mon-tmt
+    app.kubernetes.io/managed-by: Nephio
+    nephio.org/site: nmi
+spec:
+  publishNotReadyAddresses: true
+  selector:
+    app: kpm-mon-tmt
+    release: kpm-mon-tmt
+  ports:
+    - name: rmr
+      port: 4561
+      targetPort: 4561
+      protocol: TCP
+    - name: http
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-ricxapp-kpm-mon-tmt-http
+  labels:
+    app: kpm-mon-tmt
+    monitoring: "true"
+    app.kubernetes.io/name: kpm-mon-tmt
+    app.kubernetes.io/managed-by: Nephio
+    nephio.org/site: nmi
+spec:
+  selector:
+    app: kpm-mon-tmt
+    release: kpm-mon-tmt
+  ports:
+    - name: http
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
