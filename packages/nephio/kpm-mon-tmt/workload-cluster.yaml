@@ -8,7 +8,7 @@ metadata:
     oran.unb.br/site: nmi
     oran.unb.br/architecture: amd64
     oran.unb.br/xapp-node: oran-k8s-w02
-    oran.unb.br/xapp-image: REPLACE_WITH_MULTIARCH_IMAGE_DIGEST
+    oran.unb.br/xapp-image: ghcr.io/lucasrodri/oran-stack/oran-xapps@sha256:54bdcbac96283da11a6562fa8c9c6e98453589b57ea2366f29b998bb6dbf2cd8
     oran.unb.br/e2-node-id: gnbd_001_001_00019b_e2
     oran.unb.br/kpm-metric: DRB.PacketSuccessRateUlgNBUu
     oran.unb.br/kpm-report-period: "2000"
